@@ -16,8 +16,7 @@ const sorted = (values) => [...values].sort();
 // Text keys read as text[labelKey], where labelKey comes from a table in the
 // named file. Each key must appear there as a string literal.
 const DYNAMIC_TEXT_KEYS = {
-  "App.jsx": ["units", "coordinates"],
-  "tools/coordinates/CoordinateTool.jsx": ["positionFormats", "crs", "distance"],
+  "App.jsx": ["units", "positionFormats", "crs", "distance"],
 };
 
 test("lang.json has exactly the languages of config.json and the four groups", () => {

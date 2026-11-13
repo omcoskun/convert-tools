@@ -15,8 +15,6 @@ export {
   MenuItem,
   Paper,
   Stack,
-  Tab,
-  Tabs,
   TextField,
   ThemeProvider,
   ToggleButton,

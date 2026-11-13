@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { convertLength, getCategory } from "@convert-tools/core";
 import CopyButton from "../../components/CopyButton.jsx";
 import ErrorMessage from "../../components/ErrorMessage.jsx";
+import ToolPage from "../../components/ToolPage.jsx";
 import { fill, useConfig, useLanguage } from "../../context.js";
 import { attempt } from "../../lib/attempt.js";
 import { MONO_FONT } from "../../theme.js";
@@ -69,15 +70,8 @@ export default function LengthConverter() {
   }
 
   return (
-    <>
-      <Paper component="section" aria-labelledby="length-title" sx={{ p: { xs: 2, sm: 3 } }}>
-        <Typography id="length-title" variant="h5" component="h1">
-          {text.unitTitle}
-        </Typography>
-        <Typography color="text.secondary" sx={{ mb: 3 }}>
-          {text.unitSubtitle}
-        </Typography>
-
+    <ToolPage title={text.unitTitle} subtitle={text.unitSubtitle} footer={text.unitFooter}>
+      <Paper sx={{ p: { xs: 2, sm: 3 } }}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "flex-start" }}>
           <Stack spacing={2} sx={{ flex: 1 }}>
             <TextField
@@ -154,7 +148,7 @@ export default function LengthConverter() {
       </Paper>
 
       <Paper component="section" aria-labelledby="length-examples" sx={{ p: { xs: 2, sm: 3 }, mt: 2 }}>
-        <Typography id="length-examples" variant="h6" component="h2">
+        <Typography id="length-examples" variant="h2">
           {text.examples}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -178,10 +172,6 @@ export default function LengthConverter() {
           ))}
         </Stack>
       </Paper>
-
-      <Typography component="footer" variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        {text.unitFooter}
-      </Typography>
-    </>
+    </ToolPage>
   );
 }

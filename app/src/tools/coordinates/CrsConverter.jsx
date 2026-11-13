@@ -4,9 +4,10 @@ import ErrorMessage from "../../components/ErrorMessage.jsx";
 import ExampleButtons from "../../components/ExampleButtons.jsx";
 import Field from "../../components/Field.jsx";
 import ResultCard from "../../components/ResultCard.jsx";
+import ToolPage from "../../components/ToolPage.jsx";
 import { useConfig, useLanguage } from "../../context.js";
 import { attempt } from "../../lib/attempt.js";
-import { Box, Button, Stack, Typography } from "../../ui/index.js";
+import { Box, Button, Paper, Stack, Typography } from "../../ui/index.js";
 
 function transform(request) {
   return attempt(() => transformCrs(request.source, request.target, request.x, request.y));
@@ -41,8 +42,10 @@ export default function CrsConverter() {
   }
 
   return (
-    <Box
+    <ToolPage title={text.crsTitle} subtitle={text.crsSubtitle} footer={text.coordinateFooter}>
+    <Paper
       component="form"
+      sx={{ p: { xs: 2, sm: 3 } }}
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
@@ -116,6 +119,7 @@ export default function CrsConverter() {
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
         {text.axisNote} {text.availableEpsg}
       </Typography>
-    </Box>
+    </Paper>
+    </ToolPage>
   );
 }

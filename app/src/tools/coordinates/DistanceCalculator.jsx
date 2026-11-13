@@ -1,22 +1,48 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
+import CopyButton from "../../components/CopyButton.jsx";
 import ErrorMessage from "../../components/ErrorMessage.jsx";
 import ExampleButtons from "../../components/ExampleButtons.jsx";
 import Field from "../../components/Field.jsx";
-import ResultCard from "../../components/ResultCard.jsx";
+import ToolPage from "../../components/ToolPage.jsx";
 import { useConfig, useLanguage } from "../../context.js";
 import { attempt } from "../../lib/attempt.js";
 import GeodesicMap from "../../map/GeodesicMap.jsx";
-import { Box, Button, Stack, Typography, visuallyHidden } from "../../ui/index.js";
-import { measure } from "./distance.js";
+import { pickedText } from "../../map/svg-geometry.js";
+import { MONO_FONT, NAVY } from "../../theme.js";
+import { Box, Button, Paper, Stack, Typography, visuallyHidden } from "../../ui/index.js";
+import { endpointFromText, measure, swapEndpoints } from "./distance.js";
 
 const POINT_FIELDS = [
-  ["start", "startLatitude", "startLongitude"],
-  ["end", "endLatitude", "endLongitude"],
+  ["start", "A", "startLatitude", "startLongitude"],
+  ["end", "B", "endLatitude", "endLongitude"],
 ];
 
 function pickPoints(example) {
   const { startLatitude, startLongitude, endLatitude, endLongitude } = example;
   return { startLatitude, startLongitude, endLatitude, endLongitude };
+}
+
+function PointBadge({ name }) {
+  return (
+    <Box
+      component="span"
+      aria-hidden="true"
+      sx={{
+        display: "inline-grid",
+        placeItems: "center",
+        width: 22,
+        height: 22,
+        mr: 1,
+        borderRadius: "50%",
+        bgcolor: NAVY,
+        color: "#ffffff",
+        fontSize: "0.75rem",
+        fontWeight: 700,
+      }}
+    >
+      {name}
+    </Box>
+  );
 }
 
 export default function DistanceCalculator() {
@@ -38,19 +64,59 @@ export default function DistanceCalculator() {
     setStale(false);
   }
 
+  function handlePick(target, point, digits) {
+    const [, , latitudeKey, longitudeKey] = POINT_FIELDS.find(([group]) => group === target);
+    const next = {
+      ...values,
+      [latitudeKey]: pickedText(point.latitude, digits),
+      [longitudeKey]: pickedText(point.longitude, digits),
+    };
+    // A starts a new pair; picking B completes it and measures.
+    if (target === "end") {
+      run(next);
+    } else {
+      setValues(next);
+      setStale(true);
+    }
+  }
+
   const shown = !stale && measurement.ok ? measurement.value : null;
   const points = useMemo(() => (shown ? shown.path.points : []), [shown]);
+  const endpoints = {
+    start: endpointFromText(values.startLatitude, values.startLongitude),
+    end: endpointFromText(values.endLatitude, values.endLongitude),
+  };
   const labels = {
     start: [text.startPoint, text.startLatitude, text.startLongitude],
     end: [text.endPoint, text.endLatitude, text.endLongitude],
   };
+  const rows = shown
+    ? [
+        [text.metres, `${shown.metres} m`, shown.metres],
+        [text.kilometres, `${shown.kilometres} km`, shown.kilometres],
+        [text.nauticalMiles, `${shown.nauticalMiles} NM`, shown.nauticalMiles],
+        [
+          text.bearings,
+          shown.path.azimuthDefined
+            ? `${shown.path.initialBearingDegrees.toFixed(6)}° → ${shown.path.finalBearingDegrees.toFixed(6)}°`
+            : "—",
+          null,
+        ],
+      ]
+    : [];
 
   return (
-    <>
+    <ToolPage title={text.distanceTitle} subtitle={text.distanceSubtitle} footer={text.coordinateFooter}>
       <Box
-        sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) minmax(0, 1.2fr)" } }}
+        sx={{
+          display: "grid",
+          gap: 2,
+          alignItems: "start",
+          gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(300px, 340px) minmax(0, 1fr)" },
+        }}
       >
-        <Box>
+        {/* Below lg the map comes first, as on most map pages. */}
+        <Paper sx={{ p: { xs: 2, sm: 2.5 }, order: { xs: 1, lg: 0 } }}>
           <Box
             component="form"
             noValidate
@@ -59,12 +125,13 @@ export default function DistanceCalculator() {
               run(values);
             }}
           >
-            {POINT_FIELDS.map(([group, latitudeKey, longitudeKey]) => (
+            {POINT_FIELDS.map(([group, name, latitudeKey, longitudeKey]) => (
               <Box component="fieldset" key={group} sx={{ border: 0, p: 0, m: 0, mb: 2 }}>
-                <Typography component="legend" variant="subtitle2" sx={{ mb: 1 }}>
+                <Typography component="legend" variant="subtitle2" sx={{ mb: 1, display: "flex", alignItems: "center" }}>
+                  <PointBadge name={name} />
                   {labels[group][0]}
                 </Typography>
-                <Stack direction="row" spacing={2}>
+                <Stack direction="row" spacing={1.5}>
                   <Field
                     id={`distance-${latitudeKey}`}
                     label={labels[group][1]}
@@ -82,38 +149,46 @@ export default function DistanceCalculator() {
                 </Stack>
               </Box>
             ))}
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
               <Button type="submit" variant="contained">
                 {text.measure}
               </Button>
-              <Typography variant="body2" color="text.secondary">
-                {text.coordinateRange}
-              </Typography>
+              <Button variant="outlined" onClick={() => run(swapEndpoints(values))}>
+                {text.swapPoints}
+              </Button>
             </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {text.coordinateRange}
+            </Typography>
           </Box>
 
           {!stale && !measurement.ok && <ErrorMessage summary={text.distanceInvalid} code={measurement.code} />}
 
           {shown && (
-            <Box component="section" aria-labelledby="distance-output-title" sx={{ mt: 2 }}>
+            <Box component="section" aria-labelledby="distance-output-title" sx={{ mt: 2.5, pt: 2, borderTop: 1, borderColor: "divider" }}>
               <Typography id="distance-output-title" component="h2" sx={visuallyHidden}>
                 {text.measurementResult}
               </Typography>
-              <Stack spacing={1}>
-                <ResultCard label={text.metres} value={`${shown.metres} m`} copyValue={shown.metres} />
-                <ResultCard label={text.kilometres} value={`${shown.kilometres} km`} copyValue={shown.kilometres} />
-                <ResultCard label={text.nauticalMiles} value={`${shown.nauticalMiles} NM`} copyValue={shown.nauticalMiles} />
-                <ResultCard
-                  label={text.bearings}
-                  value={
-                    shown.path.azimuthDefined
-                      ? `${shown.path.initialBearingDegrees.toFixed(6)}° → ${shown.path.finalBearingDegrees.toFixed(6)}°`
-                      : "—"
-                  }
-                />
-              </Stack>
+              <Box
+                component="dl"
+                sx={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", alignItems: "center", columnGap: 1.5, rowGap: 0.75, m: 0 }}
+              >
+                {rows.map(([label, value, copyValue]) => (
+                  <Fragment key={label}>
+                    <Box component="dt" sx={{ typography: "body2", color: "text.secondary" }}>
+                      {label}
+                    </Box>
+                    <Box component="dd" sx={{ m: 0, fontFamily: MONO_FONT, fontSize: "0.95rem", overflowWrap: "anywhere" }}>
+                      {value}
+                    </Box>
+                    <Box component="dd" sx={{ m: 0 }}>
+                      {copyValue && <CopyButton value={copyValue} label={label} />}
+                    </Box>
+                  </Fragment>
+                ))}
+              </Box>
               {shown.path.ambiguous && (
-                <Typography role="note" variant="body2" color="warning.main" sx={{ mt: 1 }}>
+                <Typography role="note" variant="body2" color="warning.main" sx={{ mt: 1.5 }}>
                   {text.ambiguousPath}
                 </Typography>
               )}
@@ -142,7 +217,7 @@ export default function DistanceCalculator() {
                   </Box>
                 </Box>
               </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
                 {text.distanceModel}
               </Typography>
             </Box>
@@ -151,9 +226,14 @@ export default function DistanceCalculator() {
           <Typography role="status" aria-live="polite" sx={visuallyHidden}>
             {stale ? text.measurementCleared : shown ? text.measurementReady : ""}
           </Typography>
-        </Box>
+        </Paper>
 
-        <GeodesicMap points={points} distanceText={shown ? `${shown.kilometres} km` : ""} />
+        <GeodesicMap
+          points={points}
+          endpoints={endpoints}
+          distanceText={shown ? `${shown.kilometres} km` : ""}
+          onPick={handlePick}
+        />
       </Box>
 
       <ExampleButtons
@@ -163,6 +243,6 @@ export default function DistanceCalculator() {
           onClick: () => run(pickPoints(example)),
         }))}
       />
-    </>
+    </ToolPage>
   );
 }

@@ -4,9 +4,10 @@ import ErrorMessage from "../../components/ErrorMessage.jsx";
 import ExampleButtons from "../../components/ExampleButtons.jsx";
 import Field from "../../components/Field.jsx";
 import ResultCard from "../../components/ResultCard.jsx";
+import ToolPage from "../../components/ToolPage.jsx";
 import { useConfig, useLanguage } from "../../context.js";
 import { attempt } from "../../lib/attempt.js";
-import { Box, Button, MenuItem, Stack, Typography } from "../../ui/index.js";
+import { Box, Button, MenuItem, Paper, Stack, Typography } from "../../ui/index.js";
 import CoordinateInputFields from "./CoordinateInputFields.jsx";
 import { INPUT_FORMATS, OUTPUT_FORMATS, readPoint, resolutionLabel, sourceNote } from "./positions.js";
 
@@ -52,7 +53,8 @@ export default function PositionConverter() {
   }
 
   return (
-    <>
+    <ToolPage title={text.positionTitle} subtitle={text.positionSubtitle} footer={text.coordinateFooter}>
+      <Paper sx={{ p: { xs: 2, sm: 3 } }}>
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2 }}>
           <Field
@@ -103,7 +105,7 @@ export default function PositionConverter() {
       {!stale && result.ok && (
         <Box component="section" aria-labelledby="coordinate-output-title" sx={{ mt: 3 }}>
           <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
-            <Typography id="coordinate-output-title" variant="h6" component="h2">
+            <Typography id="coordinate-output-title" variant="h2">
               {text.outputFormats}
             </Typography>
             <Typography id="coordinate-source-note" variant="body2" color="text.secondary">
@@ -138,6 +140,7 @@ export default function PositionConverter() {
           onClick: () => applyExample(example),
         }))}
       />
-    </>
+      </Paper>
+    </ToolPage>
   );
 }

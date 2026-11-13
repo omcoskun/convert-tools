@@ -5,12 +5,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { sampleGeodesicPath } from "@convert-tools/core";
 import {
+  MINIMUM_FRAME_HEIGHT,
   frameAround,
   geoJsonLinesPath,
   labelsInFrame,
+  nearestCopy,
+  panFrame,
+  pickDigits,
+  pickedPoint,
+  pickedText,
   polylinePath,
   unwrapPoints,
   worldCopies,
+  worldFrame,
+  zoomFrame,
 } from "../src/map/svg-geometry.js";
 import { readJson } from "./support/files.mjs";
 
@@ -143,7 +151,7 @@ test("labelsInFrame keeps labels inside the frame, countries and better ranks fi
     labelsInFrame(collection, frame).map((label) => label.name),
     ["Capital", "Land", "Town"],
   );
-  assert.deepEqual(labelsInFrame(collection, frame, 2).map((label) => label.name), ["Capital", "Land"]);
+  assert.deepEqual(labelsInFrame(collection, frame, { limit: 2 }).map((label) => label.name), ["Capital", "Land"]);
   const first = labelsInFrame(collection, frame)[0];
   assert.equal(first.x, -5);
   assert.equal(first.y, 5);
@@ -163,4 +171,72 @@ test("labelsInFrame repeats labels on world copies and thins crowded ones", () =
     { x: -40, y: -20, width: 80, height: 40 },
   );
   assert.deepEqual(crowded.map((label) => label.name), ["A", "C"]);
+});
+
+test("labelsInFrame keeps labels off the frame edge and away from avoided points", () => {
+  const point = (name, rank, longitude, latitude) => ({
+    properties: { name, kind: "place", rank },
+    geometry: { type: "Point", coordinates: [longitude, latitude] },
+  });
+  const collection = { features: [point("Edge", 1, 38, 0), point("Marker", 2, 0, 0), point("Free", 3, -20, 10)] };
+  const frame = { x: -40, y: -20, width: 80, height: 40 };
+  // inset 0.1 leaves anchors in x [-32, 32] and y [-16, 16].
+  assert.deepEqual(
+    labelsInFrame(collection, frame, { inset: 0.1, avoid: [{ x: 1, y: 0 }] }).map((label) => label.name),
+    ["Free"],
+  );
+});
+
+test("worldFrame spans pole to pole around a centre longitude", () => {
+  assert.deepEqual(worldFrame(0, 2), { x: -180, y: -90, width: 360, height: 180 });
+  assert.deepEqual(worldFrame(100, 1.5), { x: -35, y: -90, width: 270, height: 180 });
+  assert.deepEqual(frameAround([], { aspect: 1.5 }), worldFrame(0, 1.5));
+});
+
+test("zoomFrame scales about the centre within the minimum height and the world", () => {
+  const frame = { x: 0, y: -40, width: 40, height: 20 };
+  const zoomedIn = zoomFrame(frame, 0.5);
+  assert.deepEqual(zoomedIn, { x: 10, y: -35, width: 20, height: 10 });
+  const zoomedOut = zoomFrame(frame, 100);
+  assert.equal(zoomedOut.height, 180);
+  close(zoomedOut.width / zoomedOut.height, 2);
+  assert.ok(zoomedOut.y >= -90 - 27 && zoomedOut.y + 180 <= 90 + 27, "kept within the poles plus margin");
+  assert.equal(zoomFrame(frame, 1e-6).height, MINIMUM_FRAME_HEIGHT);
+});
+
+test("panFrame moves freely east-west but stops at the poles", () => {
+  assert.deepEqual(panFrame({ x: 0, y: 0, width: 20, height: 10 }, 400, 5), { x: 400, y: 5, width: 20, height: 10 });
+  const north = panFrame({ x: 0, y: -80, width: 20, height: 10 }, 0, -50);
+  assert.equal(north.y, -90 - 1.5);
+});
+
+test("nearestCopy puts a longitude on the world copy closest to the view", () => {
+  close(nearestCopy(-179.9, 179), 180.1);
+  assert.equal(nearestCopy(10, 0), 10);
+  assert.equal(nearestCopy(10, -700), -710);
+});
+
+test("pickedPoint reads a map position and ignores space beyond the poles", () => {
+  assert.deepEqual(pickedPoint(32.5, -39.9), { latitude: 39.9, longitude: 32.5 });
+  assert.deepEqual(pickedPoint(190, 10), { latitude: -10, longitude: -170 });
+  assert.deepEqual(pickedPoint(-540, 0), { latitude: 0, longitude: -180 });
+  assert.equal(pickedPoint(0, -90.5), null);
+  assert.equal(pickedPoint(0, 91), null);
+  assert.equal(pickedPoint(Number.NaN, 0), null);
+});
+
+test("pickDigits keeps about one screen pixel of precision", () => {
+  assert.equal(pickDigits(2), 0);
+  assert.equal(pickDigits(0.5), 1);
+  assert.equal(pickDigits(0.02), 2);
+  assert.equal(pickDigits(0.003), 3);
+  assert.equal(pickDigits(0.0004), 4);
+  assert.equal(pickDigits(0.00001), 5);
+});
+
+test("pickedText writes picked coordinates without a negative zero", () => {
+  assert.equal(pickedText(39.93336, 2), "39.93");
+  assert.equal(pickedText(-0.004, 2), "0.00");
+  assert.equal(pickedText(-0.2, 0), "0");
+  assert.equal(pickedText(-12.5, 1), "-12.5");
 });
