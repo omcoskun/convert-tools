@@ -49,7 +49,7 @@
   },
   "scripts": {
     "build": "node scripts/build-cjs.mjs",
-    "test": "node --test test/",
+    "test": "node --test \"test/**/*.test.mjs\"",
     "test:pack": "node scripts/pack-smoke.mjs",
     "prepack": "npm run build"
   },
