@@ -1,0 +1,68 @@
+{
+  "defaultLanguage": "tr",
+  "languages": ["tr", "en"],
+  "length": {
+    "precision": 24,
+    "examplePrecision": 10,
+    "examples": [
+      { "value": "1", "from": "nautical-mile", "to": "metre" },
+      { "value": "1", "from": "foot", "to": "metre" },
+      { "value": "1", "from": "mile", "to": "kilometre" }
+    ]
+  },
+  "position": {
+    "initial": {
+      "format": "dd",
+      "precision": 5,
+      "values": {
+        "ddLat": "39.933365",
+        "ddLon": "32.859742",
+        "dmsLat": "39°56'00.114\"N",
+        "dmsLon": "032°51'35.071\"E",
+        "ddmLat": "39°56.0019'N",
+        "ddmLon": "032°51.5845'E",
+        "mgrs": "36S VK 88015 20370",
+        "zone": "36",
+        "hemisphere": "N",
+        "easting": "488015.988",
+        "northing": "4420370.844",
+        "gars": "426LV22",
+        "georef": "QJCK51585600"
+      }
+    },
+    "precisions": [
+      { "digits": 5, "label": "1 m" },
+      { "digits": 4, "label": "10 m" },
+      { "digits": 3, "label": "100 m" },
+      { "digits": 2, "label": "1 km" },
+      { "digits": 1, "label": "10 km" },
+      { "digits": 0, "label": "100 km" }
+    ],
+    "examples": [
+      { "id": "ankara-dd", "format": "dd", "values": { "ddLat": "39.933365", "ddLon": "32.859742" } },
+      { "id": "ramadi-mgrs", "format": "mgrs", "values": { "mgrs": "38S LC 39187 01405" } },
+      { "id": "north-85-ups", "format": "dd", "values": { "ddLat": "85", "ddLon": "0" } }
+    ]
+  },
+  "crs": {
+    "initial": { "source": "EPSG:4326", "target": "EPSG:3857", "x": "32.859742", "y": "39.933365" },
+    "examples": [
+      { "id": "wgs84-to-web-mercator", "source": "EPSG:4326", "target": "EPSG:3857", "x": "32.859742", "y": "39.933365" },
+      { "id": "wgs84-to-utm-36n", "source": "EPSG:4326", "target": "EPSG:32636", "x": "32.859742", "y": "39.933365" },
+      { "id": "wgs84-to-ups-north", "source": "EPSG:4326", "target": "EPSG:5041", "x": "0", "y": "85" }
+    ]
+  },
+  "distance": {
+    "path": { "maxSegmentMetres": 25000, "maxPoints": 2049 },
+    "examples": [
+      { "id": "ankara-istanbul", "startLatitude": "39.933365", "startLongitude": "32.859742", "endLatitude": "41.008238", "endLongitude": "28.978359" },
+      { "id": "antimeridian", "startLatitude": "10", "startLongitude": "179.9", "endLatitude": "10", "endLongitude": "-179.9" },
+      { "id": "near-pole", "startLatitude": "89.9", "startLongitude": "0", "endLatitude": "89.9", "endLongitude": "90" },
+      { "id": "equator-north-pole", "startLatitude": "0", "startLongitude": "0", "endLatitude": "90", "endLongitude": "0" }
+    ]
+  },
+  "map": {
+    "boundaries": "map-data/world-boundaries.geojson",
+    "labels": "map-data/world-labels.geojson"
+  }
+}

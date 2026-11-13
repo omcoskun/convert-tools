@@ -5,16 +5,22 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/core-js"
+    "packages/core-js",
+    "app"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
+    "dev": "npm run dev --workspace @convert-tools/app",
+    "build": "npm run build:core && npm run build --workspace @convert-tools/app",
     "build:core": "npm run build --workspace @convert-tools/core",
+    "build:app": "npm run build --workspace @convert-tools/app",
     "test:core": "npm test --workspace @convert-tools/core",
     "test:pack": "npm run test:pack --workspace @convert-tools/core",
     "test:java": "sh packages/core-java/scripts/test.sh",
-    "vectors": "node contracts/tools/generate-vectors.mjs"
+    "vectors": "node contracts/tools/generate-vectors.mjs",
+    "test": "npm run test:core && npm run test:app",
+    "test:app": "npm test --workspace @convert-tools/app"
   }
 }
