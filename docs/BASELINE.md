@@ -71,3 +71,11 @@ satırı:
 | `GeoConvert -u -p 9` | 4420370.843637543 |
 
 Fark 0,139 mm: vektör dosyasının bu satırı test edilen koddan üretilmiş.
+
+## Sonraki durum
+
+Bu dosya başlangıcı olduğu gibi saklar; yukarıdaki pnpm, vite ve `tests/`
+atıfları o günün yapısına aittir. Aşama 4'te Next.js/Worker/Cesium yığını,
+HTTP API, `tests/api.test.mjs` ve `tests/rendered-html.test.mjs` kaldırıldı.
+Bugünkü komutlar ve yapı için kök `README.md`'ye bakın (`npm run test:core`,
+`npm run test:app`, `npm run test:java`).

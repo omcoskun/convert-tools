@@ -27,5 +27,8 @@
     "webpack": "5.112.2",
     "webpack-cli": "6.0.1",
     "webpack-dev-server": "5.2.7"
+  },
+  "engines": {
+    "node": ">=22.15"
   }
 }

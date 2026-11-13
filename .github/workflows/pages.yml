@@ -22,24 +22,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.9.0
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.13.0
-          cache: pnpm
+          node-version: "24.22.2"
+          cache: npm
 
       - name: Install
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        run: npm ci --ignore-scripts
 
-      - name: Build for GitHub Pages
-        run: pnpm build:pages
-        env:
-          VITE_BASE_PATH: /convert-tools/
+      # The build uses relative URLs, so it works under /convert-tools/
+      # without a base-path setting. IWC is left unset: which variant
+      # (hap or hwf) Pages should show is not decided.
+      - name: Build
+        run: npm run build
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -47,7 +43,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: dist/pages
+          path: app/build
 
   deploy:
     name: Deploy

@@ -14,34 +14,41 @@ concurrency:
 
 jobs:
   javascript:
-    name: JavaScript
+    name: JavaScript (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both LTS lines. The app's render tests need module.registerHooks
+        # (Node 22.15 or later).
+        node: ["22.23.4", "24.22.2"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.9.0
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.13.0
-          cache: pnpm
+          node-version: ${{ matrix.node }}
+          cache: npm
 
       - name: Install
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        run: npm ci --ignore-scripts
 
       - name: Lint
-        run: pnpm lint
+        run: npm run lint
 
-      - name: Type-check package contracts
-        run: pnpm typecheck
+      - name: Core tests
+        run: npm run test:core
 
-      - name: Test and build
-        run: pnpm test
+      - name: App tests
+        run: npm run test:app
+
+      - name: Build core and demo
+        run: npm run build
+
+      - name: Package smoke test
+        run: npm run test:pack
 
   java:
     name: Java
@@ -60,22 +67,8 @@ jobs:
       - name: Build package
         run: mvn --batch-mode --file packages/core-java/pom.xml package
 
-      - name: Compile contract checks
-        run: |
-          mkdir -p build/java-contract
-          find packages/core-java/src/main/java packages/core-java/src/test/java \
-            -name '*.java' -print0 \
-            | xargs -0 javac --release 17 -Xlint:all -Werror \
-                -d build/java-contract
-
-      - name: Run shared contract checks
-        run: |
-          java -ea -cp build/java-contract \
-            io.github.mertc0604.converttools.ContractTest \
-            contracts/test-vectors
-          java -ea -cp build/java-contract \
-            io.github.mertc0604.converttools.CoordinateContractTest \
-            contracts/test-vectors
-          java -ea -cp build/java-contract \
-            io.github.mertc0604.converttools.ReferenceVectorTest \
-            contracts/test-vectors
+      # javac --release 17 -Xlint:all -Werror, then ContractTest,
+      # CoordinateContractTest, ReferenceVectorTest and ErrorContractTest
+      # against contracts/test-vectors.
+      - name: Contract checks
+        run: sh packages/core-java/scripts/test.sh

@@ -9,7 +9,7 @@
     "app"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22.15"
   },
   "scripts": {
     "dev": "npm run dev --workspace @convert-tools/app",
@@ -21,6 +21,10 @@
     "test:java": "sh packages/core-java/scripts/test.sh",
     "vectors": "node contracts/tools/generate-vectors.mjs",
     "test": "npm run test:core && npm run test:app",
-    "test:app": "npm test --workspace @convert-tools/app"
+    "test:app": "npm test --workspace @convert-tools/app",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "9.39.5"
   }
 }
