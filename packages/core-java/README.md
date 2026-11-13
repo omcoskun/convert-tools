@@ -135,3 +135,34 @@ segment uzunluğu `sampledMaximumSegmentMetres()` ile bildirilir.
 Hesaplar iki boyutlu WGS 84 elipsoit yüzey mesafesidir. Web Mercator piksel
 mesafesi, rhumb line, grid mesafesi veya yükseklik içeren 3B eğik mesafe
 değildir.
+
+## Hatalar
+
+Geçersiz girdi her zaman `ConvertToolsException` fırlatır
+(`IllegalArgumentException` alt sınıfı). `code()` sabit bir `ErrorCode`
+döndürür; liste JavaScript çekirdeğinin `ERROR_CODES` listesiyle ve
+`contracts/error-codes.json` ile aynıdır, `contracts/error-cases.csv` iki
+dilde de aynı kodu doğrular.
+
+```java
+try {
+    Mgrs.decode("32NQQ7070975688");
+} catch (ConvertToolsException error) {
+    if (error.code() == ErrorCode.MGRS_SQUARE_NOT_IN_BAND) {
+        // yerelleştirilmiş mesaj göster
+    }
+}
+```
+
+## Test
+
+Maven gerekmez; CI ile aynı adımlar:
+
+```bash
+sh packages/core-java/scripts/test.sh
+```
+
+Betik kaynakları `javac --release 17 -Xlint:all -Werror` ile derler ve
+`ContractTest`, `CoordinateContractTest`, `ReferenceVectorTest`,
+`ErrorContractTest` sınıflarını `contracts/` dosyalarına karşı çalıştırır.
+Değişiklikler: `packages/core-js/CHANGELOG.md` (iki çekirdek için ortak).

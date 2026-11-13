@@ -237,7 +237,7 @@ export function formatMgrs(value) {
   const source = String(value).toUpperCase().replace(/\s+/g, "");
   const utm = source.match(/^(\d{1,2})([C-HJ-NP-X])([A-HJ-NP-Z]{2})(\d*)$/);
   const ups = source.match(/^([ABYZ])([A-HJ-NP-Z]{2})(\d*)$/);
-  const match = utm ?? ups;
+  const match = utm || ups;
   if (!match) return source;
 
   const numeric = match[match.length - 1];

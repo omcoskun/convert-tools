@@ -44,3 +44,9 @@ next-env.d.ts
 /outputs/
 /work/
 /build/
+
+# library-first layout
+node_modules/
+/packages/core-js/dist/
+/app/build/
+*.tgz

@@ -89,10 +89,27 @@ function fromWgs84(definition, point) {
   return [grid.easting, grid.northing];
 }
 
+/**
+ * @param {string | number} value "EPSG:4326", "4326" or 4326
+ * @returns {string} "EPSG:4326"
+ * @throws {import("../../errors.js").ConvertToolsError} UNSUPPORTED_CRS
+ */
 export function normalizeEpsg(value) {
   return epsgNumber(value).code;
 }
 
+/**
+ * Transforms x/y between supported CRSs (see SUPPORTED_CRS). Geographic
+ * input is x = longitude, y = latitude.
+ * @param {string | number} sourceValue
+ * @param {string | number} targetValue
+ * @param {string | number} xValue
+ * @param {string | number} yValue
+ * @returns {import("../../types.js").CrsTransformResult}
+ * @throws {import("../../errors.js").ConvertToolsError} UNSUPPORTED_CRS,
+ *   INVALID_NUMBER, OUTSIDE_CRS_DOMAIN, OUTSIDE_UTM_DOMAIN,
+ *   OUTSIDE_UPS_DOMAIN, GRID_COORDINATE_OUT_OF_RANGE
+ */
 export function transformCrs(sourceValue, targetValue, xValue, yValue) {
   const source = epsgNumber(sourceValue);
   const target = epsgNumber(targetValue);

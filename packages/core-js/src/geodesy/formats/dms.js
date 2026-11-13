@@ -7,7 +7,7 @@ const NUMBER_TOKEN = /[+-]?(?:\d+(?:\.\d*)?|\.\d+)/g;
 
 export function parseAngle(value, axis) {
   const rawSource = String(value).trim().replace(/,/g, ".");
-  const numberTokens = rawSource.match(NUMBER_TOKEN) ?? [];
+  const numberTokens = rawSource.match(NUMBER_TOKEN) || [];
   if (
     axis === "latitude" &&
     /s\s*$/i.test(rawSource) &&
@@ -21,7 +21,7 @@ export function parseAngle(value, axis) {
   const source = rawSource.toUpperCase();
   if (!source) throw new ConvertToolsError("INVALID_ANGLE", "Angle is empty.");
 
-  const hemispheres = source.match(HEMISPHERE) ?? [];
+  const hemispheres = source.match(HEMISPHERE) || [];
   if (hemispheres.length > 1) throw new ConvertToolsError("INVALID_ANGLE", "Angle has multiple hemispheres.");
   const hemisphere = hemispheres[0];
   if (
@@ -51,8 +51,8 @@ export function parseAngle(value, axis) {
   }
 
   const degrees = numbers[0];
-  const minutes = numbers[1] ?? 0;
-  const seconds = numbers[2] ?? 0;
+  const minutes = numbers.length > 1 ? numbers[1] : 0;
+  const seconds = numbers.length > 2 ? numbers[2] : 0;
   if (minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60) {
     throw new ConvertToolsError("INVALID_ANGLE", "Minutes and seconds must be in [0, 60).");
   }
@@ -61,7 +61,7 @@ export function parseAngle(value, axis) {
   }
 
   const numericSign = degrees < 0 || Object.is(degrees, -0) ? -1 : 1;
-  const hemisphereSign = /[SW]/.test(hemisphere ?? "") ? -1 : 1;
+  const hemisphereSign = /[SW]/.test(hemisphere == null ? "" : hemisphere) ? -1 : 1;
   if (hemisphere && numericSign < 0 && hemisphereSign > 0) {
     throw new ConvertToolsError("INVALID_ANGLE", "The sign conflicts with the hemisphere.");
   }
@@ -107,6 +107,14 @@ function validateDigits(digits) {
   }
 }
 
+/**
+ * @param {number} value degrees
+ * @param {"latitude" | "longitude"} axis
+ * @param {number} [secondDigits=5] 0 … 9
+ * @returns {string} e.g. `39°56'00.11400" N`
+ * @throws {import("../../errors.js").ConvertToolsError} INVALID_ARGUMENT,
+ *   LATITUDE_OUT_OF_RANGE, LONGITUDE_OUT_OF_RANGE, INVALID_PRECISION
+ */
 export function formatDms(value, axis, secondDigits = 5) {
   validateAxisValue(value, axis);
   validateDigits(secondDigits);
@@ -123,6 +131,12 @@ export function formatDms(value, axis, secondDigits = 5) {
   return `${String(degrees).padStart(degreeWidth, "0")}°${String(minutes).padStart(2, "0")}'${fixed(seconds, secondDigits).padStart(3 + secondDigits, "0")}"${hemisphere}`;
 }
 
+/**
+ * @param {number} value degrees
+ * @param {"latitude" | "longitude"} axis
+ * @param {number} [minuteDigits=7] 0 … 9
+ * @returns {string}
+ */
 export function formatDdm(value, axis, minuteDigits = 7) {
   validateAxisValue(value, axis);
   validateDigits(minuteDigits);

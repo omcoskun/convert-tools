@@ -78,6 +78,13 @@ function powerOfTen(exponent, maximum = MAX_RATIONAL_DIGITS) {
   return TEN ** BigInt(exponent);
 }
 
+/**
+ * Parses an exact decimal ("1852", "-0.25", "3e-4") or a safe integer.
+ * @param {string | number | bigint} input
+ * @returns {import("../types.js").Rational}
+ * @throws {import("../errors.js").ConvertToolsError} INVALID_NUMBER,
+ *   INPUT_LIMIT_EXCEEDED
+ */
 export function parseDecimal(input) {
   if (typeof input === "number" && !Number.isSafeInteger(input)) {
     throw new ConvertToolsError("INVALID_NUMBER",
@@ -107,9 +114,9 @@ export function parseDecimal(input) {
   }
 
   const sign = match[1] === "-" ? -1n : 1n;
-  const sourceIntegerPart = match[2] ?? "";
-  const fractionPart = match[3] ?? match[4] ?? "";
-  const exponent = Number(match[5] ?? "0");
+  const sourceIntegerPart = match[2] == null ? "" : match[2];
+  const fractionPart = match[3] != null ? match[3] : match[4] != null ? match[4] : "";
+  const exponent = Number(match[5] == null ? "0" : match[5]);
 
   if (
     !Number.isInteger(exponent) ||
@@ -174,6 +181,12 @@ function integerComponent(value) {
   return result;
 }
 
+/**
+ * @param {import("../types.js").RationalInput} value
+ * @returns {import("../types.js").Rational}
+ * @throws {import("../errors.js").ConvertToolsError} INVALID_NUMBER,
+ *   INPUT_LIMIT_EXCEEDED, DIVISION_BY_ZERO
+ */
 export function toRational(value) {
   if (
     value &&
@@ -222,6 +235,10 @@ export function toRational(value) {
   );
 }
 
+/**
+ * @param {import("../types.js").RationalInput} value
+ * @returns {import("../types.js").JsonRational}
+ */
 export function rationalToJson(value) {
   const rational = toRational(value);
   return Object.freeze({
@@ -274,6 +291,12 @@ export function hasTerminatingDecimal(value) {
   return exactFractionDigits(value) !== null;
 }
 
+/**
+ * Decimal text rounded HALF_UP to at most `maximumFractionDigits` digits.
+ * @param {import("../types.js").RationalInput} value
+ * @param {number} [maximumFractionDigits=24]
+ * @returns {string}
+ */
 export function formatRational(value, maximumFractionDigits = 24) {
   if (
     !Number.isInteger(maximumFractionDigits) ||

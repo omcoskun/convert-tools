@@ -1,6 +1,6 @@
 {
   "name": "@convert-tools/core",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Dependency-free exact length, coordinate conversion and WGS84 geodesy core",
   "keywords": [
     "unit-conversion",
@@ -17,32 +17,44 @@
   },
   "type": "module",
   "sideEffects": false,
+  "main": "./dist/cjs/index.js",
+  "module": "./src/index.js",
   "exports": {
     ".": {
-      "types": "./src/index.d.ts",
-      "default": "./src/index.js"
+      "import": "./src/index.js",
+      "require": "./dist/cjs/index.js"
     },
     "./units": {
-      "types": "./src/units/index.d.ts",
-      "default": "./src/units/index.js"
+      "import": "./src/units/index.js",
+      "require": "./dist/cjs/units/index.js"
     },
     "./length": {
-      "types": "./src/units/index.d.ts",
-      "default": "./src/units/index.js"
+      "import": "./src/units/index.js",
+      "require": "./dist/cjs/units/index.js"
     },
     "./geodesy": {
-      "types": "./src/geodesy/index.d.ts",
-      "default": "./src/geodesy/index.js"
-    }
+      "import": "./src/geodesy/index.js",
+      "require": "./dist/cjs/geodesy/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "src",
-    "README.md"
+    "dist/cjs",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test test/"
+    "build": "node scripts/build-cjs.mjs",
+    "test": "node --test test/",
+    "test:pack": "node scripts/pack-smoke.mjs",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/plugin-transform-modules-commonjs": "7.29.7"
   }
 }

@@ -51,10 +51,10 @@ function readPoint(value, name) {
 }
 
 function readEllipsoid(value) {
-  const ellipsoid = value ?? WGS84;
+  const ellipsoid = value == null ? WGS84 : value;
   const a = Number(ellipsoid.a);
   const f = Number(ellipsoid.f);
-  const b = Number(ellipsoid.b ?? a * (1 - f));
+  const b = Number(ellipsoid.b == null ? a * (1 - f) : ellipsoid.b);
 
   if (
     !Number.isFinite(a) ||
@@ -69,7 +69,7 @@ function readEllipsoid(value) {
   }
 
   return Object.freeze({
-    id: ellipsoid.id ?? "CUSTOM",
+    id: ellipsoid.id == null ? "CUSTOM" : ellipsoid.id,
     a,
     b,
     f,
@@ -769,12 +769,25 @@ function cutLocusAmbiguous(start, end, result, ellipsoid) {
   return bearingSensitivityMetres <= CUT_LOCUS_SENSITIVITY_METRES;
 }
 
+/**
+ * Ellipsoidal inverse problem: distance and azimuths between two points.
+ * Agrees with GeographicLib GeodSolve within 0.1 mm (see
+ * contracts/test-vectors/geodesic-wgs84.csv).
+ * @param {import("../../types.js").GeoPoint} startValue
+ * @param {import("../../types.js").GeoPoint} endValue
+ * @param {import("../../types.js").GeodesicOptions} [options]
+ * @returns {import("../../types.js").GeodesicResult}
+ * @throws {import("../../errors.js").ConvertToolsError} INVALID_ARGUMENT,
+ *   INVALID_NUMBER, LATITUDE_OUT_OF_RANGE, LONGITUDE_OUT_OF_RANGE,
+ *   NO_CONVERGENCE
+ */
 export function inverseGeodesic(startValue, endValue, options = {}) {
   const start = readPoint(startValue, "start");
   const end = readPoint(endValue, "end");
   const ellipsoid = readEllipsoid(options.ellipsoid);
-  const tolerance = options.tolerance ?? DEFAULT_TOLERANCE;
-  const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+  const tolerance = options.tolerance == null ? DEFAULT_TOLERANCE : options.tolerance;
+  const maxIterations =
+    options.maxIterations == null ? DEFAULT_MAX_ITERATIONS : options.maxIterations;
 
   if (
     !Number.isFinite(tolerance) ||
@@ -813,7 +826,7 @@ export function inverseGeodesic(startValue, endValue, options = {}) {
     ellipsoid,
   );
   const antipodal = exactAntipodes(start, end);
-  const result = vincenty ?? inverseByShooting(start, end, ellipsoid);
+  const result = vincenty == null ? inverseByShooting(start, end, ellipsoid) : vincenty;
   const fallbackUsed = vincenty === null;
   const ambiguous =
     antipodal ||
@@ -839,6 +852,17 @@ export function inverseGeodesic(startValue, endValue, options = {}) {
   });
 }
 
+/**
+ * Ellipsoidal direct problem: end point after `distanceMetres` along
+ * `initialBearingDegrees`.
+ * @param {import("../../types.js").GeoPoint} startValue
+ * @param {number | string} initialBearingDegreesValue
+ * @param {number | string} distanceMetresValue non-negative
+ * @param {import("../../types.js").GeodesicOptions} [options]
+ * @returns {import("../../types.js").DirectGeodesicResult}
+ * @throws {import("../../errors.js").ConvertToolsError} INVALID_ARGUMENT,
+ *   INVALID_NUMBER, NO_CONVERGENCE
+ */
 export function directGeodesic(
   startValue,
   initialBearingDegreesValue,
@@ -875,8 +899,8 @@ export function directGeodesic(
     normalizeBearing(initialBearingDegrees) * DEGREE,
     distanceMetres,
     ellipsoid,
-    options.tolerance ?? DEFAULT_TOLERANCE,
-    options.maxIterations ?? DEFAULT_MAX_ITERATIONS,
+    options.tolerance == null ? DEFAULT_TOLERANCE : options.tolerance,
+    options.maxIterations == null ? DEFAULT_MAX_ITERATIONS : options.maxIterations,
   );
 
   return Object.freeze({

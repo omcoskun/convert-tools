@@ -37,6 +37,12 @@ export function encodeGars(longitudeValue, latitudeValue) {
   );
 }
 
+/**
+ * Decodes a 5-, 6- or 7-character GARS code to the centre of its cell.
+ * @param {string} value
+ * @returns {import("../../types.js").AngularCell}
+ * @throws {import("../../errors.js").ConvertToolsError} INVALID_GARS
+ */
 export function decodeGars(value) {
   const source = String(value).toUpperCase().replace(/\s+/g, "");
   if (!/^\d{3}[A-HJ-NP-Z]{2}(?:[1-4](?:[1-9])?)?$/.test(source)) {

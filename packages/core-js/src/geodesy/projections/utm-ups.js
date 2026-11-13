@@ -219,9 +219,10 @@ export function utmForward(latitude, longitude, requestedZone, requestedNorth) {
   if (latitude < -80 || latitude > 84) {
     throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "UTM is defined between 80°S and 84°N.");
   }
-  const zone = requestedZone ?? standardUtmZone(latitude, longitude);
+  const zone =
+    requestedZone == null ? standardUtmZone(latitude, longitude) : requestedZone;
   if (zone === 0) throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "UTM is defined between 80°S and 84°N.");
-  const north = requestedNorth ?? latitude >= 0;
+  const north = requestedNorth == null ? latitude >= 0 : requestedNorth;
   if ((north && latitude < 0) || (!north && latitude > 0)) {
     throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "Latitude is in the other UTM hemisphere.");
   }
@@ -279,7 +280,7 @@ const POLAR_SCALE = (2 * WGS84.upsScale * WGS84.a) / POLAR_C;
  */
 export function upsForward(latitude, longitude, requestedNorth) {
   validatePoint(latitude, longitude);
-  const north = requestedNorth ?? latitude >= 0;
+  const north = requestedNorth == null ? latitude >= 0 : requestedNorth;
   if ((north && latitude < UPS_LIMIT_LATITUDE) || (!north && latitude > -UPS_LIMIT_LATITUDE)) {
     throw new ConvertToolsError("OUTSIDE_UPS_DOMAIN", "UPS coordinates must be within 30° of the selected pole.");
   }

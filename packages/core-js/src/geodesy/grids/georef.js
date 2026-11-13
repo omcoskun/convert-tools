@@ -50,6 +50,12 @@ export function encodeGeoref(longitudeValue, latitudeValue, precision = 4) {
   return result;
 }
 
+/**
+ * Decodes GEOREF to the centre of its cell.
+ * @param {string} value
+ * @returns {import("../../types.js").AngularCell}
+ * @throws {import("../../errors.js").ConvertToolsError} INVALID_GEOREF
+ */
 export function decodeGeoref(value) {
   const source = String(value).toUpperCase().replace(/\s+/g, "");
   const match = source.match(/^([A-HJ-NP-Z]{4})(\d*)$/);

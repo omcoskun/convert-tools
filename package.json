@@ -1,46 +1,20 @@
 {
   "name": "convert-tools",
-  "version": "2.0.0",
-  "description": "Türkçe ve İngilizce kesin uzunluk ve koordinat dönüşüm aracı",
+  "version": "3.0.0",
+  "description": "Kesin uzunluk ve koordinat dönüşüm kütüphanesi (JS + Java) ve tanıtım uygulaması",
   "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/core-js"
+  ],
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=20"
   },
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
-    "build:pages": "vite build && node scripts/build-pages.mjs",
-    "start": "vite --host 127.0.0.1",
-    "test": "pnpm test:core && vite build && pnpm test:integration",
-    "test:core": "node --test packages/core-js/test/",
-    "test:integration": "node --test tests/rendered-html.test.mjs tests/api.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@convert-tools/core": "workspace:*",
-    "cesium": "1.143.0",
-    "next": "16.2.12",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
-  },
-  "devDependencies": {
-    "@cloudflare/vite-plugin": "1.47.0",
-    "@tailwindcss/postcss": "4.3.3",
-    "@types/node": "22.19.19",
-    "@types/react": "19.2.17",
-    "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.4",
-    "@vitejs/plugin-rsc": "0.5.32",
-    "eslint": "9.39.4",
-    "eslint-config-next": "16.2.12",
-    "react-server-dom-webpack": "19.2.8",
-    "tailwindcss": "4.3.3",
-    "typescript": "5.9.3",
-    "vinext": "0.0.50",
-    "vite": "8.1.5",
-    "vite-plugin-static-copy": "4.1.1",
-    "wrangler": "4.114.0"
-  },
-  "type": "module"
+    "build:core": "npm run build --workspace @convert-tools/core",
+    "test:core": "npm test --workspace @convert-tools/core",
+    "test:pack": "npm run test:pack --workspace @convert-tools/core",
+    "test:java": "sh packages/core-java/scripts/test.sh",
+    "vectors": "node contracts/tools/generate-vectors.mjs"
+  }
 }

@@ -35,18 +35,46 @@ function pointSource(point) {
   return { ...point, sourceKind: "point" };
 }
 
+/**
+ * @param {number | string} latitude
+ * @param {number | string} longitude
+ * @returns {import("../types.js").CoordinateSource}
+ * @throws {import("../errors.js").ConvertToolsError} INVALID_NUMBER,
+ *   LATITUDE_OUT_OF_RANGE, LONGITUDE_OUT_OF_RANGE
+ */
 export function fromDecimalDegrees(latitude, longitude) {
   return pointSource(pointFromValues(latitude, longitude));
 }
 
+/**
+ * Parses degree-minute-second text, e.g. fromDms(`39°56'00.114"N`, `32°51'35.071"E`).
+ * @param {string} latitude
+ * @param {string} longitude
+ * @returns {import("../types.js").CoordinateSource}
+ * @throws {import("../errors.js").ConvertToolsError} INVALID_ANGLE,
+ *   LATITUDE_OUT_OF_RANGE, LONGITUDE_OUT_OF_RANGE
+ */
 export function fromDms(latitude, longitude) {
   return pointSource(parseCoordinatePair(latitude, longitude));
 }
 
+/**
+ * Parses degree-decimal-minute text; same rules as {@link fromDms}.
+ * @param {string} latitude
+ * @param {string} longitude
+ * @returns {import("../types.js").CoordinateSource}
+ */
 export function fromDdm(latitude, longitude) {
   return pointSource(parseCoordinatePair(latitude, longitude));
 }
 
+/**
+ * Decodes MGRS to the centre of its square.
+ * @param {string} value
+ * @returns {import("../types.js").CoordinateSource}
+ * @throws {import("../errors.js").ConvertToolsError} INVALID_MGRS,
+ *   MGRS_SQUARE_NOT_IN_BAND, GRID_COORDINATE_OUT_OF_RANGE
+ */
 export function fromMgrs(value) {
   const decoded = decodeMgrs(value, true);
   return {
@@ -57,6 +85,15 @@ export function fromMgrs(value) {
   };
 }
 
+/**
+ * @param {string | number} zoneValue 0 (UPS) … 60
+ * @param {string} hemisphereValue "N" or "S"
+ * @param {string | number} eastingValue metres
+ * @param {string | number} northingValue metres
+ * @returns {import("../types.js").CoordinateSource}
+ * @throws {import("../errors.js").ConvertToolsError} INVALID_ZONE,
+ *   INVALID_HEMISPHERE, INVALID_NUMBER, GRID_COORDINATE_OUT_OF_RANGE
+ */
 export function fromUtmUps(zoneValue, hemisphereValue, eastingValue, northingValue) {
   const zoneSource = String(zoneValue).trim();
   if (!/^\d{1,2}$/.test(zoneSource)) {
@@ -79,6 +116,12 @@ export function fromUtmUps(zoneValue, hemisphereValue, eastingValue, northingVal
   return pointSource(point);
 }
 
+/**
+ * Decodes GARS to the centre of its cell.
+ * @param {string} value
+ * @returns {import("../types.js").CoordinateSource}
+ * @throws {import("../errors.js").ConvertToolsError} INVALID_GARS
+ */
 export function fromGars(value) {
   const decoded = decodeGars(value);
   return {
@@ -89,6 +132,12 @@ export function fromGars(value) {
   };
 }
 
+/**
+ * Decodes GEOREF to the centre of its cell.
+ * @param {string} value
+ * @returns {import("../types.js").CoordinateSource}
+ * @throws {import("../errors.js").ConvertToolsError} INVALID_GEOREF
+ */
 export function fromGeoref(value) {
   const decoded = decodeGeoref(value);
   return {
@@ -99,6 +148,15 @@ export function fromGeoref(value) {
   };
 }
 
+/**
+ * Formats one point in every supported notation, with the resolution of
+ * each format.
+ * @param {import("../types.js").GeoPoint & { sourceKind?: string,
+ *   sourceCellMetres?: number, sourceCellDegrees?: number }} point
+ * @param {number} [mgrsPrecision=5] 0 … 5
+ * @returns {object} `dd`, `dms`, `ddm`, `mgrs`, `utmUps`, `gars`,
+ *   `georef` strings and a `resolution` entry per format
+ */
 export function coordinateResults(point, mgrsPrecision = 5) {
   const { latitude, longitude } = pointFromValues(
     point.latitude,
@@ -174,7 +232,7 @@ export function coordinateResults(point, mgrsPrecision = 5) {
           georefCellDegrees / 2,
       },
     },
-    sourceKind: point.sourceKind ?? "point",
+    sourceKind: point.sourceKind == null ? "point" : point.sourceKind,
     sourceCellMetres: point.sourceCellMetres,
     sourceCellDegrees: point.sourceCellDegrees,
   };

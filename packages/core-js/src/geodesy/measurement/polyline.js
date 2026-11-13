@@ -17,6 +17,12 @@ function compensatedSum(values) {
   return sum + compensation;
 }
 
+/**
+ * Sum of the ellipsoidal segment lengths of a polyline.
+ * @param {readonly import("../../types.js").GeoPoint[]} points
+ * @param {import("../../types.js").GeodesicOptions} [options]
+ * @returns {import("../../types.js").PolylineMeasurement}
+ */
 export function measureGeodesicPolyline(points, options = {}) {
   if (!Array.isArray(points)) {
     throw new ConvertToolsError("INVALID_ARGUMENT", "points must be an array.");
@@ -26,7 +32,10 @@ export function measureGeodesicPolyline(points, options = {}) {
     return Object.freeze({
       distanceMetres: 0,
       segmentCount: 0,
-      ellipsoid: options.ellipsoid?.id ?? "WGS84",
+      ellipsoid:
+        options.ellipsoid != null && options.ellipsoid.id != null
+          ? options.ellipsoid.id
+          : "WGS84",
       algorithm: "ellipsoidal-segments",
       segments: Object.freeze([]),
     });

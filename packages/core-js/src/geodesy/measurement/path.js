@@ -5,9 +5,9 @@ import {
 import { directGeodesic, inverseGeodesic } from "./geodesic.js";
 import { ConvertToolsError } from "../../errors.js";
 
-const DEFAULT_MAX_SEGMENT_METRES = 25_000;
-const DEFAULT_MAX_POINTS = 2_049;
-const MAX_POINTS_LIMIT = 10_001;
+const DEFAULT_MAX_SEGMENT_METRES = 25000;
+const DEFAULT_MAX_POINTS = 2049;
+const MAX_POINTS_LIMIT = 10001;
 
 function readPoint(value, name) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {

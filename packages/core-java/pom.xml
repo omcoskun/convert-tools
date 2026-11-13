@@ -6,7 +6,7 @@
 
   <groupId>io.github.mertc0604</groupId>
   <artifactId>convert-tools-core</artifactId>
-  <version>2.0.0</version>
+  <version>3.0.0</version>
   <name>Convert Tools Core</name>
   <description>Dependency-free exact length, coordinate conversion and WGS84 geodesy core</description>
 

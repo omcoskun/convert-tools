@@ -13,6 +13,17 @@ import { ConvertToolsError } from "../errors.js";
 
 const ROUNDING_MODE = "HALF_UP";
 
+/**
+ * Exact conversion between two units of one category.
+ * @param {import("../types.js").RationalInput} input
+ * @param {string} categoryId
+ * @param {string} fromId
+ * @param {string} toId
+ * @param {number} [precision=24] fraction digits of the display `value`
+ * @returns {import("../types.js").UnitConversion}
+ * @throws {import("../errors.js").ConvertToolsError} UNKNOWN_UNIT_CATEGORY,
+ *   UNKNOWN_UNIT, INVALID_NUMBER, INPUT_LIMIT_EXCEEDED, INVALID_PRECISION
+ */
 export function convertUnits(
   input,
   categoryId,
@@ -66,10 +77,26 @@ export function convertUnits(
   };
 }
 
+/**
+ * Exact length conversion, e.g. `convertLength("1", "nautical-mile", "metre")`.
+ * @param {import("../types.js").RationalInput} input
+ * @param {string} fromId
+ * @param {string} toId
+ * @param {number} [precision=24]
+ * @returns {import("../types.js").UnitConversion}
+ */
 export function convertLength(input, fromId, toId, precision = 24) {
   return convertUnits(input, "length", fromId, toId, precision);
 }
 
+/**
+ * Converts `input` to every other unit of the category.
+ * @param {import("../types.js").RationalInput} input
+ * @param {string} categoryId
+ * @param {string} fromId
+ * @param {number} [precision=18]
+ * @returns {readonly import("../types.js").UnitConversion[]}
+ */
 export function convertToAll(input, categoryId, fromId, precision = 18) {
   const category = getCategory(categoryId);
   if (!category) {
