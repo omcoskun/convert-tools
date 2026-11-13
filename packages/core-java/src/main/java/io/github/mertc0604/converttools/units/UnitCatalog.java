@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.units;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,7 +22,7 @@ public final class UnitCatalog {
     public static UnitCategory category(String categoryId) {
         UnitCategory category = CATEGORIES.get(categoryId);
         if (category == null) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.UNKNOWN_UNIT_CATEGORY,
                     "Unknown unit category: " + categoryId + "."
             );
         }

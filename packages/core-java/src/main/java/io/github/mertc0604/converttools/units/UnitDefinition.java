@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.units;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import java.util.Objects;
 
 public record UnitDefinition(
@@ -12,7 +14,7 @@ public record UnitDefinition(
         Objects.requireNonNull(symbol, "symbol");
         Objects.requireNonNull(metresPerUnit, "metresPerUnit");
         if (metresPerUnit.numerator().signum() <= 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "metresPerUnit must be positive."
             );
         }

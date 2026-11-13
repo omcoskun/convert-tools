@@ -25,6 +25,7 @@ import {
   inverseConformalTangent,
 } from "../core/ellipsoid.js";
 import { validatePoint } from "../core/numbers.js";
+import { ConvertToolsError } from "../../errors.js";
 
 const UTM_FALSE_EASTING = 500000;
 const UTM_FALSE_NORTHING = 10000000;
@@ -198,7 +199,7 @@ export function standardUtmZone(latitude, longitude) {
  */
 export function centralMeridian(zone) {
   if (!Number.isInteger(zone) || zone < 1 || zone > 60) {
-    throw new Error("UTM zone must be an integer from 1 to 60.");
+    throw new ConvertToolsError("INVALID_ZONE", "UTM zone must be an integer from 1 to 60.");
   }
   return zone * 6 - 183;
 }
@@ -216,17 +217,17 @@ export function centralMeridian(zone) {
 export function utmForward(latitude, longitude, requestedZone, requestedNorth) {
   validatePoint(latitude, longitude);
   if (latitude < -80 || latitude > 84) {
-    throw new Error("UTM is defined between 80°S and 84°N.");
+    throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "UTM is defined between 80°S and 84°N.");
   }
   const zone = requestedZone ?? standardUtmZone(latitude, longitude);
-  if (zone === 0) throw new Error("UTM is defined between 80°S and 84°N.");
+  if (zone === 0) throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "UTM is defined between 80°S and 84°N.");
   const north = requestedNorth ?? latitude >= 0;
   if ((north && latitude < 0) || (!north && latitude > 0)) {
-    throw new Error("Latitude is in the other UTM hemisphere.");
+    throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "Latitude is in the other UTM hemisphere.");
   }
   const lon0 = centralMeridian(zone);
   if (Math.abs(angDiff(lon0, longitude)) > UTM_MAXIMUM_LONGITUDE_OFFSET) {
-    throw new Error("Longitude is too far from the selected UTM zone.");
+    throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "Longitude is too far from the selected UTM zone.");
   }
   const { x, y } = transverseMercatorForward(lon0, WGS84.utmScale, latitude, longitude);
   return {
@@ -255,7 +256,7 @@ export function utmInverse(zone, north, easting, northing) {
     northing < 0 ||
     northing > 10000000
   ) {
-    throw new Error("UTM easting or northing is outside the supported range.");
+    throw new ConvertToolsError("GRID_COORDINATE_OUT_OF_RANGE", "UTM easting or northing is outside the supported range.");
   }
   const point = transverseMercatorInverse(
     lon0,
@@ -280,7 +281,7 @@ export function upsForward(latitude, longitude, requestedNorth) {
   validatePoint(latitude, longitude);
   const north = requestedNorth ?? latitude >= 0;
   if ((north && latitude < UPS_LIMIT_LATITUDE) || (!north && latitude > -UPS_LIMIT_LATITUDE)) {
-    throw new Error("UPS coordinates must be within 30° of the selected pole.");
+    throw new ConvertToolsError("OUTSIDE_UPS_DOMAIN", "UPS coordinates must be within 30° of the selected pole.");
   }
   const rho = polarRadius(north ? latitude : -latitude);
   const [sinLambda, cosLambda] = sincosd(longitude);
@@ -315,13 +316,13 @@ const UPS_MAXIMUM_RADIUS = polarRadius(UPS_LIMIT_LATITUDE) + 1e-6;
  */
 export function upsInverse(north, easting, northing) {
   if (!Number.isFinite(easting) || !Number.isFinite(northing)) {
-    throw new Error("UPS easting or northing is outside the supported range.");
+    throw new ConvertToolsError("GRID_COORDINATE_OUT_OF_RANGE", "UPS easting or northing is outside the supported range.");
   }
   const x = easting - UPS_FALSE_ORIGIN;
   const y = northing - UPS_FALSE_ORIGIN;
   const rho = Math.hypot(x, y);
   if (!(rho <= UPS_MAXIMUM_RADIUS)) {
-    throw new Error("UPS easting or northing is outside the supported range.");
+    throw new ConvertToolsError("GRID_COORDINATE_OUT_OF_RANGE", "UPS easting or northing is outside the supported range.");
   }
   const t = rho !== 0 ? rho / POLAR_SCALE : Number.EPSILON ** 2;
   const taup = (1 / t - t) / 2;

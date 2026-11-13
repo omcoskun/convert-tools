@@ -38,3 +38,4 @@ export {
   utmUpsForward,
   utmUpsInverse,
 } from "./geodesy/index.js";
+export { ConvertToolsError, ERROR_CODES } from "./errors.js";

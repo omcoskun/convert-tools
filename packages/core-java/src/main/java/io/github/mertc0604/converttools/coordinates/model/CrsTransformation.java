@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.model;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import java.util.Objects;
 
 public record CrsTransformation(
@@ -16,7 +18,7 @@ public record CrsTransformation(
         Objects.requireNonNull(formattedX, "formattedX");
         Objects.requireNonNull(formattedY, "formattedY");
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.OUTSIDE_CRS_DOMAIN,
                     "Transformed coordinates must be finite."
             );
         }

@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.projection;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import io.github.mertc0604.converttools.coordinates.core.CoordinateMath;
 import io.github.mertc0604.converttools.coordinates.core.Wgs84;
 import io.github.mertc0604.converttools.coordinates.model.CoordinatePoint;
@@ -62,14 +64,14 @@ public final class CrsTransformer {
         Definition source = definition(sourceValue);
         Definition target = definition(targetValue);
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_NUMBER,
                     "X and Y must be finite."
             );
         }
         CoordinatePoint point = toWgs84(source, x, y);
         double[] result = fromWgs84(target, point);
         if (!Double.isFinite(result[0]) || !Double.isFinite(result[1])) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.OUTSIDE_CRS_DOMAIN,
                     "The transformation did not produce finite coordinates."
             );
         }
@@ -95,7 +97,7 @@ public final class CrsTransformer {
         if (number == 3857) {
             double maximum = Math.PI * Wgs84.SEMI_MAJOR_AXIS;
             if (Math.abs(x) > maximum || Math.abs(y) > maximum) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.OUTSIDE_CRS_DOMAIN,
                         "X or Y is outside the Web Mercator domain."
                 );
             }
@@ -133,7 +135,7 @@ public final class CrsTransformer {
         if (number == 3857) {
             if (Math.abs(point.latitude())
                     > WEB_MERCATOR_MAX_LATITUDE) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.OUTSIDE_CRS_DOMAIN,
                         "Latitude is outside the Web Mercator domain."
                 );
             }
@@ -156,7 +158,7 @@ public final class CrsTransformer {
         }
         if (number >= 32601 && number <= 32660) {
             if (point.latitude() < 0) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
                         "A northern UTM CRS cannot encode a southern point."
                 );
             }
@@ -170,7 +172,7 @@ public final class CrsTransformer {
         }
         if (number >= 32701 && number <= 32760) {
             if (point.latitude() > 0) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
                         "A southern UTM CRS cannot encode a northern point."
                 );
             }
@@ -198,7 +200,7 @@ public final class CrsTransformer {
                 : "EPSG:" + source;
         Matcher matcher = EPSG.matcher(normalized);
         if (!matcher.matches()) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.UNSUPPORTED_CRS,
                     "Use an EPSG code such as EPSG:4326."
             );
         }
@@ -206,7 +208,7 @@ public final class CrsTransformer {
         try {
             number = Integer.parseInt(matcher.group(1));
         } catch (NumberFormatException error) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.UNSUPPORTED_CRS,
                     "EPSG code is outside the supported range.",
                     error
             );
@@ -216,7 +218,7 @@ public final class CrsTransformer {
         if (!SUPPORTED_FIXED_CODES.contains(number)
                 && !utmNorth
                 && !utmSouth) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.UNSUPPORTED_CRS,
                     "Projection definition is not available: "
                             + normalized
                             + "."

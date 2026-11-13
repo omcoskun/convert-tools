@@ -3,6 +3,7 @@ import {
   validatePoint,
 } from "../core/numbers.js";
 import { directGeodesic, inverseGeodesic } from "./geodesic.js";
+import { ConvertToolsError } from "../../errors.js";
 
 const DEFAULT_MAX_SEGMENT_METRES = 25_000;
 const DEFAULT_MAX_POINTS = 2_049;
@@ -10,7 +11,7 @@ const MAX_POINTS_LIMIT = 10_001;
 
 function readPoint(value, name) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${name} must be a { latitude, longitude } object.`);
+    throw new ConvertToolsError("INVALID_ARGUMENT", `${name} must be a { latitude, longitude } object.`);
   }
 
   return validatePoint(
@@ -33,7 +34,7 @@ function freezePoint(point) {
  */
 export function sampleGeodesicPath(startValue, endValue, options = {}) {
   if (!options || typeof options !== "object" || Array.isArray(options)) {
-    throw new Error("options must be an object.");
+    throw new ConvertToolsError("INVALID_ARGUMENT", "options must be an object.");
   }
 
   const {
@@ -43,14 +44,14 @@ export function sampleGeodesicPath(startValue, endValue, options = {}) {
   } = options;
 
   if (!Number.isFinite(maxSegmentMetres) || maxSegmentMetres <= 0) {
-    throw new Error("maxSegmentMetres must be finite and greater than zero.");
+    throw new ConvertToolsError("INVALID_ARGUMENT", "maxSegmentMetres must be finite and greater than zero.");
   }
   if (
     !Number.isInteger(maxPoints) ||
     maxPoints < 2 ||
     maxPoints > MAX_POINTS_LIMIT
   ) {
-    throw new Error(
+    throw new ConvertToolsError("INVALID_ARGUMENT",
       `maxPoints must be an integer between 2 and ${MAX_POINTS_LIMIT}.`,
     );
   }

@@ -4,6 +4,7 @@ import {
   parseCoordinateNumber,
   validatePoint,
 } from "../core/numbers.js";
+import { ConvertToolsError } from "../../errors.js";
 
 const DEFAULT_TOLERANCE = 1e-13;
 const DEFAULT_MAX_ITERATIONS = 200;
@@ -40,7 +41,7 @@ function convergedRadians(previous, next, tolerance) {
 
 function readPoint(value, name) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${name} must be a { latitude, longitude } object.`);
+    throw new ConvertToolsError("INVALID_ARGUMENT", `${name} must be a { latitude, longitude } object.`);
   }
 
   return validatePoint(
@@ -64,7 +65,7 @@ function readEllipsoid(value) {
     f <= -1 ||
     f >= 1
   ) {
-    throw new Error("Ellipsoid axes and flattening are invalid.");
+    throw new ConvertToolsError("INVALID_ARGUMENT", "Ellipsoid axes and flattening are invalid.");
   }
 
   return Object.freeze({
@@ -276,7 +277,7 @@ function directVincentyRaw(
   }
 
   if (iterations >= maxIterations) {
-    throw new Error("Direct geodesic calculation did not converge.");
+    throw new ConvertToolsError("NO_CONVERGENCE", "Direct geodesic calculation did not converge.");
   }
 
   sinSigma = Math.sin(sigma);
@@ -631,7 +632,7 @@ function inverseByShooting(start, end, ellipsoid) {
   }
 
   if (!best) {
-    throw new Error("Ellipsoidal inverse calculation did not converge.");
+    throw new ConvertToolsError("NO_CONVERGENCE", "Ellipsoidal inverse calculation did not converge.");
   }
 
   const canonicalVertex = canonicalVertexCandidate(
@@ -781,7 +782,7 @@ export function inverseGeodesic(startValue, endValue, options = {}) {
     !Number.isInteger(maxIterations) ||
     maxIterations < 1
   ) {
-    throw new Error("Geodesic iteration options are invalid.");
+    throw new ConvertToolsError("INVALID_ARGUMENT", "Geodesic iteration options are invalid.");
   }
 
   if (coincident(start, end)) {
@@ -854,7 +855,7 @@ export function directGeodesic(
     "distanceMetres",
   );
   if (distanceMetres < 0) {
-    throw new Error("distanceMetres must not be negative.");
+    throw new ConvertToolsError("INVALID_ARGUMENT", "distanceMetres must not be negative.");
   }
   const ellipsoid = readEllipsoid(options.ellipsoid);
 

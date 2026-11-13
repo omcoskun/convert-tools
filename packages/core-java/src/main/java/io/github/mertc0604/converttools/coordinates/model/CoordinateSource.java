@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.model;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import java.util.Objects;
 
 public record CoordinateSource(
@@ -19,31 +21,31 @@ public record CoordinateSource(
         Objects.requireNonNull(kind, "kind");
         if (cellMetres != null
                 && (!Double.isFinite(cellMetres) || cellMetres <= 0)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "Cell resolution in metres must be positive."
             );
         }
         if (cellDegrees != null
                 && (!Double.isFinite(cellDegrees) || cellDegrees <= 0)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "Cell resolution in degrees must be positive."
             );
         }
         if (kind == Kind.POINT
                 && (cellMetres != null || cellDegrees != null)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "Point sources cannot declare a cell resolution."
             );
         }
         if (kind == Kind.CELL
                 && (cellMetres == null) == (cellDegrees == null)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "Cell sources require exactly one resolution unit."
             );
         }
         if (kind == Kind.AREA
                 && (cellMetres != null || cellDegrees == null)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "Area sources require an angular resolution."
             );
         }

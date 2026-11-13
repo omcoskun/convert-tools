@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.geodesy;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import java.util.Objects;
 
 public record Ellipsoid(
@@ -26,7 +28,7 @@ public record Ellipsoid(
                 flattening <= -1 ||
                 flattening >= 1
         ) {
-            throw new IllegalArgumentException("Ellipsoid parameters are invalid.");
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT, "Ellipsoid parameters are invalid.");
         }
     }
 }

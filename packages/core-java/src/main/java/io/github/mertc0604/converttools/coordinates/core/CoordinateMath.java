@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.core;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import io.github.mertc0604.converttools.coordinates.model.CoordinatePoint;
 
 import java.util.Locale;
@@ -20,13 +22,13 @@ public final class CoordinateMath {
     public static double parseNumber(String value, String name) {
         String source = value.trim().replace(',', '.');
         if (!DECIMAL.matcher(source).matches()) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_NUMBER,
                     name + " is not a valid number."
             );
         }
         double result = Double.parseDouble(source);
         if (!Double.isFinite(result)) {
-            throw new IllegalArgumentException(name + " is not finite.");
+            throw new ConvertToolsException(ErrorCode.INVALID_NUMBER, name + " is not finite.");
         }
         return result;
     }
@@ -46,7 +48,7 @@ public final class CoordinateMath {
 
     public static String fixed(double value, int digits) {
         if (digits < 0 || digits > 15) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_PRECISION,
                     "Fraction digits must be between 0 and 15."
             );
         }

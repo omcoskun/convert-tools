@@ -130,8 +130,11 @@ test("MGRS decoding matches GeoConvert cell centres and rejects what it rejects"
       try {
         const decoded = decodeMgrs(row.mgrs, true);
         failures.push(`${row.id}: accepted invalid MGRS as ${decoded.latitude}, ${decoded.longitude}`);
-      } catch {
-        // expected
+      } catch (error) {
+        // GeographicLib rejects it as well; the reason must be a coded MGRS error.
+        if (!["INVALID_MGRS", "MGRS_SQUARE_NOT_IN_BAND"].includes(error.code)) {
+          failures.push(`${row.id}: rejected with ${error.code ?? error.message}`);
+        }
       }
       continue;
     }

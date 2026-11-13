@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.grid;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import io.github.mertc0604.converttools.coordinates.model.AngularCell;
 import io.github.mertc0604.converttools.coordinates.model.CoordinatePoint;
 
@@ -79,7 +81,7 @@ public final class Georef {
         if (!matcher.matches()
                 || matcher.group(2).length() % 2 != 0
                 || matcher.group(2).length() > 10) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_GEOREF,
                     "Invalid GEOREF coordinate."
             );
         }
@@ -97,7 +99,7 @@ public final class Georef {
                 || latitudeZone > 11
                 || longitudeDegree < 0
                 || latitudeDegree < 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_GEOREF,
                     "Invalid GEOREF grid letters."
             );
         }
@@ -116,7 +118,7 @@ public final class Georef {
                 ? 0
                 : Integer.parseInt(latitudeText) * stepMinutes;
         if (longitudeMinutes >= 60 || latitudeMinutes >= 60) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_GEOREF,
                     "Invalid GEOREF minute value."
             );
         }
@@ -142,7 +144,7 @@ public final class Georef {
 
     private static void validatePrecision(int precision) {
         if (precision < 0 || precision > 5) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_PRECISION,
                     "GEOREF precision must be between 0 and 5."
             );
         }

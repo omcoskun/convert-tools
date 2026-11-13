@@ -10,6 +10,7 @@ import {
   utmForward,
   utmInverse,
 } from "./utm-ups.js";
+import { ConvertToolsError } from "../../errors.js";
 
 const SUPPORTED_FIXED_CODES = new Set([4326, 3857, 5041, 5042]);
 const WEB_MERCATOR_MAX_LATITUDE = 85.0511287798066;
@@ -18,12 +19,12 @@ function epsgNumber(value) {
   const source = String(value).trim().toUpperCase();
   const normalized = source.startsWith("EPSG:") ? source : `EPSG:${source}`;
   const match = normalized.match(/^EPSG:(\d+)$/);
-  if (!match) throw new Error("Use an EPSG code such as EPSG:4326.");
+  if (!match) throw new ConvertToolsError("UNSUPPORTED_CRS", "Use an EPSG code such as EPSG:4326.");
   const number = Number(match[1]);
   const isUtmNorth = number >= 32601 && number <= 32660;
   const isUtmSouth = number >= 32701 && number <= 32760;
   if (!SUPPORTED_FIXED_CODES.has(number) && !isUtmNorth && !isUtmSouth) {
-    throw new Error(`Projection definition is not available: ${normalized}.`);
+    throw new ConvertToolsError("UNSUPPORTED_CRS", `Projection definition is not available: ${normalized}.`);
   }
   return { code: normalized, number };
 }
@@ -34,7 +35,7 @@ function toWgs84(definition, x, y) {
   if (number === 3857) {
     const maximum = Math.PI * WGS84.a;
     if (Math.abs(x) > maximum || Math.abs(y) > maximum) {
-      throw new Error("X or Y is outside the Web Mercator domain.");
+      throw new ConvertToolsError("OUTSIDE_CRS_DOMAIN", "X or Y is outside the Web Mercator domain.");
     }
     const longitude = Math.max(
       -180,
@@ -58,7 +59,7 @@ function fromWgs84(definition, point) {
   if (number === 4326) return [point.longitude, point.latitude];
   if (number === 3857) {
     if (Math.abs(point.latitude) > WEB_MERCATOR_MAX_LATITUDE) {
-      throw new Error("Latitude is outside the Web Mercator domain.");
+      throw new ConvertToolsError("OUTSIDE_CRS_DOMAIN", "Latitude is outside the Web Mercator domain.");
     }
     const maximum = Math.PI * WGS84.a;
     const y =
@@ -71,14 +72,14 @@ function fromWgs84(definition, point) {
   }
   if (number >= 32601 && number <= 32660) {
     if (point.latitude < 0) {
-      throw new Error("A northern UTM CRS cannot encode a southern point.");
+      throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "A northern UTM CRS cannot encode a southern point.");
     }
     const grid = utmForward(point.latitude, point.longitude, number - 32600, true);
     return [grid.easting, grid.northing];
   }
   if (number >= 32701 && number <= 32760) {
     if (point.latitude > 0) {
-      throw new Error("A southern UTM CRS cannot encode a northern point.");
+      throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "A southern UTM CRS cannot encode a northern point.");
     }
     const grid = utmForward(point.latitude, point.longitude, number - 32700, false);
     return [grid.easting, grid.northing];
@@ -100,7 +101,7 @@ export function transformCrs(sourceValue, targetValue, xValue, yValue) {
   const point = toWgs84(source, x, y);
   const [resultX, resultY] = fromWgs84(target, point);
   if (!Number.isFinite(resultX) || !Number.isFinite(resultY)) {
-    throw new Error("The transformation did not produce finite coordinates.");
+    throw new ConvertToolsError("OUTSIDE_CRS_DOMAIN", "The transformation did not produce finite coordinates.");
   }
   return {
     source: source.code,

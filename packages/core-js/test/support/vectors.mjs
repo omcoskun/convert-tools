@@ -11,7 +11,12 @@ const VECTOR_DIRECTORY = new URL(
  * Cells stay as strings; callers convert what they need.
  */
 export function readVectors(name, expectedHeader) {
-  const source = readFileSync(new URL(name, VECTOR_DIRECTORY), "utf8").trim();
+  return readCsv(new URL(name, VECTOR_DIRECTORY), expectedHeader, name);
+}
+
+/** Reads any contract CSV (no quoting; cells never contain commas). */
+export function readCsv(url, expectedHeader, name = String(url)) {
+  const source = readFileSync(url, "utf8").trim();
   const [headerLine, ...lines] = source.split(/\r?\n/);
   const header = headerLine.split(",");
   if (expectedHeader) assert.deepEqual(header, expectedHeader, name);

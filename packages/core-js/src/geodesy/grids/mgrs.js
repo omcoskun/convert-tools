@@ -7,6 +7,7 @@
 // a 100 km square is accepted only if it can lie in the stated latitude band.
 
 import { latitudeBandIndex, utmUpsForward, utmUpsInverse } from "../projections/utm-ups.js";
+import { ConvertToolsError } from "../../errors.js";
 
 const TILE = 100000;
 const MICROMETRES_PER_METRE = 1e6;
@@ -65,7 +66,7 @@ function utmRow(band, column, periodicRow) {
 
 function validatePrecision(precision) {
   if (!Number.isInteger(precision) || precision < 0 || precision > 5) {
-    throw new Error("MGRS precision must be between 0 and 5.");
+    throw new ConvertToolsError("INVALID_PRECISION", "MGRS precision must be between 0 and 5.");
   }
 }
 
@@ -102,7 +103,7 @@ export function encodeMgrs(latitude, longitude, precision = 5) {
     const columnIndex = column - MIN_UTM_COLUMN;
     const trueRow = utmRow(band, columnIndex, row % UTM_ROW_PERIOD);
     if (trueRow !== row - (grid.north ? 0 : MAX_UTM_SOUTH_ROW)) {
-      throw new Error("Latitude is inconsistent with the UTM coordinates.");
+      throw new ConvertToolsError("OUTSIDE_MGRS_DOMAIN", "Latitude is inconsistent with the UTM coordinates.");
     }
     const zoneIndex = grid.zone - 1;
     letters =
@@ -122,7 +123,7 @@ export function encodeMgrs(latitude, longitude, precision = 5) {
     const columnLetter = UPS_COLUMNS[bandIndex][column - columnOffset];
     const rowLetter = UPS_ROWS[grid.north ? 1 : 0][row - rowOffset];
     if (!columnLetter || !rowLetter) {
-      throw new Error("UPS coordinate is outside the MGRS lettering grid.");
+      throw new ConvertToolsError("OUTSIDE_MGRS_DOMAIN", "UPS coordinate is outside the MGRS lettering grid.");
     }
     letters = UPS_BANDS[bandIndex] + columnLetter + rowLetter;
   }
@@ -150,25 +151,25 @@ export function decodeMgrs(value, center = true) {
     zone = zone * 10 + Number(source[position]);
     position += 1;
   }
-  if (position > 2) throw new Error("MGRS zone has more than two digits.");
+  if (position > 2) throw new ConvertToolsError("INVALID_MGRS", "MGRS zone has more than two digits.");
   if (position > 0 && !(zone >= 1 && zone <= 60)) {
-    throw new Error("MGRS zone must be from 1 to 60.");
+    throw new ConvertToolsError("INVALID_MGRS", "MGRS zone must be from 1 to 60.");
   }
   const utm = position > 0;
   let band = lookup(utm ? LATITUDE_BANDS : UPS_BANDS, source[position]);
-  if (band < 0) throw new Error("Invalid MGRS latitude band letter.");
+  if (band < 0) throw new ConvertToolsError("INVALID_MGRS", "Invalid MGRS latitude band letter.");
   position += 1;
   const north = band >= (utm ? 10 : 2);
   if (source.length - position < 2) {
-    throw new Error("MGRS must include the 100 km square letters.");
+    throw new ConvertToolsError("INVALID_MGRS", "MGRS must include the 100 km square letters.");
   }
   let column = lookup(
     utm ? UTM_COLUMNS[(zone - 1) % 3] : UPS_COLUMNS[band],
     source[position],
   );
-  if (column < 0) throw new Error("Invalid MGRS 100 km column letter.");
+  if (column < 0) throw new ConvertToolsError("INVALID_MGRS", "Invalid MGRS 100 km column letter.");
   let row = lookup(utm ? UTM_ROWS : UPS_ROWS[north ? 1 : 0], source[position + 1]);
-  if (row < 0) throw new Error("Invalid MGRS 100 km row letter.");
+  if (row < 0) throw new ConvertToolsError("INVALID_MGRS", "Invalid MGRS 100 km row letter.");
   position += 2;
 
   if (utm) {
@@ -178,7 +179,7 @@ export function decodeMgrs(value, center = true) {
     band -= 10;
     row = utmRow(band, column, row);
     if (row === MAX_UTM_SOUTH_ROW) {
-      throw new Error("MGRS 100 km square is not in its zone and latitude band.");
+      throw new ConvertToolsError("MGRS_SQUARE_NOT_IN_BAND", "MGRS 100 km square is not in its zone and latitude band.");
     }
     row = north ? row : row + MAX_UTM_SOUTH_ROW;
     column += MIN_UTM_COLUMN;
@@ -193,12 +194,12 @@ export function decodeMgrs(value, center = true) {
   }
 
   const digits = source.slice(position);
-  if (!/^\d*$/.test(digits)) throw new Error("MGRS digits contain a non-digit.");
+  if (!/^\d*$/.test(digits)) throw new ConvertToolsError("INVALID_MGRS", "MGRS digits contain a non-digit.");
   if (digits.length % 2 !== 0) {
-    throw new Error("MGRS must end with an even number of digits.");
+    throw new ConvertToolsError("INVALID_MGRS", "MGRS must end with an even number of digits.");
   }
   const precision = digits.length / 2;
-  if (precision > 5) throw new Error("MGRS supports at most 5 digits per axis.");
+  if (precision > 5) throw new ConvertToolsError("INVALID_MGRS", "MGRS supports at most 5 digits per axis.");
   let unit = 1;
   let x = column;
   let y = row;

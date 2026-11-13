@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.units;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,7 +18,7 @@ public final class UnitCategory {
         LinkedHashMap<String, UnitDefinition> byId = new LinkedHashMap<>();
         for (UnitDefinition definition : definitions) {
             if (byId.put(definition.id(), definition) != null) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                         "Duplicate unit id: " + definition.id()
                 );
             }
@@ -32,7 +34,7 @@ public final class UnitCategory {
     public UnitDefinition unit(String unitId) {
         UnitDefinition unit = units.get(unitId);
         if (unit == null) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.UNKNOWN_UNIT,
                     "Unknown unit " + unitId + " in category " + id + "."
             );
         }

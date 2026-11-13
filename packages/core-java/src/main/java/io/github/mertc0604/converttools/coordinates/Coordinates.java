@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import io.github.mertc0604.converttools.coordinates.core.CoordinateMath;
 import io.github.mertc0604.converttools.coordinates.format.CoordinateAxis;
 import io.github.mertc0604.converttools.coordinates.format.DmsFormat;
@@ -90,20 +92,20 @@ public final class Coordinates {
     ) {
         String source = zoneValue.trim();
         if (!ZONE.matcher(source).matches()) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ZONE,
                     "Zone must be an integer from 0 to 60."
             );
         }
         int zone = Integer.parseInt(source);
         if (zone < 0 || zone > 60) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ZONE,
                     "Zone must be an integer from 0 to 60."
             );
         }
         String hemisphere = hemisphereValue.trim()
                 .toUpperCase(Locale.ROOT);
         if (!"N".equals(hemisphere) && !"S".equals(hemisphere)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_HEMISPHERE,
                     "Hemisphere must be N or S."
             );
         }
@@ -264,7 +266,7 @@ public final class Coordinates {
 
     private static void validateMgrsPrecision(int precision) {
         if (precision < 0 || precision > 5) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_PRECISION,
                     "MGRS precision must be between 0 and 5."
             );
         }

@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.grid;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import io.github.mertc0604.converttools.coordinates.model.CoordinatePoint;
 import io.github.mertc0604.converttools.coordinates.model.GridCell;
 import io.github.mertc0604.converttools.coordinates.model.GridCoordinate;
@@ -128,7 +130,7 @@ public final class Mgrs {
             int columnIndex = column - MIN_UTM_COLUMN;
             int trueRow = utmRow(band, columnIndex, row % UTM_ROW_PERIOD);
             if (trueRow != row - (grid.north() ? 0 : MAX_UTM_SOUTH_ROW)) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.OUTSIDE_MGRS_DOMAIN,
                         "Latitude is inconsistent with the UTM coordinates."
                 );
             }
@@ -154,7 +156,7 @@ public final class Mgrs {
             int rowIndex = row - rowOffset;
             if (columnIndex < 0 || columnIndex >= columns.length()
                     || rowIndex < 0 || rowIndex >= rows.length()) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.OUTSIDE_MGRS_DOMAIN,
                         "UPS coordinate is outside the MGRS lettering grid."
                 );
             }
@@ -211,26 +213,26 @@ public final class Mgrs {
             position++;
         }
         if (position > 2) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_MGRS,
                     "MGRS zone has more than two digits."
             );
         }
         if (position > 0 && !(zone >= 1 && zone <= 60)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_MGRS,
                     "MGRS zone must be from 1 to 60."
             );
         }
         boolean utm = position > 0;
         int band = lookup(utm ? LATITUDE_BANDS : UPS_BANDS, source, position);
         if (band < 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_MGRS,
                     "Invalid MGRS latitude band letter."
             );
         }
         position++;
         boolean north = band >= (utm ? 10 : 2);
         if (source.length() - position < 2) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_MGRS,
                     "MGRS must include the 100 km square letters."
             );
         }
@@ -240,7 +242,7 @@ public final class Mgrs {
                 position
         );
         if (column < 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_MGRS,
                     "Invalid MGRS 100 km column letter."
             );
         }
@@ -250,7 +252,7 @@ public final class Mgrs {
                 position + 1
         );
         if (row < 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_MGRS,
                     "Invalid MGRS 100 km row letter."
             );
         }
@@ -264,7 +266,7 @@ public final class Mgrs {
             band -= 10;
             row = utmRow(band, column, row);
             if (row == MAX_UTM_SOUTH_ROW) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.MGRS_SQUARE_NOT_IN_BAND,
                         "MGRS 100 km square is not in its zone and latitude band."
                 );
             }
@@ -281,19 +283,19 @@ public final class Mgrs {
         String digits = source.substring(position);
         for (int index = 0; index < digits.length(); index++) {
             if (!isAsciiDigit(digits.charAt(index))) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.INVALID_MGRS,
                         "MGRS digits contain a non-digit."
                 );
             }
         }
         if (digits.length() % 2 != 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_MGRS,
                     "MGRS must end with an even number of digits."
             );
         }
         int precision = digits.length() / 2;
         if (precision > 5) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_MGRS,
                     "MGRS supports at most 5 digits per axis."
             );
         }
@@ -375,7 +377,7 @@ public final class Mgrs {
 
     private static void validatePrecision(int precision) {
         if (precision < 0 || precision > 5) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_PRECISION,
                     "MGRS precision must be between 0 and 5."
             );
         }

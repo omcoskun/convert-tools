@@ -1,5 +1,8 @@
 package io.github.mertc0604.converttools.units;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
+
 public final class UnitConverter {
     private UnitConverter() {
     }
@@ -28,7 +31,7 @@ public final class UnitConverter {
             int precision
     ) {
         if (precision < 0 || precision > 60) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_PRECISION,
                     "precision must be between 0 and 60."
             );
         }

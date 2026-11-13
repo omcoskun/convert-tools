@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.units;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
@@ -30,7 +32,7 @@ public record Rational(BigInteger numerator, BigInteger denominator) {
                 "Rational denominator"
         );
         if (denominator.signum() == 0) {
-            throw new ArithmeticException("Division by zero is not allowed.");
+            throw new ConvertToolsException(ErrorCode.DIVISION_BY_ZERO, "Division by zero is not allowed.");
         }
 
         if (denominator.signum() < 0) {
@@ -61,7 +63,7 @@ public record Rational(BigInteger numerator, BigInteger denominator) {
                 .replace(',', '.');
         Matcher matcher = DECIMAL_PATTERN.matcher(normalized);
         if (!matcher.matches()) {
-            throw new IllegalArgumentException("Enter a valid decimal number.");
+            throw new ConvertToolsException(ErrorCode.INVALID_NUMBER, "Enter a valid decimal number.");
         }
         int exponentIndex = Math.max(
                 normalized.indexOf('e'),
@@ -74,7 +76,7 @@ public record Rational(BigInteger numerator, BigInteger denominator) {
                 .filter(Character::isDigit)
                 .count();
         if (digitCount > MAX_INPUT_DIGITS) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INPUT_LIMIT_EXCEEDED,
                     "Decimal values must contain at most "
                             + MAX_INPUT_DIGITS
                             + " digits."
@@ -86,7 +88,7 @@ public record Rational(BigInteger numerator, BigInteger denominator) {
             try {
                 exponent = Integer.parseInt(exponentText);
             } catch (NumberFormatException exception) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.INPUT_LIMIT_EXCEEDED,
                         "Exponent must be between -"
                                 + MAX_DECIMAL_EXPONENT
                                 + " and "
@@ -96,7 +98,7 @@ public record Rational(BigInteger numerator, BigInteger denominator) {
                 );
             }
             if (Math.abs((long) exponent) > MAX_DECIMAL_EXPONENT) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.INPUT_LIMIT_EXCEEDED,
                         "Exponent must be between -"
                                 + MAX_DECIMAL_EXPONENT
                                 + " and "
@@ -125,7 +127,7 @@ public record Rational(BigInteger numerator, BigInteger denominator) {
     ) {
         int digits = value.abs().toString().length();
         if (digits > maximum) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INPUT_LIMIT_EXCEEDED,
                     label + " must contain at most " + maximum + " digits."
             );
         }
@@ -156,7 +158,7 @@ public record Rational(BigInteger numerator, BigInteger denominator) {
 
     public Rational divide(Rational other) {
         if (other.numerator.signum() == 0) {
-            throw new ArithmeticException("Division by zero is not allowed.");
+            throw new ConvertToolsException(ErrorCode.DIVISION_BY_ZERO, "Division by zero is not allowed.");
         }
         return new Rational(
                 numerator.multiply(other.denominator),
@@ -187,7 +189,7 @@ public record Rational(BigInteger numerator, BigInteger denominator) {
 
     public String format(int maximumFractionDigits) {
         if (maximumFractionDigits < 0 || maximumFractionDigits > 60) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_PRECISION,
                     "maximumFractionDigits must be between 0 and 60."
             );
         }

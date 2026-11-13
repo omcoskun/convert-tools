@@ -1,4 +1,5 @@
 import { inverseGeodesic } from "./geodesic.js";
+import { ConvertToolsError } from "../../errors.js";
 
 function compensatedSum(values) {
   let sum = 0;
@@ -18,7 +19,7 @@ function compensatedSum(values) {
 
 export function measureGeodesicPolyline(points, options = {}) {
   if (!Array.isArray(points)) {
-    throw new Error("points must be an array.");
+    throw new ConvertToolsError("INVALID_ARGUMENT", "points must be an array.");
   }
 
   if (points.length < 2) {

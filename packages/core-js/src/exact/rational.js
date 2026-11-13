@@ -1,3 +1,5 @@
+import { ConvertToolsError } from "../errors.js";
+
 const TEN = 10n;
 const MAX_DECIMAL_EXPONENT = 1000;
 const MAX_OUTPUT_DIGITS = 60;
@@ -26,13 +28,13 @@ function greatestCommonDivisor(left, right) {
 function assertBigIntDigits(value, maximum, label) {
   const digitCount = absolute(value).toString().length;
   if (digitCount > maximum) {
-    throw new Error(`${label} must contain at most ${maximum} digits.`);
+    throw new ConvertToolsError("INPUT_LIMIT_EXCEEDED", `${label} must contain at most ${maximum} digits.`);
   }
 }
 
 export function normalizeRational(numerator, denominator = 1n) {
   if (denominator === 0n) {
-    throw new Error("Division by zero is not allowed.");
+    throw new ConvertToolsError("DIVISION_BY_ZERO", "Division by zero is not allowed.");
   }
   assertBigIntDigits(numerator, MAX_RATIONAL_DIGITS, "Rational numerator");
   assertBigIntDigits(denominator, MAX_RATIONAL_DIGITS, "Rational denominator");
@@ -68,7 +70,7 @@ function powerOfTen(exponent, maximum = MAX_RATIONAL_DIGITS) {
     exponent < 0 ||
     exponent > maximum
   ) {
-    throw new Error(
+    throw new ConvertToolsError("INPUT_LIMIT_EXCEEDED",
       `Power-of-ten exponent must be between 0 and ${maximum}.`,
     );
   }
@@ -78,7 +80,7 @@ function powerOfTen(exponent, maximum = MAX_RATIONAL_DIGITS) {
 
 export function parseDecimal(input) {
   if (typeof input === "number" && !Number.isSafeInteger(input)) {
-    throw new Error(
+    throw new ConvertToolsError("INVALID_NUMBER",
       "Number inputs must be safe integers. Use a decimal string for non-integer or high-precision values.",
     );
   }
@@ -87,12 +89,12 @@ export function parseDecimal(input) {
     typeof input !== "bigint" &&
     typeof input !== "number"
   ) {
-    throw new Error("Decimal values must be provided as strings or safe integers.");
+    throw new ConvertToolsError("INVALID_NUMBER", "Decimal values must be provided as strings or safe integers.");
   }
 
   const source = String(input).trim().replace(/\s+/g, "");
   if (source.length > MAX_INPUT_DIGITS + 16) {
-    throw new Error(
+    throw new ConvertToolsError("INPUT_LIMIT_EXCEEDED",
       `Decimal values must contain at most ${MAX_INPUT_DIGITS} digits.`,
     );
   }
@@ -101,7 +103,7 @@ export function parseDecimal(input) {
   );
 
   if (!match) {
-    throw new Error("Enter a valid decimal number, for example 1852 or 3e-4.");
+    throw new ConvertToolsError("INVALID_NUMBER", "Enter a valid decimal number, for example 1852 or 3e-4.");
   }
 
   const sign = match[1] === "-" ? -1n : 1n;
@@ -113,14 +115,14 @@ export function parseDecimal(input) {
     !Number.isInteger(exponent) ||
     Math.abs(exponent) > MAX_DECIMAL_EXPONENT
   ) {
-    throw new Error(
+    throw new ConvertToolsError("INPUT_LIMIT_EXCEEDED",
       `Exponent must be between -${MAX_DECIMAL_EXPONENT} and ${MAX_DECIMAL_EXPONENT}.`,
     );
   }
 
   const rawDigits = `${sourceIntegerPart}${fractionPart}`;
   if (rawDigits.length > MAX_INPUT_DIGITS) {
-    throw new Error(
+    throw new ConvertToolsError("INPUT_LIMIT_EXCEEDED",
       `Decimal values must contain at most ${MAX_INPUT_DIGITS} digits.`,
     );
   }
@@ -143,7 +145,7 @@ function integerComponent(value) {
     result = value;
   } else if (typeof value === "number") {
     if (!Number.isSafeInteger(value)) {
-      throw new Error(
+      throw new ConvertToolsError("INVALID_NUMBER",
         "Rational number components must be safe integers. Use integer strings for high-precision values.",
       );
     }
@@ -154,18 +156,18 @@ function integerComponent(value) {
       ? source.length - 1
       : source.length;
     if (digitCount > MAX_INPUT_DIGITS) {
-      throw new Error(
+      throw new ConvertToolsError("INPUT_LIMIT_EXCEEDED",
         `Rational components must contain at most ${MAX_INPUT_DIGITS} digits.`,
       );
     }
     if (!INTEGER_PATTERN.test(source)) {
-      throw new Error(
+      throw new ConvertToolsError("INVALID_NUMBER",
         "Rational components must be integer strings or BigInts.",
       );
     }
     result = BigInt(source);
   } else {
-    throw new Error("Rational components must be integer strings or BigInts.");
+    throw new ConvertToolsError("INVALID_NUMBER", "Rational components must be integer strings or BigInts.");
   }
 
   assertBigIntDigits(result, MAX_INPUT_DIGITS, "Rational components");
@@ -194,7 +196,7 @@ export function toRational(value) {
   }
   if (typeof value === "number") {
     if (!Number.isSafeInteger(value)) {
-      throw new Error(
+      throw new ConvertToolsError("INVALID_NUMBER",
         "Number inputs must be safe integers. Use a decimal string for non-integer or high-precision values.",
       );
     }
@@ -215,7 +217,7 @@ export function toRational(value) {
     }
   }
 
-  throw new Error(
+  throw new ConvertToolsError("INVALID_NUMBER",
     "Rational values must be decimal strings, safe integers, Rational objects, JSON rational objects, or [n, d] pairs.",
   );
 }
@@ -248,7 +250,7 @@ export function multiplyRational(left, right) {
 
 export function divideRational(left, right) {
   if (right.n === 0n) {
-    throw new Error("Division by zero is not allowed.");
+    throw new ConvertToolsError("DIVISION_BY_ZERO", "Division by zero is not allowed.");
   }
   return normalizeRational(left.n * right.d, left.d * right.n);
 }
@@ -278,7 +280,7 @@ export function formatRational(value, maximumFractionDigits = 24) {
     maximumFractionDigits < 0 ||
     maximumFractionDigits > MAX_OUTPUT_DIGITS
   ) {
-    throw new Error(
+    throw new ConvertToolsError("INVALID_PRECISION",
       `Maximum fraction digits must be an integer between 0 and ${MAX_OUTPUT_DIGITS}.`,
     );
   }

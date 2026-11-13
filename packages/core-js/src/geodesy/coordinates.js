@@ -22,6 +22,7 @@ import {
   utmUpsForward,
   utmUpsInverse,
 } from "./projections/utm-ups.js";
+import { ConvertToolsError } from "../errors.js";
 
 const DD_DIGITS = 10;
 const DMS_SECOND_DIGITS = 5;
@@ -59,15 +60,15 @@ export function fromMgrs(value) {
 export function fromUtmUps(zoneValue, hemisphereValue, eastingValue, northingValue) {
   const zoneSource = String(zoneValue).trim();
   if (!/^\d{1,2}$/.test(zoneSource)) {
-    throw new Error("Zone must be an integer from 0 to 60.");
+    throw new ConvertToolsError("INVALID_ZONE", "Zone must be an integer from 0 to 60.");
   }
   const zone = Number(zoneSource);
   if (zone < 0 || zone > 60) {
-    throw new Error("Zone must be an integer from 0 to 60.");
+    throw new ConvertToolsError("INVALID_ZONE", "Zone must be an integer from 0 to 60.");
   }
   const hemisphere = String(hemisphereValue).trim().toUpperCase();
   if (hemisphere !== "N" && hemisphere !== "S") {
-    throw new Error("Hemisphere must be N or S.");
+    throw new ConvertToolsError("INVALID_HEMISPHERE", "Hemisphere must be N or S.");
   }
   const point = utmUpsInverse(
     zone,
@@ -105,7 +106,7 @@ export function coordinateResults(point, mgrsPrecision = 5) {
   );
   const precision = Number(mgrsPrecision);
   if (!Number.isInteger(precision) || precision < 0 || precision > 5) {
-    throw new Error("MGRS precision must be between 0 and 5.");
+    throw new ConvertToolsError("INVALID_PRECISION", "MGRS precision must be between 0 and 5.");
   }
 
   const grid = utmUpsForward(latitude, longitude);

@@ -152,8 +152,13 @@ public final class ReferenceVectorTest {
                 try {
                     GridCell cell = Mgrs.decode(row.get("mgrs"), true);
                     check.fail(id + ": accepted invalid MGRS as " + cell.point());
-                } catch (IllegalArgumentException expected) {
-                    // GeographicLib rejects it as well.
+                } catch (ConvertToolsException expected) {
+                    // GeographicLib rejects it as well; the reason must be a
+                    // coded MGRS error.
+                    if (expected.code() != ErrorCode.INVALID_MGRS
+                            && expected.code() != ErrorCode.MGRS_SQUARE_NOT_IN_BAND) {
+                        check.fail(id + ": rejected with " + expected.code());
+                    }
                 }
                 continue;
             }

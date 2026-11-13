@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.model;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import java.util.Objects;
 
 public record CoordinateResolution(
@@ -30,12 +32,12 @@ public record CoordinateResolution(
         Objects.requireNonNull(unit, "unit");
         Objects.requireNonNull(errorModel, "errorModel");
         if (!Double.isFinite(step) || step <= 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "Resolution step must be positive."
             );
         }
         if (!Double.isFinite(maximumError) || maximumError < 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "Maximum error cannot be negative."
             );
         }

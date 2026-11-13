@@ -8,6 +8,6 @@ rm -rf "$OUT"
 mkdir -p "$OUT"
 find "$ROOT/packages/core-java/src/main/java" "$ROOT/packages/core-java/src/test/java" -name '*.java' -print0 \
   | xargs -0 javac --release 17 -Xlint:all -Werror -d "$OUT"
-for test in ContractTest CoordinateContractTest ReferenceVectorTest; do
+for test in ContractTest CoordinateContractTest ReferenceVectorTest ErrorContractTest; do
   java -ea -cp "$OUT" "io.github.mertc0604.converttools.$test" "$ROOT/contracts/test-vectors"
 done

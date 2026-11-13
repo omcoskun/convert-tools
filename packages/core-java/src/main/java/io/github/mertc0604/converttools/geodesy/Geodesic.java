@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.geodesy;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -108,12 +110,12 @@ public final class Geodesic {
         Objects.requireNonNull(start, "start");
         Objects.requireNonNull(ellipsoid, "ellipsoid");
         if (!Double.isFinite(initialBearingDegrees)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "initialBearingDegrees must be finite."
             );
         }
         if (!Double.isFinite(distanceMetres) || distanceMetres < 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "distanceMetres must be finite and non-negative."
             );
         }
@@ -231,12 +233,12 @@ public final class Geodesic {
         Objects.requireNonNull(end, "end");
         Objects.requireNonNull(ellipsoid, "ellipsoid");
         if (!Double.isFinite(maxSegmentMetres) || maxSegmentMetres <= 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "maxSegmentMetres must be finite and greater than zero."
             );
         }
         if (maxPoints < 2 || maxPoints > PATH_MAX_POINTS_LIMIT) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT,
                     "maxPoints must be between 2 and "
                             + PATH_MAX_POINTS_LIMIT
                             + "."
@@ -509,7 +511,7 @@ public final class Geodesic {
             }
         }
         if (iterations >= MAX_ITERATIONS) {
-            throw new IllegalStateException(
+            throw new ConvertToolsException(ErrorCode.NO_CONVERGENCE,
                     "Direct geodesic calculation did not converge."
             );
         }
@@ -649,7 +651,7 @@ public final class Geodesic {
             }
         }
         if (best == null) {
-            throw new IllegalStateException(
+            throw new ConvertToolsException(ErrorCode.NO_CONVERGENCE,
                     "Ellipsoidal inverse calculation did not converge."
             );
         }

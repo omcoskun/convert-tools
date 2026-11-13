@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.grid;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import io.github.mertc0604.converttools.coordinates.model.AngularCell;
 import io.github.mertc0604.converttools.coordinates.model.CoordinatePoint;
 
@@ -50,7 +52,7 @@ public final class Gars {
         String source = value.toUpperCase(Locale.ROOT)
                 .replaceAll("\\s+", "");
         if (!VALUE.matcher(source).matches()) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_GARS,
                     "Invalid GARS coordinate."
             );
         }
@@ -62,7 +64,7 @@ public final class Gars {
                 || longitudeBand > 720
                 || latitudeBand < 0
                 || latitudeBand > 359) {
-            throw new IllegalArgumentException("Invalid GARS band.");
+            throw new ConvertToolsException(ErrorCode.INVALID_GARS, "Invalid GARS band.");
         }
 
         double longitude = -180 + (longitudeBand - 1) * 0.5;

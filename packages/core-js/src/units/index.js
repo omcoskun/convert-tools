@@ -6,3 +6,4 @@ export {
   rationalToJson,
   toRational,
 } from "../exact/rational.js";
+export { ConvertToolsError, ERROR_CODES } from "../errors.js";

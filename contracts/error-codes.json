@@ -1,0 +1,28 @@
+{
+  "description": "Stable error codes of @convert-tools/core (ConvertToolsError.code) and the Java core (ConvertToolsException.code()). Both cores must define exactly this list. Messages are English developer text and may change; codes may not.",
+  "codes": [
+    { "code": "INVALID_ARGUMENT", "meaning": "An option or argument has the wrong shape or an impossible value." },
+    { "code": "INVALID_NUMBER", "meaning": "A numeric input is not a valid finite number." },
+    { "code": "INPUT_LIMIT_EXCEEDED", "meaning": "A number has more digits or a larger exponent than the exact arithmetic accepts." },
+    { "code": "DIVISION_BY_ZERO", "meaning": "An exact rational division by zero was requested." },
+    { "code": "UNKNOWN_UNIT_CATEGORY", "meaning": "The unit category id is not in the catalogue." },
+    { "code": "UNKNOWN_UNIT", "meaning": "The unit id is not in the requested category." },
+    { "code": "INVALID_PRECISION", "meaning": "A requested precision or digit count is outside its allowed range." },
+    { "code": "LATITUDE_OUT_OF_RANGE", "meaning": "Latitude is not finite or not within -90..90 degrees." },
+    { "code": "LONGITUDE_OUT_OF_RANGE", "meaning": "Longitude is not finite or not within -180..180 degrees." },
+    { "code": "INVALID_ANGLE", "meaning": "Degree/minute/second text cannot be parsed or its hemisphere is inconsistent." },
+    { "code": "INVALID_ZONE", "meaning": "A UTM/UPS zone number is outside 0..60 (or 1..60 where UPS is not allowed)." },
+    { "code": "INVALID_HEMISPHERE", "meaning": "A UTM/UPS hemisphere designator is not N or S." },
+    { "code": "OUTSIDE_UTM_DOMAIN", "meaning": "The point cannot be expressed in the requested UTM zone or hemisphere." },
+    { "code": "OUTSIDE_UPS_DOMAIN", "meaning": "The point is more than 30 degrees from the requested pole." },
+    { "code": "GRID_COORDINATE_OUT_OF_RANGE", "meaning": "A UTM/UPS easting or northing is outside the projection's accepted area." },
+    { "code": "INVALID_MGRS", "meaning": "MGRS text is malformed." },
+    { "code": "MGRS_SQUARE_NOT_IN_BAND", "meaning": "The MGRS 100 km square cannot lie in its zone and latitude band." },
+    { "code": "OUTSIDE_MGRS_DOMAIN", "meaning": "The grid position cannot be lettered as MGRS." },
+    { "code": "INVALID_GARS", "meaning": "GARS text is malformed or names a nonexistent cell." },
+    { "code": "INVALID_GEOREF", "meaning": "GEOREF text is malformed or names a nonexistent cell." },
+    { "code": "UNSUPPORTED_CRS", "meaning": "The coordinate reference system is not one of the supported EPSG codes." },
+    { "code": "OUTSIDE_CRS_DOMAIN", "meaning": "The coordinates are outside the area where the CRS is defined." },
+    { "code": "NO_CONVERGENCE", "meaning": "An iterative geodesic solution did not converge; no approximate result is returned." }
+  ]
+}

@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.format;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import io.github.mertc0604.converttools.coordinates.core.CoordinateMath;
 import io.github.mertc0604.converttools.coordinates.model.CoordinatePoint;
 
@@ -48,14 +50,14 @@ public final class DmsFormat {
                 && numberCount >= 3
                 && TRAILING_SOUTH.matcher(rawSource).find()
                 && !QUOTED_TRAILING_SOUTH.matcher(rawSource).find()) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ANGLE,
                     "A trailing S after three components is ambiguous. "
                             + "Use a seconds quote before S for south."
             );
         }
         String source = rawSource.toUpperCase(Locale.ROOT);
         if (source.isEmpty()) {
-            throw new IllegalArgumentException("Angle is empty.");
+            throw new ConvertToolsException(ErrorCode.INVALID_ANGLE, "Angle is empty.");
         }
 
         Matcher hemisphereMatcher = HEMISPHERE.matcher(source);
@@ -64,7 +66,7 @@ public final class DmsFormat {
             hemispheres.add(hemisphereMatcher.group());
         }
         if (hemispheres.size() > 1) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ANGLE,
                     "Angle has multiple hemispheres."
             );
         }
@@ -78,7 +80,7 @@ public final class DmsFormat {
                 || (axis == CoordinateAxis.LONGITUDE
                 && !"E".equals(hemisphere)
                 && !"W".equals(hemisphere)))) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ANGLE,
                     "Hemisphere does not match the coordinate axis."
             );
         }
@@ -87,7 +89,7 @@ public final class DmsFormat {
         cleaned = SEPARATORS.matcher(cleaned).replaceAll(" ");
         cleaned = cleaned.replace('M', ' ').trim();
         if (UNSUPPORTED.matcher(cleaned).find()) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ANGLE,
                     "Angle contains unsupported characters."
             );
         }
@@ -96,7 +98,7 @@ public final class DmsFormat {
                 ? new String[0]
                 : cleaned.split("\\s+");
         if (parts.length < 1 || parts.length > 3) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ANGLE,
                     "Angle must contain degrees, optional minutes and seconds."
             );
         }
@@ -105,13 +107,13 @@ public final class DmsFormat {
         double minutes = parts.length > 1 ? parsePart(parts[1]) : 0;
         double seconds = parts.length > 2 ? parsePart(parts[2]) : 0;
         if (minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ANGLE,
                     "Minutes and seconds must be in [0, 60)."
             );
         }
         for (int index = 1; index < parts.length; index++) {
             if (SIGN.matcher(parts[index]).find()) {
-                throw new IllegalArgumentException(
+                throw new ConvertToolsException(ErrorCode.INVALID_ANGLE,
                         "Only degrees may have a sign."
                 );
             }
@@ -128,7 +130,7 @@ public final class DmsFormat {
         if (hemisphere != null
                 && numericSign < 0
                 && hemisphereSign > 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ANGLE,
                     "The sign conflicts with the hemisphere."
             );
         }
@@ -138,7 +140,10 @@ public final class DmsFormat {
                 * (Math.abs(degrees) + minutes / 60 + seconds / 3600);
         double maximum = axis == CoordinateAxis.LATITUDE ? 90 : 180;
         if (Math.abs(result) > maximum) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(
+                    axis == CoordinateAxis.LATITUDE
+                            ? ErrorCode.LATITUDE_OUT_OF_RANGE
+                            : ErrorCode.LONGITUDE_OUT_OF_RANGE,
                     axis.name().toLowerCase(Locale.ROOT)
                             + " is outside its valid range."
             );
@@ -222,7 +227,7 @@ public final class DmsFormat {
             }
             return number;
         } catch (NumberFormatException error) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ANGLE,
                     "Angle contains an invalid number.",
                     error
             );
@@ -233,7 +238,10 @@ public final class DmsFormat {
         Objects.requireNonNull(axis, "axis");
         double maximum = axis == CoordinateAxis.LATITUDE ? 90 : 180;
         if (!Double.isFinite(value) || Math.abs(value) > maximum) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(
+                    axis == CoordinateAxis.LATITUDE
+                            ? ErrorCode.LATITUDE_OUT_OF_RANGE
+                            : ErrorCode.LONGITUDE_OUT_OF_RANGE,
                     "Angle is outside its valid range."
             );
         }
@@ -241,7 +249,7 @@ public final class DmsFormat {
 
     private static void validateDigits(int digits) {
         if (digits < 0 || digits > 9) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_PRECISION,
                     "Angle precision must be between 0 and 9."
             );
         }

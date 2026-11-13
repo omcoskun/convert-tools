@@ -1,4 +1,5 @@
 import { pointFromValues, validatePoint } from "../core/numbers.js";
+import { ConvertToolsError } from "../../errors.js";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
@@ -39,7 +40,7 @@ export function encodeGars(longitudeValue, latitudeValue) {
 export function decodeGars(value) {
   const source = String(value).toUpperCase().replace(/\s+/g, "");
   if (!/^\d{3}[A-HJ-NP-Z]{2}(?:[1-4](?:[1-9])?)?$/.test(source)) {
-    throw new Error("Invalid GARS coordinate.");
+    throw new ConvertToolsError("INVALID_GARS", "Invalid GARS coordinate.");
   }
 
   const longitudeBand = Number(source.slice(0, 3));
@@ -51,7 +52,7 @@ export function decodeGars(value) {
     latitudeBand < 0 ||
     latitudeBand > 359
   ) {
-    throw new Error("Invalid GARS band.");
+    throw new ConvertToolsError("INVALID_GARS", "Invalid GARS band.");
   }
 
   let longitude = -180 + (longitudeBand - 1) * 0.5;

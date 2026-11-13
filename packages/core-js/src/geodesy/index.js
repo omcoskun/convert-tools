@@ -28,3 +28,4 @@ export {
   measureGeodesicPolyline,
   sampleGeodesicPath,
 } from "./measurement/index.js";
+export { ConvertToolsError, ERROR_CODES } from "../errors.js";

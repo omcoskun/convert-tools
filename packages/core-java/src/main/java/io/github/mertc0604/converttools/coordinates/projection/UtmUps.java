@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools.coordinates.projection;
 
+import io.github.mertc0604.converttools.ConvertToolsException;
+import io.github.mertc0604.converttools.ErrorCode;
 import io.github.mertc0604.converttools.coordinates.core.Angles;
 import io.github.mertc0604.converttools.coordinates.core.Wgs84;
 import io.github.mertc0604.converttools.coordinates.model.CoordinatePoint;
@@ -221,7 +223,7 @@ public final class UtmUps {
     public static GridCoordinate utmForward(double latitude, double longitude) {
         int zone = standardUtmZone(latitude, longitude);
         if (zone == 0) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
                     "UTM is defined between 80°S and 84°N."
             );
         }
@@ -252,19 +254,19 @@ public final class UtmUps {
     ) {
         new CoordinatePoint(latitude, longitude);
         if (latitude < -80 || latitude > 84) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
                     "UTM is defined between 80°S and 84°N."
             );
         }
         if ((north && latitude < 0) || (!north && latitude > 0)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
                     "Latitude is in the other UTM hemisphere."
             );
         }
         double lon0 = centralMeridian(zone);
         if (Math.abs(Angles.angDiff(lon0, longitude))
                 > UTM_MAXIMUM_LONGITUDE_OFFSET) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
                     "Longitude is too far from the selected UTM zone."
             );
         }
@@ -292,7 +294,7 @@ public final class UtmUps {
                 || easting > 1000000
                 || northing < 0
                 || northing > 10000000) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.GRID_COORDINATE_OUT_OF_RANGE,
                     "UTM easting or northing is outside the supported range."
             );
         }
@@ -324,7 +326,7 @@ public final class UtmUps {
         new CoordinatePoint(latitude, longitude);
         if ((north && latitude < UPS_LIMIT_LATITUDE)
                 || (!north && latitude > -UPS_LIMIT_LATITUDE)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.OUTSIDE_UPS_DOMAIN,
                     "UPS coordinates must be within 30° of the selected pole."
             );
         }
@@ -345,7 +347,7 @@ public final class UtmUps {
             double northing
     ) {
         if (!Double.isFinite(easting) || !Double.isFinite(northing)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.GRID_COORDINATE_OUT_OF_RANGE,
                     "UPS easting or northing is outside the supported range."
             );
         }
@@ -353,7 +355,7 @@ public final class UtmUps {
         double y = northing - UPS_FALSE_ORIGIN;
         double rho = Math.hypot(x, y);
         if (!(rho <= UPS_MAXIMUM_RADIUS)) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.GRID_COORDINATE_OUT_OF_RANGE,
                     "UPS easting or northing is outside the supported range."
             );
         }
@@ -380,7 +382,7 @@ public final class UtmUps {
             double northing
     ) {
         if (zone < 0 || zone > 60) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ZONE,
                     "Zone must be between 0 and 60."
             );
         }
@@ -391,7 +393,7 @@ public final class UtmUps {
 
     private static void validateUtmZone(int zone) {
         if (zone < 1 || zone > 60) {
-            throw new IllegalArgumentException(
+            throw new ConvertToolsException(ErrorCode.INVALID_ZONE,
                     "UTM zone must be an integer from 1 to 60."
             );
         }

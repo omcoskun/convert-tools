@@ -1,4 +1,5 @@
 import { pointFromValues, validatePoint } from "../core/numbers.js";
+import { ConvertToolsError } from "../../errors.js";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DEGREE_ALPHABET = ALPHABET.slice(0, 15);
@@ -25,7 +26,7 @@ export function encodeGeoref(longitudeValue, latitudeValue, precision = 4) {
     longitudeValue,
   );
   if (!Number.isInteger(precision) || precision < 0 || precision > 5) {
-    throw new Error("GEOREF precision must be between 0 and 5.");
+    throw new ConvertToolsError("INVALID_PRECISION", "GEOREF precision must be between 0 and 5.");
   }
   const longitude = rawLongitude === 180 ? -180 : rawLongitude;
   const clampedLatitude =
@@ -53,7 +54,7 @@ export function decodeGeoref(value) {
   const source = String(value).toUpperCase().replace(/\s+/g, "");
   const match = source.match(/^([A-HJ-NP-Z]{4})(\d*)$/);
   if (!match || match[2].length % 2 !== 0 || match[2].length > 10) {
-    throw new Error("Invalid GEOREF coordinate.");
+    throw new ConvertToolsError("INVALID_GEOREF", "Invalid GEOREF coordinate.");
   }
 
   const [longitudeZone, latitudeZone, longitudeDegree, latitudeDegree] =
@@ -69,7 +70,7 @@ export function decodeGeoref(value) {
     longitudeDegree < 0 ||
     latitudeDegree < 0
   ) {
-    throw new Error("Invalid GEOREF grid letters.");
+    throw new ConvertToolsError("INVALID_GEOREF", "Invalid GEOREF grid letters.");
   }
 
   const precision = match[2].length / 2;
@@ -81,7 +82,7 @@ export function decodeGeoref(value) {
   const latitudeMinutes =
     precision === 0 ? 0 : Number(latitudeDigits) * stepMinutes;
   if (longitudeMinutes >= 60 || latitudeMinutes >= 60) {
-    throw new Error("Invalid GEOREF minute value.");
+    throw new ConvertToolsError("INVALID_GEOREF", "Invalid GEOREF minute value.");
   }
 
   return {

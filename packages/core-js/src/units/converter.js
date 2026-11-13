@@ -9,6 +9,7 @@ import {
   toRational,
 } from "../exact/rational.js";
 import { getCategory, getUnit } from "./registry.js";
+import { ConvertToolsError } from "../errors.js";
 
 const ROUNDING_MODE = "HALF_UP";
 
@@ -21,13 +22,13 @@ export function convertUnits(
 ) {
   const category = getCategory(categoryId);
   if (!category) {
-    throw new Error(`Unknown unit category: ${categoryId}.`);
+    throw new ConvertToolsError("UNKNOWN_UNIT_CATEGORY", `Unknown unit category: ${categoryId}.`);
   }
 
   const from = getUnit(category, fromId);
   const to = getUnit(category, toId);
   if (!from || !to) {
-    throw new Error(`Unknown unit in category ${categoryId}.`);
+    throw new ConvertToolsError("UNKNOWN_UNIT", `Unknown unit in category ${categoryId}.`);
   }
 
   const source = toRational(input);
@@ -72,7 +73,7 @@ export function convertLength(input, fromId, toId, precision = 24) {
 export function convertToAll(input, categoryId, fromId, precision = 18) {
   const category = getCategory(categoryId);
   if (!category) {
-    throw new Error(`Unknown unit category: ${categoryId}.`);
+    throw new ConvertToolsError("UNKNOWN_UNIT_CATEGORY", `Unknown unit category: ${categoryId}.`);
   }
 
   return category.units
