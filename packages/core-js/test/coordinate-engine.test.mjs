@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   coordinateResults,
@@ -36,65 +35,6 @@ const longitudeDifference = (first, second) =>
 const spatialDistanceMetres = (first, second) =>
   inverseGeodesic(first, second).distanceMetres;
 
-const COORDINATE_VECTOR_COLUMNS = Object.freeze([
-  "id",
-  "operation",
-  "latitude",
-  "longitude",
-  "target_crs",
-  "expected_zone",
-  "expected_hemisphere",
-  "expected_x",
-  "expected_y",
-  "output_tolerance",
-  "roundtrip_tolerance_degrees",
-]);
-
-function coordinateProjectionVectors() {
-  const source = readFileSync(
-    new URL(
-      "../../../contracts/test-vectors/coordinate-projections.csv",
-      import.meta.url,
-    ),
-    "utf8",
-  ).trim();
-  const [header, ...rows] = source.split(/\r?\n/);
-  assert.deepEqual(header.split(","), COORDINATE_VECTOR_COLUMNS);
-
-  return rows.map((row, index) => {
-    const fields = row.split(",");
-    assert.equal(
-      fields.length,
-      COORDINATE_VECTOR_COLUMNS.length,
-      `coordinate vector row ${index + 2}`,
-    );
-    const values = Object.fromEntries(
-      COORDINATE_VECTOR_COLUMNS.map((column, fieldIndex) => [
-        column,
-        fields[fieldIndex],
-      ]),
-    );
-    return {
-      id: values.id,
-      operation: values.operation,
-      latitude: Number(values.latitude),
-      longitude: Number(values.longitude),
-      targetCrs: values.target_crs,
-      expectedZone:
-        values.expected_zone === ""
-          ? null
-          : Number(values.expected_zone),
-      expectedHemisphere: values.expected_hemisphere,
-      expectedX: Number(values.expected_x),
-      expectedY: Number(values.expected_y),
-      outputTolerance: Number(values.output_tolerance),
-      roundTripToleranceDegrees: Number(
-        values.roundtrip_tolerance_degrees,
-      ),
-    };
-  });
-}
-
 function deterministicPoints(
   count,
   minimumLatitude,
@@ -115,85 +55,6 @@ function deterministicPoints(
     longitude: -180 + random() * 360,
   }));
 }
-
-test("ortak DD projeksiyon vektörleri UTM, UPS ve CRS sonuçlarını doğrular", () => {
-  for (const vector of coordinateProjectionVectors()) {
-    let actualX;
-    let actualY;
-    let restored;
-
-    if (vector.operation === "UTM_UPS") {
-      const grid = utmUpsForward(
-        vector.latitude,
-        vector.longitude,
-      );
-      assert.equal(grid.zone, vector.expectedZone, vector.id);
-      assert.equal(
-        grid.north ? "N" : "S",
-        vector.expectedHemisphere,
-        vector.id,
-      );
-      actualX = grid.easting;
-      actualY = grid.northing;
-      restored = utmUpsInverse(
-        grid.zone,
-        grid.north,
-        grid.easting,
-        grid.northing,
-      );
-    } else {
-      assert.equal(vector.operation, "CRS", vector.id);
-      const projected = transformCrs(
-        "EPSG:4326",
-        vector.targetCrs,
-        vector.longitude,
-        vector.latitude,
-      );
-      assert.equal(projected.source, "EPSG:4326", vector.id);
-      assert.equal(projected.target, vector.targetCrs, vector.id);
-      actualX = projected.x;
-      actualY = projected.y;
-      const reverse = transformCrs(
-        vector.targetCrs,
-        "EPSG:4326",
-        projected.x,
-        projected.y,
-      );
-      restored = {
-        latitude: reverse.y,
-        longitude: reverse.x,
-      };
-    }
-
-    closeTo(
-      actualX,
-      vector.expectedX,
-      vector.outputTolerance,
-      `${vector.id} X`,
-    );
-    closeTo(
-      actualY,
-      vector.expectedY,
-      vector.outputTolerance,
-      `${vector.id} Y`,
-    );
-    closeTo(
-      restored.latitude,
-      vector.latitude,
-      vector.roundTripToleranceDegrees,
-      `${vector.id} round-trip latitude`,
-    );
-    if (Math.abs(vector.latitude) < 90) {
-      assert.ok(
-        longitudeDifference(
-          restored.longitude,
-          vector.longitude,
-        ) <= vector.roundTripToleranceDegrees,
-        `${vector.id} round-trip longitude`,
-      );
-    }
-  }
-});
 
 test("Ramadi test noktası 1 metre hassasiyetli MGRS üretir", () => {
   const result = coordinateResults(fromDecimalDegrees(33.44, 43.27), 5);

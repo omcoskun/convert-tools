@@ -213,10 +213,17 @@ public final class ContractTest {
         }
     }
 
+    /**
+     * Inverse followed by direct must close on the target. Agreement with the
+     * reference values themselves is checked in ReferenceVectorTest.
+     */
     private static void testGeodesics(Path file) throws IOException {
         List<String> lines = Files.readAllLines(file);
         for (String line : lines.subList(1, lines.size())) {
             String[] columns = line.split(",", -1);
+            if (columns[6].isEmpty()) {
+                continue;
+            }
             GeoPoint start = new GeoPoint(
                     Double.parseDouble(columns[1]),
                     Double.parseDouble(columns[2])
@@ -225,51 +232,26 @@ public final class ContractTest {
                     Double.parseDouble(columns[3]),
                     Double.parseDouble(columns[4])
             );
-            double expectedDistance = Double.parseDouble(columns[5]);
-            double tolerance = Double.parseDouble(columns[8]);
             GeodesicResult result = Geodesic.inverse(start, end);
-            require(
-                    Math.abs(result.distanceMetres() - expectedDistance)
-                            <= tolerance,
-                    columns[0] + ": distance mismatch"
+            DirectResult destination = Geodesic.direct(
+                    start,
+                    result.initialBearingDegrees(),
+                    result.distanceMetres()
             );
-
-            if (!columns[6].isEmpty()) {
-                require(
-                        angularDifference(
-                                result.initialBearingDegrees(),
-                                Double.parseDouble(columns[6])
-                        ) <= 1e-6,
-                        columns[0] + ": initial bearing mismatch"
-                );
-                require(
-                        angularDifference(
-                                result.finalBearingDegrees(),
-                                Double.parseDouble(columns[7])
-                        ) <= 1e-6,
-                        columns[0] + ": final bearing mismatch"
-                );
-
-                DirectResult destination = Geodesic.direct(
-                        start,
-                        result.initialBearingDegrees(),
-                        result.distanceMetres()
-                );
-                require(
-                        Math.abs(
-                                destination.destination().latitude()
-                                        - end.latitude()
-                        ) <= 1e-9,
-                        columns[0] + ": direct latitude mismatch"
-                );
-                require(
-                        angularDifference(
-                                destination.destination().longitude(),
-                                end.longitude()
-                        ) <= 1e-9,
-                        columns[0] + ": direct longitude mismatch"
-                );
-            }
+            require(
+                    Math.abs(
+                            destination.destination().latitude()
+                                    - end.latitude()
+                    ) <= 1e-9,
+                    columns[0] + ": direct latitude mismatch"
+            );
+            require(
+                    angularDifference(
+                            destination.destination().longitude(),
+                            end.longitude()
+                    ) <= 1e-9,
+                    columns[0] + ": direct longitude mismatch"
+            );
         }
     }
 

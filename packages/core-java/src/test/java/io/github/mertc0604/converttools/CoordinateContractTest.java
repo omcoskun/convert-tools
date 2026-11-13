@@ -22,19 +22,11 @@ import io.github.mertc0604.converttools.geodesy.Geodesic;
 import io.github.mertc0604.converttools.geodesy.GeodesicResult;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 public final class CoordinateContractTest {
     private static final CoordinatePoint ANKARA =
             new CoordinatePoint(39.933365, 32.859742);
-    private static final String PROJECTION_VECTOR_HEADER =
-            "id,operation,latitude,longitude,target_crs,expected_zone,"
-                    + "expected_hemisphere,expected_x,expected_y,"
-                    + "output_tolerance,roundtrip_tolerance_degrees";
 
     private CoordinateContractTest() {
     }
@@ -48,9 +40,6 @@ public final class CoordinateContractTest {
         Path vectorDirectory = args.length == 1
                 ? Path.of(args[0])
                 : Path.of("contracts", "test-vectors");
-        testSharedProjectionVectors(
-                vectorDirectory.resolve("coordinate-projections.csv")
-        );
         testDmsAndDdm();
         testAnkaraUtmRoundTrip();
         testRamadiMgrs();
@@ -63,137 +52,6 @@ public final class CoordinateContractTest {
         testGeodesicAdapter();
         testValidation();
         System.out.println("Java coordinate contract tests passed.");
-    }
-
-    private static void testSharedProjectionVectors(Path vectorFile)
-            throws IOException {
-        for (ProjectionVector vector : readProjectionVectors(vectorFile)) {
-            double actualX;
-            double actualY;
-            CoordinatePoint restored;
-
-            if (vector.operation().equals("UTM_UPS")) {
-                GridCoordinate grid = UtmUps.forward(
-                        vector.latitude(),
-                        vector.longitude()
-                );
-                require(
-                        grid.zone() == Integer.parseInt(
-                                vector.expectedZone()
-                        ),
-                        vector.id() + " zone mismatch"
-                );
-                require(
-                        (grid.north() ? "N" : "S")
-                                .equals(vector.expectedHemisphere()),
-                        vector.id() + " hemisphere mismatch"
-                );
-                actualX = grid.easting();
-                actualY = grid.northing();
-                restored = UtmUps.inverse(
-                        grid.zone(),
-                        grid.north(),
-                        grid.easting(),
-                        grid.northing()
-                );
-            } else {
-                require(
-                        vector.operation().equals("CRS"),
-                        vector.id() + " has an unknown operation"
-                );
-                CrsTransformation projected = CrsTransformer.transform(
-                        "EPSG:4326",
-                        vector.targetCrs(),
-                        vector.longitude(),
-                        vector.latitude()
-                );
-                require(
-                        projected.source().equals("EPSG:4326"),
-                        vector.id() + " source CRS mismatch"
-                );
-                require(
-                        projected.target().equals(vector.targetCrs()),
-                        vector.id() + " target CRS mismatch"
-                );
-                actualX = projected.x();
-                actualY = projected.y();
-                CrsTransformation reverse = CrsTransformer.transform(
-                        vector.targetCrs(),
-                        "EPSG:4326",
-                        projected.x(),
-                        projected.y()
-                );
-                restored = new CoordinatePoint(reverse.y(), reverse.x());
-            }
-
-            closeTo(
-                    actualX,
-                    vector.expectedX(),
-                    vector.outputTolerance(),
-                    vector.id() + " X"
-            );
-            closeTo(
-                    actualY,
-                    vector.expectedY(),
-                    vector.outputTolerance(),
-                    vector.id() + " Y"
-            );
-            closeTo(
-                    restored.latitude(),
-                    vector.latitude(),
-                    vector.roundTripToleranceDegrees(),
-                    vector.id() + " round-trip latitude"
-            );
-            if (Math.abs(vector.latitude()) < 90) {
-                closeLongitude(
-                        restored.longitude(),
-                        vector.longitude(),
-                        vector.roundTripToleranceDegrees(),
-                        vector.id() + " round-trip longitude"
-                );
-            }
-        }
-    }
-
-    private static List<ProjectionVector> readProjectionVectors(Path file)
-            throws IOException {
-        List<String> lines = Files.readAllLines(
-                file,
-                StandardCharsets.UTF_8
-        );
-        require(!lines.isEmpty(), "Coordinate projection vectors are empty");
-        require(
-                lines.get(0).equals(PROJECTION_VECTOR_HEADER),
-                "Coordinate projection vector header mismatch"
-        );
-        List<ProjectionVector> vectors = new ArrayList<>();
-        for (int index = 1; index < lines.size(); index++) {
-            String line = lines.get(index);
-            if (line.isBlank()) {
-                continue;
-            }
-            String[] fields = line.split(",", -1);
-            require(
-                    fields.length == 11,
-                    "Invalid coordinate projection vector row "
-                            + (index + 1)
-            );
-            vectors.add(new ProjectionVector(
-                    fields[0],
-                    fields[1],
-                    Double.parseDouble(fields[2]),
-                    Double.parseDouble(fields[3]),
-                    fields[4],
-                    fields[5],
-                    fields[6],
-                    Double.parseDouble(fields[7]),
-                    Double.parseDouble(fields[8]),
-                    Double.parseDouble(fields[9]),
-                    Double.parseDouble(fields[10])
-            ));
-        }
-        require(!vectors.isEmpty(), "Coordinate projection vectors are empty");
-        return List.copyOf(vectors);
     }
 
     private static void testDmsAndDdm() {
@@ -775,20 +633,5 @@ public final class CoordinateContractTest {
         if (!condition) {
             throw new AssertionError(message);
         }
-    }
-
-    private record ProjectionVector(
-            String id,
-            String operation,
-            double latitude,
-            double longitude,
-            String targetCrs,
-            String expectedZone,
-            String expectedHemisphere,
-            double expectedX,
-            double expectedY,
-            double outputTolerance,
-            double roundTripToleranceDegrees
-    ) {
     }
 }

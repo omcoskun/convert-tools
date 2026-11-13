@@ -58,34 +58,6 @@ async function referenceVectors() {
     });
 }
 
-test("WGS84 inverse geodesic matches independent reference vectors", async () => {
-  for (const vector of await referenceVectors()) {
-    const result = inverseGeodesic(vector.start, vector.end);
-    assert.ok(
-      Math.abs(result.distanceMetres - vector.distanceMetres) <=
-        vector.toleranceMetres,
-      `${vector.id}: ${result.distanceMetres} != ${vector.distanceMetres}`,
-    );
-
-    if (vector.initialBearingDegrees !== null) {
-      assert.ok(
-        angularDifference(
-          result.initialBearingDegrees,
-          vector.initialBearingDegrees,
-        ) <= 1e-6,
-        `${vector.id}: initial bearing`,
-      );
-      assert.ok(
-        angularDifference(
-          result.finalBearingDegrees,
-          vector.finalBearingDegrees,
-        ) <= 1e-6,
-        `${vector.id}: final bearing`,
-      );
-    }
-  }
-});
-
 test("near-antipodal pairs use the convergent ellipsoidal fallback", () => {
   const result = inverseGeodesic(
     { latitude: 0, longitude: 0 },

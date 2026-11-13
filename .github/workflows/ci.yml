@@ -76,3 +76,6 @@ jobs:
           java -ea -cp build/java-contract \
             io.github.mertc0604.converttools.CoordinateContractTest \
             contracts/test-vectors
+          java -ea -cp build/java-contract \
+            io.github.mertc0604.converttools.ReferenceVectorTest \
+            contracts/test-vectors

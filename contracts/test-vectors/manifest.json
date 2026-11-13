@@ -1,0 +1,86 @@
+{
+  "seed": "0x5eedc0de",
+  "tools": {
+    "GeoConvert": "/opt/homebrew/bin/GeoConvert: GeographicLib version 2.7",
+    "GeodSolve": "/opt/homebrew/bin/GeodSolve: GeographicLib version 2.7",
+    "python": "Python 3.14.7",
+    "cxx": "Apple clang version 21.0.0 (clang-2100.4.1.1)"
+  },
+  "files": [
+    {
+      "name": "coordinate-projections.csv",
+      "rows": 1334,
+      "sha256": "e231c30c52c8f154e80f617a9d0e0a53d1f9da79d3a4529753918239a3e9767f",
+      "source": "EPSG:3857 web_mercator.py; EPSG:326xx/327xx GeoConvert -z ZONEh -u -p 9; EPSG:5041/5042 GeographicLib PolarStereographic::UPS() via geographiclib-helper"
+    },
+    {
+      "name": "gars.csv",
+      "rows": 2532,
+      "sha256": "73d70de083968f1dfcf0f0490f8f5f3357d4eb9d42119331e199818d1bfb095c",
+      "source": "GeographicLib GARS::Forward(lat, lon, PRECISION) and GARS::Reverse(centerp=true) via geographiclib-helper"
+    },
+    {
+      "name": "geodesic-direct.csv",
+      "rows": 1005,
+      "sha256": "ce3fcfeb5d10702e9de14e0b35218cfb0083d4dc5c343333177f2140cd17b0f8",
+      "source": "GeodSolve -p 9"
+    },
+    {
+      "name": "geodesic-wgs84.csv",
+      "rows": 2533,
+      "sha256": "e7874466cb86c827b685f5ec6c1fc4167bc02c6f3a803e665c9b306a4553e315",
+      "source": "GeodSolve -i -f -p 9 (azi1, azi2, s12, m12)"
+    },
+    {
+      "name": "georef.csv",
+      "rows": 2690,
+      "sha256": "8fdafc1e22697ca772f91f027267b83094995ca45c9033c9770d8689dc0c4dba",
+      "source": "GeographicLib Georef::Forward(lat, lon, PRECISION) and Georef::Reverse(centerp=true) via geographiclib-helper"
+    },
+    {
+      "name": "mgrs-forward.csv",
+      "rows": 15360,
+      "sha256": "646eadcabab169574b1717af6657d6521356e82e325d749d230d5304b61128cd",
+      "source": "GeoConvert -m -p (PRECISION-5)"
+    },
+    {
+      "name": "mgrs-reverse.csv",
+      "rows": 5428,
+      "sha256": "a5928dee24c1cfcd833607c0c7949d96e86c397a7758c9da058e2202f5ac9610",
+      "source": "GeoConvert -u -p 9 and GeoConvert -g -p 9 with MGRS input (cell centre); valid=0 where GeoConvert reports ERROR"
+    },
+    {
+      "name": "utm-ups-forward.csv",
+      "rows": 5806,
+      "sha256": "75e1a4733ded020c694877e0f1cc21f8ee352b14598f944f078154c485976599",
+      "source": "GeoConvert -s -u -p 9 (standard zones); GeoConvert -z ZONE -u -p 9 (forced zone rows)"
+    },
+    {
+      "name": "utm-ups-inverse.csv",
+      "rows": 2966,
+      "sha256": "574238404c3a185673ee1b8f0e74d573a5c3cdf710b40ad92b3199663c3db515",
+      "source": "GeoConvert -g -p 9 with input 'ZONEh EASTING NORTHING'"
+    }
+  ],
+  "skipped": {
+    "utm-ups-forward.csv": {
+      "GeoConvert outside UTM legal range (forced zone)": {
+        "count": 78,
+        "ids": []
+      }
+    },
+    "georef.csv": {
+      "GeographicLib Georef::Forward returns an empty code for longitude +180": {
+        "count": 30,
+        "ids": [
+          "edge--90-180",
+          "edge--89.75-180",
+          "edge-0-180",
+          "edge-45.083333333-180",
+          "edge-89.75-180",
+          "edge-90-180"
+        ]
+      }
+    }
+  }
+}
