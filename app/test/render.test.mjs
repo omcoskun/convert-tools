@@ -88,22 +88,26 @@ test("the CRS mode shows EPSG:4326 -> EPSG:3857 from the contract vector", () =>
   assert.ok(text.includes(`Y ${Number(row.expected_y).toFixed(8)}`));
 });
 
-test("the distance mode shows Ankara -> Istanbul and draws the route", () => {
+test("the distance mode measures Ankara -> Istanbul and offers picking on the map", () => {
   const row = vector("geodesic-wgs84.csv", "ankara-istanbul");
   const { html, text } = renderTool("distance");
   assert.ok(text.includes(lang.tr.text.distanceTitle));
-  assert.ok(text.includes(lang.tr.text.mapPickStart) && text.includes(lang.tr.text.mapPickEnd));
+  // Exact value to 1 mm, above the 0.1 mm tolerance of the vector.
   assert.ok(text.includes(`${Number(row.distanceMetres).toFixed(3)} m`), text);
-  assert.match(html, /<svg[^>]*role="img"/);
-  assert.match(html, /<path d="M32\.859742 -39\.933365L/);
-  // The distance is repeated on the map, next to the route (1 mm digits, above the 0.1 mm tolerance).
-  assert.ok(text.includes(`${lang.tr.text.mapDistance} ${(Number(row.distanceMetres) / 1000).toFixed(6)}`), text);
-  // Satellite imagery is the default basemap; its credit is always on the map.
-  assert.ok(text.includes(lang.tr.text.mapImagery) && text.includes(lang.tr.text.mapLocal));
-  assert.ok(text.includes(config.map.imagery.attribution));
-  assert.ok(text.includes(lang.tr.text.mapExpand) && text.includes(lang.tr.text.clearPoints));
-  // Map files are fetched in an effect, which server rendering does not run.
+  // The readout groups digits the Turkish way: 350,123 km.
+  const kilometres = (Number(row.distanceMetres) / 1000).toFixed(3).replace(".", ",");
+  assert.ok(text.includes(`${kilometres} km`), text);
+  for (const key of ["distance-startLatitude", "distance-startLongitude", "distance-endLatitude", "distance-endLongitude"]) {
+    assert.match(html, new RegExp(`id="${key}"`), key);
+  }
+  assert.ok(text.includes(lang.tr.text.mapPickPoints));
+  for (const key of ["mapPickStart", "mapPickEnd", "mapZoomIn", "mapZoomOut", "mapFit", "mapWorld", "mapExpand"]) {
+    assert.ok(html.includes(`aria-label="${lang.tr.text[key]}"`), key);
+  }
+  assert.ok(text.includes(lang.tr.text.swapPoints) && text.includes(lang.tr.text.clearPoints));
+  // MapLibre starts in an effect, which server rendering does not run.
   assert.ok(text.includes(lang.tr.text.mapLoading));
+  assert.doesNotMatch(html, /arcgis|satellite|<svg[^>]*role="img"/i);
 });
 
 test("a core error is shown with its localized message and its code", () => {

@@ -27,7 +27,22 @@ const SHARED_GLOBALS = readonly([
 const NODE_GLOBALS = { ...SHARED_GLOBALS, ...readonly(["Buffer", "process"]) };
 
 // process.env.IWC is replaced at build time by webpack's DefinePlugin.
-const BROWSER_GLOBALS = { ...SHARED_GLOBALS, ...readonly(["DOMPoint", "Image", "ResizeObserver", "document", "navigator", "process", "window"]) };
+const BROWSER_GLOBALS = {
+  ...SHARED_GLOBALS,
+  ...readonly([
+    "DOMPoint",
+    "Element",
+    "Image",
+    "ResizeObserver",
+    "cancelAnimationFrame",
+    "document",
+    "navigator",
+    "performance",
+    "process",
+    "requestAnimationFrame",
+    "window",
+  ]),
+};
 
 // eslint:recommended (ESLint 9.39).
 const RECOMMENDED = {

@@ -2,6 +2,7 @@
 //   - only src/ui/index.js imports the component library;
 //   - the core is used through "@convert-tools/core" and nothing else;
 //   - the demo computes no geodesy of its own;
+//   - MapLibre is loaded on demand, by src/map/maplibre.js only;
 //   - the removed Next/Worker/Cesium/TypeScript stack stays removed.
 
 import assert from "node:assert/strict";
@@ -11,11 +12,13 @@ import test from "node:test";
 import { REPO_ROOT, SRC, listFiles, sourceFiles } from "./support/files.mjs";
 
 const UI_MODULE = path.join("ui", "index.js");
+const MAPLIBRE_MODULE = path.join("map", "maplibre.js");
 
 /** Module specifiers of static imports, re-exports and dynamic imports. */
 function specifiers(text) {
-  // The keyword must start a token, so id="length-from" is not read as one.
-  return [...text.matchAll(/(?:^|[\s;{}])(?:from|import)\s*\(?\s*["']([^"']+)["']/gm)].map((match) => match[1]);
+  // The keyword must start a token, so id="length-from" is not read as one;
+  // import(...) may also follow an opening bracket or a comma.
+  return [...text.matchAll(/(?:^|[\s;{}([,])(?:from|import)\s*\(?\s*["']([^"']+)["']/gm)].map((match) => match[1]);
 }
 
 const sources = sourceFiles();
@@ -40,10 +43,26 @@ test("packages come from an allow-list and the core only from its root entry", (
     for (const specifier of specifiers(text)) {
       if (specifier.startsWith(".")) continue;
       if (name === UI_MODULE && specifier === "@mui/material") continue;
+      if (name === MAPLIBRE_MODULE && specifier === "maplibre-gl") continue;
       if (!allowed.has(specifier)) offenders.push(`${name}: ${specifier}`);
     }
   }
   assert.deepEqual(offenders, [], "no subpath such as @convert-tools/core/geodesy");
+});
+
+test("maplibre-gl is imported only dynamically, by src/map/maplibre.js", () => {
+  const importers = sources.filter(({ text }) => specifiers(text).includes("maplibre-gl")).map(({ name }) => name);
+  assert.deepEqual(importers, [MAPLIBRE_MODULE]);
+  const loader = sources.find(({ name }) => name === MAPLIBRE_MODULE).text;
+  assert.match(loader, /\bimport\("maplibre-gl"\)/, "a dynamic import, so the library is its own chunk");
+  assert.doesNotMatch(loader, /^\s*import\s[^(]*["']maplibre-gl["']/m, "no static import");
+});
+
+test("the map has no satellite or imagery source", () => {
+  const offenders = sources
+    .filter(({ text }) => /arcgis|World_Imagery|satellite|esri/i.test(text))
+    .map(({ name }) => name);
+  assert.deepEqual(offenders, []);
 });
 
 test("relative imports name an existing file inside src/", () => {

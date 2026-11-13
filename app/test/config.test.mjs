@@ -2,14 +2,12 @@
 // example must run through the core without an error.
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import path from "node:path";
 import test from "node:test";
 import { convertLength, coordinateResults, transformCrs } from "@convert-tools/core";
 import { validateRuntime } from "../src/runtime.js";
 import { measure } from "../src/tools/coordinates/distance.js";
 import { INPUT_FORMATS, readPoint } from "../src/tools/coordinates/positions.js";
-import { PUBLIC, readJson } from "./support/files.mjs";
+import { readJson } from "./support/files.mjs";
 
 const config = readJson("public/config.json");
 const lang = readJson("public/lang.json");
@@ -86,12 +84,9 @@ test("distance examples measure within the configured sampling limits", () => {
   }
 });
 
-test("the map data files exist and are GeoJSON feature collections", () => {
-  for (const file of [config.map.boundaries, config.map.labels]) {
-    const full = path.join(PUBLIC, file);
-    assert.ok(existsSync(full), file);
-    const collection = readJson(full);
-    assert.equal(collection.type, "FeatureCollection", file);
-    assert.ok(collection.features.length > 0, file);
-  }
+test("the basemap is one https vector style and nothing else", () => {
+  assert.deepEqual(Object.keys(config.map), ["style"]);
+  const url = new URL(config.map.style);
+  assert.equal(url.protocol, "https:");
+  assert.doesNotMatch(JSON.stringify(config), /arcgis|imagery|satellite/i);
 });

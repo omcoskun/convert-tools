@@ -3,7 +3,16 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { endpointFromText, measure, swapEndpoints } from "../src/tools/coordinates/distance.js";
+import {
+  displayDistance,
+  endpointFromText,
+  endpointOf,
+  endpointStatus,
+  fieldIsInvalid,
+  localeDecimal,
+  measure,
+  swapEndpoints,
+} from "../src/tools/coordinates/distance.js";
 import { readJson, vector } from "./support/files.mjs";
 
 const { path: pathOptions } = readJson("public/config.json").distance;
@@ -31,4 +40,38 @@ test("swapEndpoints exchanges A and B", () => {
     swapEndpoints({ startLatitude: "1", startLongitude: "2", endLatitude: "3", endLongitude: "4" }),
     { startLatitude: "3", startLongitude: "4", endLatitude: "1", endLongitude: "2" },
   );
+});
+
+test("fieldIsInvalid flags text that can never be a coordinate, not empty fields", () => {
+  assert.equal(fieldIsInvalid("", "latitude"), false);
+  assert.equal(fieldIsInvalid("  ", "longitude"), false);
+  assert.equal(fieldIsInvalid("-90", "latitude"), false);
+  assert.equal(fieldIsInvalid("180", "longitude"), false);
+  assert.equal(fieldIsInvalid("90.0001", "latitude"), true);
+  assert.equal(fieldIsInvalid("120", "latitude"), true);
+  assert.equal(fieldIsInvalid("120", "longitude"), false);
+  assert.equal(fieldIsInvalid("abc", "longitude"), true);
+});
+
+test("endpointStatus tells empty, incomplete, invalid and valid points apart", () => {
+  const values = (startLatitude, startLongitude) => ({ startLatitude, startLongitude, endLatitude: "", endLongitude: "" });
+  assert.equal(endpointStatus(values("", ""), "start"), "empty");
+  assert.equal(endpointStatus(values("39.9", ""), "start"), "incomplete");
+  assert.equal(endpointStatus(values("", "x"), "start"), "invalid");
+  assert.equal(endpointStatus(values("39.9", "32.8"), "start"), "valid");
+  assert.deepEqual(endpointOf(values("39.9", "32.8"), "start"), { latitude: 39.9, longitude: 32.8 });
+  assert.equal(endpointOf(values("39.9", "32.8"), "end"), null);
+});
+
+test("localeDecimal groups digits per language and pads decimals without floats", () => {
+  assert.equal(localeDecimal("1234567.5", 2, "tr"), "1.234.567,50");
+  assert.equal(localeDecimal("1234567.5", 2, "en"), "1,234,567.50");
+  assert.equal(localeDecimal("999", 0, "tr"), "999");
+  assert.equal(localeDecimal("-0.125", 3, "en"), "−0.125");
+});
+
+test("displayDistance converts with the core: 1852 m is exactly 1 NM", () => {
+  assert.equal(displayDistance(1852, "nautical-mile", 3, "en"), "1.000");
+  assert.equal(displayDistance(350123.4567, "kilometre", 2, "tr"), "350,12");
+  assert.equal(displayDistance(350123.4567, "metre", 1, "en"), "350,123.5");
 });

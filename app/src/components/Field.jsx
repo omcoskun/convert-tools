@@ -2,7 +2,7 @@ import { MONO_FONT } from "../theme.js";
 import { TextField } from "../ui/index.js";
 
 /** Text input for coordinates and numbers: no autocomplete or spell check. */
-export default function Field({ id, label, value, onChange, placeholder, inputMode = "text", children, select }) {
+export default function Field({ id, label, value, onChange, placeholder, inputMode = "text", children, select, error }) {
   return (
     <TextField
       id={id}
@@ -11,6 +11,7 @@ export default function Field({ id, label, value, onChange, placeholder, inputMo
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       select={select}
+      error={error}
       fullWidth
       size="small"
       autoComplete="off"

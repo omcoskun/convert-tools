@@ -170,18 +170,30 @@ Ayrıntılar: [`packages/core-java/README.md`](packages/core-java/README.md).
   Firefox 68 ve Safari 14'te çalışır (BigInt).
 - Üretim derlemesi göreli URL kullanır (GitHub Pages alt yolunda da çalışır)
   ve Content-Security-Policy meta etiketi taşır.
-- Mesafe haritası, çekirdeğin örneklediği geodezik hattın bağımlılıksız bir
-  eşdikdörtgen SVG çizimidir. Natural Earth kara sınırları ve adları yerelden
-  yüklenir (kıyı çizgisi yoktur). Harita bir görseldir, ölçüm aracı değildir.
-  A ve B noktaları haritadan seçilebilir; seçilen nokta ekran çözünürlüğüne
-  yuvarlanıp forma yazılır ve ölçümü çekirdek yapar.
-- Varsayılan altlık Esri World Imagery uydu görüntüsüdür
-  (`config.json` → `map.imagery`). ArcGIS `export` uç noktası görüntüyü
-  doğrudan EPSG:4326'da verdiği için SVG ile yeniden izdüşüm gerekmeden
-  hizalanır. Bu seçiliyken görünen bölgenin sınırları Esri'ye gönderilir;
-  CSP `img-src` yalnız bu sunucuya açılmıştır. "Yerel" altlık hiçbir dış
-  istek yapmaz; görüntü yüklenemezse harita kendiliğinden yerel görünüme
-  döner.
+- Mesafe haritası MapLibre GL JS 6 ile çizilen bir Web Mercator vektör
+  haritasıdır. Çekirdeğin örneklediği geodezik hattı gösterir; harita bir
+  görseldir, ölçümü her zaman çekirdek yapar. A ve B haritadan seçilebilir ve
+  sürüklenebilir; seçilen nokta ekran çözünürlüğüne (5–8 ondalık) yuvarlanıp
+  forma yazılır. ±85,05°'nin ötesindeki noktalar haritanın kenarına çizilir,
+  formdaki değer değişmez. Antimeridyeni geçen hat tek parça çizilir.
+- Altlık OpenFreeMap "positron" stilidir (`config.json` → `map.style`). Uydu
+  görüntüsü ve gölgeli rölyef yoktur: `src/map/map-adapter.js` stildeki bütün
+  raster kaynakları atar. Atıflar haritanın sağ altında görünür. Altlık
+  yüklenemezse harita istek yapmayan çevrimdışı bir ızgaraya döner ve
+  "Yeniden dene" düğmesi gösterir; ölçüm ve seçim çalışmaya devam eder.
+  OpenFreeMap ücretsizdir ama hizmet garantisi (SLA) vermez; gerekirse aynı
+  stil kendi sunucunuzda barındırılabilir.
+- CSP `connect-src` derleme sırasında `map.style` adresinin kaynağına açılır.
+  Bu yüzden altlık sunucusunu değiştirmek (diğer ayarların aksine) yeniden
+  derleme ister.
+- MapLibre yalnız mesafe aracı açıldığında ayrı bir parça olarak yüklenir
+  (`src/map/maplibre.js`; araç düğmesinin üzerine gelince önceden çekilir).
+  Stil dosyası ve web worker `node_modules/maplibre-gl/dist`'ten olduğu gibi
+  `vendor/` klasörüne kopyalanır. `app/loaders/blank-import-meta-url.cjs`,
+  webpack'in kütüphanedeki `import.meta.url` ifadesine derleme makinesinin
+  dosya yolunu gömmesini engeller.
+- Harita WebGL2 ve modül web worker'ı ister (MapLibre 6). Bunlar olmayan
+  tarayıcıda harita yerine bir açıklama çıkar; form ve ölçüm yine çalışır.
 
 ## Güvenlik
 
