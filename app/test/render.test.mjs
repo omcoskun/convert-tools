@@ -98,6 +98,10 @@ test("the distance mode shows Ankara -> Istanbul and draws the route", () => {
   assert.match(html, /<path d="M32\.859742 -39\.933365L/);
   // The distance is repeated on the map, next to the route (1 mm digits, above the 0.1 mm tolerance).
   assert.ok(text.includes(`${lang.tr.text.mapDistance} ${(Number(row.distanceMetres) / 1000).toFixed(6)}`), text);
+  // Satellite imagery is the default basemap; its credit is always on the map.
+  assert.ok(text.includes(lang.tr.text.mapImagery) && text.includes(lang.tr.text.mapLocal));
+  assert.ok(text.includes(config.map.imagery.attribution));
+  assert.ok(text.includes(lang.tr.text.mapExpand) && text.includes(lang.tr.text.clearPoints));
   // Map files are fetched in an effect, which server rendering does not run.
   assert.ok(text.includes(lang.tr.text.mapLoading));
 });

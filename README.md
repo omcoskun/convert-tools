@@ -173,6 +173,15 @@ Ayrıntılar: [`packages/core-java/README.md`](packages/core-java/README.md).
 - Mesafe haritası, çekirdeğin örneklediği geodezik hattın bağımlılıksız bir
   eşdikdörtgen SVG çizimidir. Natural Earth kara sınırları ve adları yerelden
   yüklenir (kıyı çizgisi yoktur). Harita bir görseldir, ölçüm aracı değildir.
+  A ve B noktaları haritadan seçilebilir; seçilen nokta ekran çözünürlüğüne
+  yuvarlanıp forma yazılır ve ölçümü çekirdek yapar.
+- Varsayılan altlık Esri World Imagery uydu görüntüsüdür
+  (`config.json` → `map.imagery`). ArcGIS `export` uç noktası görüntüyü
+  doğrudan EPSG:4326'da verdiği için SVG ile yeniden izdüşüm gerekmeden
+  hizalanır. Bu seçiliyken görünen bölgenin sınırları Esri'ye gönderilir;
+  CSP `img-src` yalnız bu sunucuya açılmıştır. "Yerel" altlık hiçbir dış
+  istek yapmaz; görüntü yüklenemezse harita kendiliğinden yerel görünüme
+  döner.
 
 ## Güvenlik
 

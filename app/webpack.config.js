@@ -43,12 +43,13 @@ export const BROWSER_TARGETS = Object.freeze({
 
 // Served as a <meta> tag in production builds (GitHub Pages cannot set
 // headers). Emotion injects <style> elements, hence 'unsafe-inline' for
-// styles only.
+// styles only. Images may also come from the satellite imagery host
+// (map.imagery.exportUrl in public/config.json).
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  "img-src 'self' data: https://server.arcgisonline.com",
   "connect-src 'self'",
   "font-src 'self'",
   "object-src 'none'",

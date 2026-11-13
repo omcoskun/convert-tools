@@ -232,6 +232,8 @@ test("pickDigits keeps about one screen pixel of precision", () => {
   assert.equal(pickDigits(0.003), 3);
   assert.equal(pickDigits(0.0004), 4);
   assert.equal(pickDigits(0.00001), 5);
+  // Fully zoomed in: about 3e-6 degrees per pixel.
+  assert.equal(pickDigits(0.000003), 6);
 });
 
 test("pickedText writes picked coordinates without a negative zero", () => {

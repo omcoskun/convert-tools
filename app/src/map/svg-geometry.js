@@ -107,8 +107,11 @@ export function worldFrame(centreX, aspect = 2) {
   return { x: centreX - (WORLD_HEIGHT * aspect) / 2, y: -WORLD_HEIGHT / 2, width: WORLD_HEIGHT * aspect, height: WORLD_HEIGHT };
 }
 
-/** Smallest frame height the zoom buttons go to, in degrees of latitude. */
-export const MINIMUM_FRAME_HEIGHT = 0.5;
+/**
+ * Smallest frame height the zoom buttons go to, in degrees of latitude: about
+ * 220 m, near the finest detail of the satellite imagery.
+ */
+export const MINIMUM_FRAME_HEIGHT = 0.002;
 
 /**
  * Zooms a frame about its centre: factor < 1 zooms in, > 1 out. The height
@@ -146,12 +149,12 @@ export function pickedPoint(x, y) {
 
 /**
  * Decimal places worth keeping for a point picked on screen: about one
- * screen pixel, never finer than 1e-5 degrees.
+ * screen pixel, never finer than 1e-6 degrees (about 0.1 m).
  */
 export function pickDigits(degreesPerPixel) {
-  const steps = [1, 0.1, 0.01, 0.001, 0.0001];
+  const steps = [1, 0.1, 0.01, 0.001, 0.0001, 0.00001];
   const index = steps.findIndex((step) => degreesPerPixel >= step);
-  return index === -1 ? 5 : index;
+  return index === -1 ? steps.length : index;
 }
 
 /** A picked coordinate as form text with the given decimals, without a "-0". */

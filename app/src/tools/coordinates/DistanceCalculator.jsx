@@ -64,6 +64,12 @@ export default function DistanceCalculator() {
     setStale(false);
   }
 
+  // Empty fields, ready for picking A and B on the map.
+  function clearPoints() {
+    setValues({ startLatitude: "", startLongitude: "", endLatitude: "", endLongitude: "" });
+    setStale(true);
+  }
+
   function handlePick(target, point, digits) {
     const [, , latitudeKey, longitudeKey] = POINT_FIELDS.find(([group]) => group === target);
     const next = {
@@ -156,6 +162,7 @@ export default function DistanceCalculator() {
               <Button variant="outlined" onClick={() => run(swapEndpoints(values))}>
                 {text.swapPoints}
               </Button>
+              <Button onClick={clearPoints}>{text.clearPoints}</Button>
             </Stack>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               {text.coordinateRange}

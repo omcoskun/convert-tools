@@ -9,7 +9,7 @@ import config, {
   IWC_VALUES,
   resolveIwc,
 } from "../webpack.config.js";
-import { APP_ROOT } from "./support/files.mjs";
+import { APP_ROOT, readJson } from "./support/files.mjs";
 
 /** Builds the config with IWC set to value (undefined: unset), then restores the environment. */
 function configWith(value, mode) {
@@ -76,6 +76,9 @@ test("production pages carry the Content-Security-Policy meta tag, development p
   });
   assert.match(CONTENT_SECURITY_POLICY, /script-src 'self'(;|$)/);
   assert.doesNotMatch(CONTENT_SECURITY_POLICY, /unsafe-eval/);
+  // Images: the app itself, inline data URIs and the satellite imagery host only.
+  const imageryOrigin = new URL(readJson("public/config.json").map.imagery.exportUrl).origin;
+  assert.match(CONTENT_SECURITY_POLICY, new RegExp(`img-src 'self' data: ${imageryOrigin}(;|$)`));
   assert.deepEqual(plugin(configWith(undefined, "development"), "HtmlWebpackPlugin").userOptions.meta, {});
 });
 
