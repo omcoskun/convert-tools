@@ -644,6 +644,22 @@ function angularPoints(count) {
   add("hue", 10.775276, 106.706797);
   add("ankara", 39.933365, 32.859742);
   for (let index = 0; index < count; index += 1) add(`random-${String(index).padStart(4, "0")}`, uniform(-90, 90), uniform(-180, 180));
+  // Cell boundaries: whole minutes (GARS 5' and 15', GEOREF 1' and 10') and
+  // 0.1', 0.01', 0.001' (GEOREF precision 3-5), on the line and 1e-13° /
+  // 1e-12° (about 0.01 mm / 0.1 mm) either side, in all four quadrants.
+  for (const minutes of [0.001, 0.01, 0.1, 1, 5, 10, 15, 30, 59]) {
+    for (const offset of [-1e-12, -1e-13, 0, 1e-13, 1e-12]) {
+      for (const [latSign, lonSign] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const lat = latSign * (39 + minutes / 60) + offset;
+        const lon = lonSign * (32 + minutes / 60) + offset;
+        points.push({
+          id: `cell-${minutes}m-${offset}-${latSign > 0 ? "n" : "s"}${lonSign > 0 ? "e" : "w"}`,
+          lat: dec(lat, 15),
+          lon: dec(lon, 15),
+        });
+      }
+    }
+  }
   return points;
 }
 

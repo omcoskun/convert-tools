@@ -565,3 +565,11 @@ test("güney UTM CRS'i ekvatorda 10 000 km false northing kullanır", () => {
   assert.equal(back.x, 27);
   assert.equal(Math.abs(back.y), 0);
 });
+
+test("GEOREF dakika sınırının hemen altındaki noktayı kendi hücresine yazar", () => {
+  // GeographicLib Georef::Forward (contract rows cell-1m-*-p2): 1e-12° below
+  // the 1' line is still in minute 00; the old +1e-10 nudge wrote 01.
+  assert.equal(encodeGeoref("32.016666666665664", "39.016666666665664", 2), "QJCK0000");
+  assert.equal(encodeGeoref("32.016666666666666", "39.016666666666666", 2), "QJCK0101");
+  assert.equal(encodeGeoref("-32.016666666667668", "-39.016666666667668", 2), "KDNF5858");
+});

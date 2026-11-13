@@ -26,6 +26,16 @@ public final class Georef {
         return encode(point.longitude(), point.latitude(), precision);
     }
 
+    // GeographicLib Georef::Forward works in units of 1e-9 minute.
+    private static final long UNITS_PER_DEGREE = 60000000000L;
+    private static final int MAX_PRECISION = 11;
+
+    /**
+     * Encodes a point as GEOREF. Digits are truncated, never rounded. Same
+     * integer algorithm as GeographicLib's Georef::Forward and the
+     * JavaScript core; longitude +180° wraps to -180° and latitude +90°
+     * belongs to the northernmost cell.
+     */
     public static String encode(
             double longitude,
             double latitude,
@@ -33,62 +43,31 @@ public final class Georef {
     ) {
         new CoordinatePoint(latitude, longitude);
         validatePrecision(precision);
-
-        double safeLongitude = longitude == 180 ? -180 : longitude;
-        double shiftedLongitude = safeLongitude + 180;
-        double shiftedLatitude = latitude + 90;
-        int longitudeZone = (int) Math.floor(shiftedLongitude / 15);
-        int latitudeZone = Math.min(
-                11,
-                (int) Math.floor(shiftedLatitude / 15)
-        );
-        double longitudeWithinZone =
-                shiftedLongitude - longitudeZone * 15;
-        double latitudeWithinZone =
-                shiftedLatitude - latitudeZone * 15;
-        int longitudeDegree =
-                (int) Math.floor(longitudeWithinZone);
-        int latitudeDegree = Math.min(
-                14,
-                (int) Math.floor(latitudeWithinZone)
-        );
-
+        double lon = longitude == 180 ? -180 : longitude;
+        double lat = latitude == 90
+                ? latitude * (1 - Math.ulp(1.0) / 2)
+                : latitude;
+        long x = (long) Math.floor(lon * UNITS_PER_DEGREE)
+                + 180 * UNITS_PER_DEGREE;
+        long y = (long) Math.floor(lat * UNITS_PER_DEGREE)
+                + 90 * UNITS_PER_DEGREE;
+        int longitudeDegrees = (int) (x / UNITS_PER_DEGREE);
+        int latitudeDegrees = (int) (y / UNITS_PER_DEGREE);
         StringBuilder result = new StringBuilder();
-        result.append(ALPHABET.charAt(longitudeZone));
-        result.append(ALPHABET.charAt(latitudeZone));
-        result.append(DEGREE_ALPHABET.charAt(longitudeDegree));
-        result.append(DEGREE_ALPHABET.charAt(latitudeDegree));
-
+        result.append(ALPHABET.charAt(longitudeDegrees / 15));
+        result.append(ALPHABET.charAt(latitudeDegrees / 15));
+        result.append(DEGREE_ALPHABET.charAt(longitudeDegrees % 15));
+        result.append(DEGREE_ALPHABET.charAt(latitudeDegrees % 15));
         if (precision > 0) {
-            double scale = Math.pow(10, Math.max(0, precision - 2));
-            double divisor = precision == 1 ? 10 : 1 / scale;
-            double longitudeMinutes =
-                    (longitudeWithinZone - longitudeDegree) * 60;
-            double latitudeMinutes =
-                    (latitudeWithinZone - latitudeDegree) * 60;
-            int maximumDigits = (int) Math.floor(60 / divisor) - 1;
-            int longitudeDigits = Math.min(
-                    maximumDigits,
-                    (int) Math.floor(
-                            longitudeMinutes / divisor + 1e-10
-                    )
-            );
-            int latitudeDigits = Math.min(
-                    maximumDigits,
-                    (int) Math.floor(
-                            latitudeMinutes / divisor + 1e-10
-                    )
-            );
-            result.append(String.format(
-                    Locale.ROOT,
-                    "%0" + precision + "d",
-                    longitudeDigits
-            ));
-            result.append(String.format(
-                    Locale.ROOT,
-                    "%0" + precision + "d",
-                    latitudeDigits
-            ));
+            x -= UNITS_PER_DEGREE * longitudeDegrees;
+            y -= UNITS_PER_DEGREE * latitudeDegrees;
+            long divisor = 1;
+            for (int k = 0; k < MAX_PRECISION - precision; k++) {
+                divisor *= 10;
+            }
+            String digits = "%0" + precision + "d";
+            result.append(String.format(Locale.ROOT, digits, x / divisor));
+            result.append(String.format(Locale.ROOT, digits, y / divisor));
         }
         return result.toString();
     }

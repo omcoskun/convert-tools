@@ -3,44 +3,48 @@ import { pointFromValues, validatePoint } from "../core/numbers.js";
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DEGREE_ALPHABET = ALPHABET.slice(0, 15);
 
+// GeographicLib Georef::Forward works in units of 1e-9 minute: 6e10 per
+// degree. 360° is 2.16e13 units, well inside the 2^53 exact-integer range.
+const UNITS_PER_DEGREE = 60e9;
+const MAX_PRECISION = 11;
+
+/**
+ * Encodes a point as GEOREF. Digits are truncated, never rounded, so the code
+ * names the cell that contains the point. Same integer algorithm as
+ * GeographicLib's Georef::Forward; longitude +180° wraps to -180° and
+ * latitude +90° belongs to the northernmost cell. Precision 1 (10-minute
+ * cells) has no GeographicLib equivalent and uses the same truncation.
+ * @param {number|string} longitudeValue degrees
+ * @param {number|string} latitudeValue degrees
+ * @param {number} [precision=4] digits per axis, 0 … 5
+ * @returns {string}
+ */
 export function encodeGeoref(longitudeValue, latitudeValue, precision = 4) {
-  const { latitude, longitude } = pointFromValues(latitudeValue, longitudeValue);
+  const { latitude, longitude: rawLongitude } = pointFromValues(
+    latitudeValue,
+    longitudeValue,
+  );
   if (!Number.isInteger(precision) || precision < 0 || precision > 5) {
     throw new Error("GEOREF precision must be between 0 and 5.");
   }
-
-  const safeLongitude = longitude === 180 ? -180 : longitude;
-  const shiftedLongitude = safeLongitude + 180;
-  const shiftedLatitude = latitude + 90;
-  const longitudeZone = Math.floor(shiftedLongitude / 15);
-  const latitudeZone = Math.min(11, Math.floor(shiftedLatitude / 15));
-  const longitudeWithinZone = shiftedLongitude - longitudeZone * 15;
-  const latitudeWithinZone = shiftedLatitude - latitudeZone * 15;
-  const longitudeDegree = Math.floor(longitudeWithinZone);
-  const latitudeDegree = Math.min(14, Math.floor(latitudeWithinZone));
-
+  const longitude = rawLongitude === 180 ? -180 : rawLongitude;
+  const clampedLatitude =
+    latitude === 90 ? latitude * (1 - Number.EPSILON / 2) : latitude;
+  let x = Math.floor(longitude * UNITS_PER_DEGREE) + 180 * UNITS_PER_DEGREE;
+  let y = Math.floor(clampedLatitude * UNITS_PER_DEGREE) + 90 * UNITS_PER_DEGREE;
+  const longitudeDegrees = Math.trunc(x / UNITS_PER_DEGREE);
+  const latitudeDegrees = Math.trunc(y / UNITS_PER_DEGREE);
   let result =
-    ALPHABET[longitudeZone] +
-    ALPHABET[latitudeZone] +
-    DEGREE_ALPHABET[longitudeDegree] +
-    DEGREE_ALPHABET[latitudeDegree];
-
+    ALPHABET[Math.trunc(longitudeDegrees / 15)] +
+    ALPHABET[Math.trunc(latitudeDegrees / 15)] +
+    DEGREE_ALPHABET[longitudeDegrees % 15] +
+    DEGREE_ALPHABET[latitudeDegrees % 15];
   if (precision > 0) {
-    const scale = 10 ** Math.max(0, precision - 2);
-    const divisor = precision === 1 ? 10 : 1 / scale;
-    const longitudeMinutes = (longitudeWithinZone - longitudeDegree) * 60;
-    const latitudeMinutes = (latitudeWithinZone - latitudeDegree) * 60;
-    const maximumDigits = Math.floor(60 / divisor) - 1;
-    const longitudeDigits = Math.min(
-      maximumDigits,
-      Math.floor(longitudeMinutes / divisor + 1e-10),
-    );
-    const latitudeDigits = Math.min(
-      maximumDigits,
-      Math.floor(latitudeMinutes / divisor + 1e-10),
-    );
-    result += String(longitudeDigits).padStart(precision, "0");
-    result += String(latitudeDigits).padStart(precision, "0");
+    x -= UNITS_PER_DEGREE * longitudeDegrees;
+    y -= UNITS_PER_DEGREE * latitudeDegrees;
+    const divisor = 10 ** (MAX_PRECISION - precision);
+    result += String(Math.floor(x / divisor)).padStart(precision, "0");
+    result += String(Math.floor(y / divisor)).padStart(precision, "0");
   }
   return result;
 }

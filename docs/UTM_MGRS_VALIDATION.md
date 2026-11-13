@@ -1,4 +1,4 @@
-# UTM / UPS / MGRS / GARS doğrulama raporu
+# UTM / UPS / MGRS / GARS / GEOREF doğrulama raporu
 
 Kayıt tarihi: 13 Kasım 2026. Referans: GeographicLib 2.7 (`GeoConvert`,
 `TransverseMercatorProj`, `PolarStereographic`, `GARS`). Vektörlerin nasıl
@@ -19,6 +19,7 @@ Kayıt tarihi: 13 Kasım 2026. Referans: GeographicLib 2.7 (`GeoConvert`,
 | UPS ters dönüşüm alanı | Dikdörtgen sınır | 60° enlem çemberi (+1 µm) |
 | EPSG:327xx ekvatorda | Kuzey sayılıp 0 m northing | 10 000 000 m false northing |
 | GARS, +180° | Bant 720 | Bant 001 (GeographicLib `GARS::Forward`) |
+| GEOREF basamakları | Dakika değerine `+1e-10` eklenip kesiliyordu | GeographicLib `Georef::Forward` tamsayı algoritması (1e-9 dakika birimi) |
 
 ## Düzeltme öncesi ve sonrası (aynı vektör dosyaları)
 
@@ -37,11 +38,14 @@ dosyalarıyla çalıştırılmasından alındı. JS ve Java aynı sonuçları ve
 | EPSG:5042 | 215 | 2,083 nm | ↑ | 2,083 nm | 2,083 nm |
 | EPSG:3857 | 504 | 14,90 nm | ↑ | 14,90 nm | 14,90 nm |
 | CRS gidiş-dönüş | 1358 | — | ↑ | 4,746 nm | 4,746 nm |
-| GARS kodlama | 2532 | — | 6 | 0 | 0 |
-| GARS merkezi | 2532 | 1,421e-14° | — | 1,421e-14° | 1,421e-14° |
+| GARS kodlama | 3072 | — | 6 | 0 | 0 |
+| GARS merkezi | 3072 | 1,421e-14° | — | 1,421e-14° | 1,421e-14° |
+| GEOREF kodlama | 3590 | — | 101 | 0 | 0 |
 
-Geodezik ve GEOREF kontrolleri bu aşamada değişmedi (geodezik motora
-dokunulmadı; bkz. `GEODESIC_VALIDATION.md`).
+GARS ve GEOREF satır sayıları, sonradan eklenen hücre sınırı vektörlerini
+içerir; GEOREF'in 101 hatalı satırı bu vektörlerle bulundu (aşağıda 6. madde).
+Geodezik kontroller değişmedi (geodezik motora dokunulmadı; bkz.
+`GEODESIC_VALIDATION.md`).
 
 ## Zon kenarı ölçümü (başlangıç ölçümünün tekrarı)
 
@@ -77,11 +81,15 @@ Hedef ≤ 1 µm idi; ölçülen en büyük hata 4,7 nm.
 4. **Derece trigonometri.** `sin(-180°)` sıfır çıkmadığı için UPS'te
    antimeridyen üzerindeki nokta yanlış doğu/batı bandına düşüyordu.
 5. **+180° boylam.** Zon ve GARS bandı GeographicLib'den farklıydı.
+6. **GEOREF yuvarlama payı.** Kodlayıcı dakika değerine `1e-10` ekleyip
+   kesiyordu; dakika çizgisinin 1e-12° (~0,1 mm) altındaki nokta bir sonraki
+   hücreye yazılıyordu (ör. `QJCK0000` yerine `QJCK0101`). JS ve Java aynı 101
+   satırda başarısızdı; artık GeographicLib'in tamsayı algoritması kullanılıyor.
 
 ## Komutlar
 
 ```bash
 node contracts/tools/generate-vectors.mjs          # vektörleri yeniden üretir (~2 s)
-cd packages/core-js && node --test test/           # 61 test, 61 geçti
+cd packages/core-js && node --test test/           # 62 test, 62 geçti
 sh packages/core-java/scripts/test.sh              # javac + 3 Java test sınıfı, hepsi geçti
 ```

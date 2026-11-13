@@ -649,6 +649,24 @@ public final class CoordinateContractTest {
                 "UPS antimeridian easting"
         );
 
+        // GEOREF: 1e-12° below the 1' line is still minute 00
+        // (GeographicLib Georef::Forward, contract rows cell-1m-*-p2).
+        require(
+                Georef.encode(32.016666666665664, 39.016666666665664, 2)
+                        .equals("QJCK0000"),
+                "GEOREF just below a minute line"
+        );
+        require(
+                Georef.encode(32.016666666666666, 39.016666666666666, 2)
+                        .equals("QJCK0101"),
+                "GEOREF on a minute line"
+        );
+        require(
+                Georef.encode(-32.016666666667668, -39.016666666667668, 2)
+                        .equals("KDNF5858"),
+                "GEOREF just below a minute line, south-west"
+        );
+
         // By definition the central meridian at the equator is (500 000, 0) in
         // the northern CRS and (500 000, 10 000 000) in the southern CRS.
         CrsTransformation south = CrsTransformer.transform(
