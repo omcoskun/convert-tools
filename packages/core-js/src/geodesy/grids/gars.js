@@ -2,43 +2,38 @@ import { pointFromValues, validatePoint } from "../core/numbers.js";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
+/**
+ * Encodes a point as a 5-minute GARS cell (7 characters, e.g. "574JK19").
+ * Follows GeographicLib's GARS::Forward: longitude +180° wraps to band 001
+ * and latitude +90° belongs to the northernmost cell.
+ * @param {number|string} longitudeValue degrees
+ * @param {number|string} latitudeValue degrees
+ * @returns {string}
+ */
 export function encodeGars(longitudeValue, latitudeValue) {
-  const { latitude, longitude } = pointFromValues(latitudeValue, longitudeValue);
-  const longitudePosition = (longitude + 180) / 0.5;
-  const latitudePosition = (latitude + 90) / 0.5;
-  const longitudeIndex = Math.min(719, Math.floor(longitudePosition));
-  const latitudeIndex = Math.min(359, Math.floor(latitudePosition));
-  const longitudeBand = String(longitudeIndex + 1).padStart(3, "0");
-  const latitudeBand =
-    ALPHABET[Math.floor(latitudeIndex / 24)] + ALPHABET[latitudeIndex % 24];
-
-  // +180° and +90° are closed outer boundaries of the final cells. Keeping a
-  // remainder of one places them in those cells without relying on an epsilon
-  // that can round back to the invalid 721st/361st band.
-  const longitudeRemainder = Math.min(
-    1,
-    Math.max(0, longitudePosition - longitudeIndex),
+  const { latitude, longitude: rawLongitude } = pointFromValues(
+    latitudeValue,
+    longitudeValue,
   );
-  const latitudeRemainder = Math.min(
-    1,
-    Math.max(0, latitudePosition - latitudeIndex),
+  const longitude = rawLongitude === 180 ? -180 : rawLongitude;
+  const clampedLatitude =
+    latitude === 90 ? latitude * (1 - Number.EPSILON / 2) : latitude;
+  // Work in 5-minute units: 12 per degree.
+  let x = Math.floor(longitude * 12) + 180 * 12;
+  let y = Math.floor(clampedLatitude * 12) + 90 * 12;
+  const longitudeBand = Math.trunc((x * 2) / 12);
+  const latitudeBand = Math.trunc((y * 2) / 12);
+  x -= (longitudeBand * 12) / 2;
+  y -= (latitudeBand * 12) / 2;
+  const quadrant = 2 * (1 - Math.trunc(y / 3)) + Math.trunc(x / 3) + 1;
+  const keypad = 3 * (2 - (y % 3)) + (x % 3) + 1;
+  return (
+    String(longitudeBand + 1).padStart(3, "0") +
+    ALPHABET[Math.trunc(latitudeBand / 24)] +
+    ALPHABET[latitudeBand % 24] +
+    quadrant +
+    keypad
   );
-  const quadrantColumn = Math.min(1, Math.floor(longitudeRemainder * 2));
-  const quadrantRow = Math.min(1, Math.floor(latitudeRemainder * 2));
-  const quadrant =
-    quadrantRow === 1
-      ? quadrantColumn === 0
-        ? 1
-        : 2
-      : quadrantColumn === 0
-        ? 3
-        : 4;
-  const longitudeInQuadrant = longitudeRemainder * 2 - quadrantColumn;
-  const latitudeInQuadrant = latitudeRemainder * 2 - quadrantRow;
-  const keypadColumn = Math.min(2, Math.floor(longitudeInQuadrant * 3));
-  const keypadRowFromSouth = Math.min(2, Math.floor(latitudeInQuadrant * 3));
-  const keypad = (2 - keypadRowFromSouth) * 3 + keypadColumn + 1;
-  return `${longitudeBand}${latitudeBand}${quadrant}${keypad}`;
 }
 
 export function decodeGars(value) {

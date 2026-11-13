@@ -19,66 +19,31 @@ public final class Gars {
         return encode(point.longitude(), point.latitude());
     }
 
+    /**
+     * Encodes a point as a 5-minute GARS cell (7 characters, e.g. "574JK19").
+     * Follows GeographicLib's GARS::Forward: longitude +180° wraps to band
+     * 001 and latitude +90° belongs to the northernmost cell.
+     */
     public static String encode(double longitude, double latitude) {
         new CoordinatePoint(latitude, longitude);
-        double longitudePosition = (longitude + 180) / 0.5;
-        double latitudePosition = (latitude + 90) / 0.5;
-        int longitudeIndex = Math.min(
-                719,
-                (int) Math.floor(longitudePosition)
-        );
-        int latitudeIndex = Math.min(
-                359,
-                (int) Math.floor(latitudePosition)
-        );
-        String longitudeBand = String.format(
-                Locale.ROOT,
-                "%03d",
-                longitudeIndex + 1
-        );
-        String latitudeBand = new String(new char[]{
-                ALPHABET.charAt(latitudeIndex / 24),
-                ALPHABET.charAt(latitudeIndex % 24)
-        });
-
-        double longitudeRemainder = Math.min(
-                1,
-                Math.max(0, longitudePosition - longitudeIndex)
-        );
-        double latitudeRemainder = Math.min(
-                1,
-                Math.max(0, latitudePosition - latitudeIndex)
-        );
-        int quadrantColumn = Math.min(
-                1,
-                (int) Math.floor(longitudeRemainder * 2)
-        );
-        int quadrantRow = Math.min(
-                1,
-                (int) Math.floor(latitudeRemainder * 2)
-        );
-        int quadrant;
-        if (quadrantRow == 1) {
-            quadrant = quadrantColumn == 0 ? 1 : 2;
-        } else {
-            quadrant = quadrantColumn == 0 ? 3 : 4;
-        }
-        double longitudeInQuadrant =
-                longitudeRemainder * 2 - quadrantColumn;
-        double latitudeInQuadrant =
-                latitudeRemainder * 2 - quadrantRow;
-        int keypadColumn = Math.min(
-                2,
-                (int) Math.floor(longitudeInQuadrant * 3)
-        );
-        int keypadRowFromSouth = Math.min(
-                2,
-                (int) Math.floor(latitudeInQuadrant * 3)
-        );
-        int keypad = (2 - keypadRowFromSouth) * 3
-                + keypadColumn
-                + 1;
-        return longitudeBand + latitudeBand + quadrant + keypad;
+        double lon = longitude == 180 ? -180 : longitude;
+        double lat = latitude == 90
+                ? latitude * (1 - Math.ulp(1.0) / 2)
+                : latitude;
+        // Work in 5-minute units: 12 per degree.
+        int x = (int) Math.floor(lon * 12) + 180 * 12;
+        int y = (int) Math.floor(lat * 12) + 90 * 12;
+        int longitudeBand = x * 2 / 12;
+        int latitudeBand = y * 2 / 12;
+        x -= longitudeBand * 12 / 2;
+        y -= latitudeBand * 12 / 2;
+        int quadrant = 2 * (1 - y / 3) + x / 3 + 1;
+        int keypad = 3 * (2 - y % 3) + x % 3 + 1;
+        return String.format(Locale.ROOT, "%03d", longitudeBand + 1)
+                + ALPHABET.charAt(latitudeBand / 24)
+                + ALPHABET.charAt(latitudeBand % 24)
+                + quadrant
+                + keypad;
     }
 
     public static AngularCell decode(String value) {

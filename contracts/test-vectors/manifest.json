@@ -9,8 +9,8 @@
   "files": [
     {
       "name": "coordinate-projections.csv",
-      "rows": 1334,
-      "sha256": "e231c30c52c8f154e80f617a9d0e0a53d1f9da79d3a4529753918239a3e9767f",
+      "rows": 1358,
+      "sha256": "48e12c12a358f4c3ed6985602f857659d9bfcfd45267bda6bd456ad626ba59f3",
       "source": "EPSG:3857 web_mercator.py; EPSG:326xx/327xx GeoConvert -z ZONEh -u -p 9; EPSG:5041/5042 GeographicLib PolarStereographic::UPS() via geographiclib-helper"
     },
     {

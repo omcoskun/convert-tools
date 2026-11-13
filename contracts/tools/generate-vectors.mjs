@@ -485,6 +485,23 @@ function crsVectors() {
     const code = `EPSG:${(north ? 32600 : 32700) + zone}`;
     rows.push([`crs-utm-${String(index).padStart(4, "0")}`, "CRS", point.lat, point.lon, code, "", "", x, y, "0.000001", "0.000001"]);
   }
+  // Equator in both hemisphere CRSs: the southern CRS keeps its 10 000 km
+  // false northing even though latitude 0 is not south.
+  for (const zone of [1, 31, 35, 60]) {
+    for (const offset of [-3.5, 0, 2.25]) {
+      for (const north of [true, false]) {
+        let lon = zone * 6 - 183 + offset;
+        if (lon > 180) lon -= 360;
+        if (lon < -180) lon += 360;
+        const point = { lat: 0, lon: dec(lon) };
+        const [line] = geoConvert(["-z", `${zone}${north ? "n" : "s"}`, "-u", "-p", "9"], [`${point.lat} ${point.lon}`]);
+        if (isError(line)) throw new Error(`GeoConvert refused equator point ${zone} ${point.lon}`);
+        const [, x, y] = line.split(/\s+/);
+        const code = `EPSG:${(north ? 32600 : 32700) + zone}`;
+        rows.push([`crs-utm-equator-${zone}${north ? "n" : "s"}-${offset}`, "CRS", point.lat, point.lon, code, "", "", x, y, "0.000001", "0.000001"]);
+      }
+    }
+  }
 
   const polar = [];
   for (let index = 0; index < 400; index += 1) {

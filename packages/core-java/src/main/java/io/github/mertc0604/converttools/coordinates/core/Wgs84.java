@@ -17,64 +17,54 @@ public final class Wgs84 {
             Math.sqrt(ECCENTRICITY_SQUARED);
     public static final double SECOND_ECCENTRICITY_SQUARED =
             ECCENTRICITY_SQUARED / (1 - ECCENTRICITY_SQUARED);
+    /** Third flattening n = f / (2 − f). */
+    public static final double THIRD_FLATTENING =
+            FLATTENING / (2 - FLATTENING);
 
     private Wgs84() {
     }
 
-    public static double meridionalArc(double latitudeRadians) {
-        double e2 = ECCENTRICITY_SQUARED;
-        double e4 = e2 * e2;
-        double e6 = e4 * e2;
-        return SEMI_MAJOR_AXIS
-                * ((1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256)
-                * latitudeRadians
-                - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024)
-                * Math.sin(2 * latitudeRadians)
-                + (15 * e4 / 256 + 45 * e6 / 1024)
-                * Math.sin(4 * latitudeRadians)
-                - 35 * e6 / 3072 * Math.sin(6 * latitudeRadians));
+    /**
+     * tan(χ) of the conformal latitude χ from tan(φ) (Karney 2011, Eqs. 7–9).
+     */
+    public static double conformalTangent(double tau) {
+        if (!Double.isFinite(tau)) {
+            return tau;
+        }
+        double tau1 = Math.hypot(1, tau);
+        double sigma = Math.sinh(eatanhe(tau / tau1));
+        return Math.hypot(1, sigma) * tau - sigma * tau1;
     }
 
-    public static double conformalTangent(double tangentLatitude) {
-        double hypotenuse = Math.hypot(1, tangentLatitude);
-        double eccentricTerm = Math.sinh(
-                ECCENTRICITY
-                        * atanh(
-                                ECCENTRICITY
-                                        * tangentLatitude
-                                        / hypotenuse
-                        )
-        );
-        return Math.hypot(1, eccentricTerm) * tangentLatitude
-                - eccentricTerm * hypotenuse;
-    }
-
-    public static double inverseConformalTangent(double conformalTangent) {
-        double oneMinusE2 = 1 - ECCENTRICITY_SQUARED;
-        double tangentLatitude = Math.abs(conformalTangent) > 70
-                ? conformalTangent
-                * Math.exp(ECCENTRICITY * atanh(ECCENTRICITY))
-                : conformalTangent / oneMinusE2;
-
-        for (int iteration = 0; iteration < 6; iteration++) {
-            double estimated = conformalTangent(tangentLatitude);
-            double delta = ((conformalTangent - estimated)
-                    * (1 + oneMinusE2
-                    * tangentLatitude
-                    * tangentLatitude))
-                    / (oneMinusE2
-                    * Math.hypot(1, tangentLatitude)
-                    * Math.hypot(1, estimated));
-            tangentLatitude += delta;
-            if (Math.abs(delta)
-                    < 1e-14 * Math.max(1, Math.abs(tangentLatitude))) {
+    /**
+     * Inverse of {@link #conformalTangent}: tan(φ) from tan(χ) by Newton's
+     * method (same iteration as GeographicLib Math::tauf).
+     */
+    public static double inverseConformalTangent(double taup) {
+        double e2m = 1 - ECCENTRICITY_SQUARED;
+        double epsilon = Math.ulp(1.0);
+        double tolerance = Math.sqrt(epsilon) / 10;
+        double tauMaximum = 2 / Math.sqrt(epsilon);
+        double tau = Math.abs(taup) > 70
+                ? taup * Math.exp(eatanhe(1))
+                : taup / e2m;
+        double stepTolerance = tolerance * Math.max(1, Math.abs(taup));
+        if (!(Math.abs(tau) < tauMaximum)) {
+            return tau;
+        }
+        for (int iteration = 0; iteration < 5; iteration++) {
+            double estimate = conformalTangent(tau);
+            double delta = (taup - estimate) * (1 + e2m * tau * tau)
+                    / (e2m * Math.hypot(1, tau) * Math.hypot(1, estimate));
+            tau += delta;
+            if (!(Math.abs(delta) >= stepTolerance)) {
                 break;
             }
         }
-        return tangentLatitude;
+        return tau;
     }
 
-    private static double atanh(double value) {
-        return 0.5 * Math.log((1 + value) / (1 - value));
+    private static double eatanhe(double x) {
+        return ECCENTRICITY * Angles.atanh(ECCENTRICITY * x);
     }
 }

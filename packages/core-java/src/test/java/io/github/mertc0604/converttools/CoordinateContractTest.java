@@ -51,6 +51,7 @@ public final class CoordinateContractTest {
         testCoordinateFacadeAndResolution();
         testGeodesicAdapter();
         testValidation();
+        testGeographicLibBoundaryCases();
         System.out.println("Java coordinate contract tests passed.");
     }
 
@@ -233,8 +234,8 @@ public final class CoordinateContractTest {
 
     private static void testAntimeridian() {
         require(
-                UtmUps.standardUtmZone(0, 180) == 60,
-                "+180° must use UTM zone 60"
+                UtmUps.standardUtmZone(0, 180) == 1,
+                "+180° must use UTM zone 1 (GeographicLib UTMUPS::StandardZone)"
         );
         require(
                 UtmUps.standardUtmZone(0, -180) == 1,
@@ -294,8 +295,10 @@ public final class CoordinateContractTest {
                 "GARS cell did not survive decode/encode"
         );
         require(
+                // GeographicLib GARS::Forward: +180° wraps to band 001
+                // (contract row edge-90-180-p2).
                 Gars.encode(new CoordinatePoint(90, 180))
-                        .equals("720QZ23"),
+                        .equals("001QZ11"),
                 "GARS northeast boundary mismatch"
         );
         require(
@@ -587,6 +590,107 @@ public final class CoordinateContractTest {
                 ),
                 "Latitude hemisphere was accepted for longitude"
         );
+    }
+
+    /** Same boundary cases as the JavaScript coordinate-engine tests. */
+    private static void testGeographicLibBoundaryCases() {
+        // Longitude +180° belongs to zone 1 in the standard zone; GARS wraps.
+        require(UtmUps.forward(0, 180).zone() == 1, "+180° UTM zone");
+        require(UtmUps.forward(0, 179.999999999).zone() == 60, "179.999…° zone");
+        require(Mgrs.encode(0, 180, 0).equals("01NAA"), "+180° MGRS square");
+        require(
+                Gars.encode(180, 0).equals(Gars.encode(-180, 0)),
+                "GARS ±180° must share a band"
+        );
+
+        // Two-digit zone (GeoConvert -m -p -5); one-digit input still decodes.
+        require(Mgrs.encode(-37.25, -177, 0).equals("01HEU"), "two-digit zone");
+        GridCell padded = Mgrs.decode("01HEU");
+        GridCell bare = Mgrs.decode("1HEU");
+        require(
+                padded.point().equals(bare.point()),
+                "01HEU and 1HEU must decode to the same square"
+        );
+
+        // Squares GeoConvert rejects for their latitude band.
+        for (String code : new String[]{"32NQQ7070975688", "26PJD", "54JSV20"}) {
+            expectFailureMessage(
+                    () -> Mgrs.decode(code),
+                    "not in its zone and latitude band",
+                    code + " was accepted"
+            );
+        }
+        Mgrs.decode("57CTL19");
+
+        // UPS at the 60° boundary survives its own round trip; beyond it fails.
+        for (double[] point : new double[][]{{60, 45}, {-60, -135}, {60, 180}}) {
+            String target = point[0] > 0 ? "EPSG:5041" : "EPSG:5042";
+            CrsTransformation grid = CrsTransformer.transform(
+                    "EPSG:4326", target, point[1], point[0]
+            );
+            CrsTransformation back = CrsTransformer.transform(
+                    target, "EPSG:4326", grid.x(), grid.y()
+            );
+            closeTo(back.y(), point[0], 1e-12, "UPS boundary latitude");
+            closeTo(back.x(), point[1], 1e-12, "UPS boundary longitude");
+        }
+        expectFailureMessage(
+                () -> CrsTransformer.transform(
+                        "EPSG:5041", "EPSG:4326", 5500000, 2000000
+                ),
+                "outside the supported range",
+                "UPS point beyond 60° was accepted"
+        );
+
+        // sin(-180°) is exactly zero: the point is on the east/west split.
+        require(Mgrs.encode(-80.5, -180, 0).equals("BAB"), "UPS antimeridian band");
+        require(
+                UtmUps.forward(-85, -180).easting() == 2000000,
+                "UPS antimeridian easting"
+        );
+
+        // By definition the central meridian at the equator is (500 000, 0) in
+        // the northern CRS and (500 000, 10 000 000) in the southern CRS.
+        CrsTransformation south = CrsTransformer.transform(
+                "EPSG:4326", "EPSG:32735", 27, 0
+        );
+        require(
+                south.x() == 500000 && south.y() == 10000000,
+                "southern UTM CRS at the equator: " + south.x() + ", " + south.y()
+        );
+        CrsTransformation north = CrsTransformer.transform(
+                "EPSG:4326", "EPSG:32635", 27, 0
+        );
+        require(
+                north.x() == 500000 && north.y() == 0,
+                "northern UTM CRS at the equator"
+        );
+        CrsTransformation back = CrsTransformer.transform(
+                "EPSG:32735", "EPSG:4326", 500000, 10000000
+        );
+        require(
+                back.x() == 27 && Math.abs(back.y()) == 0,
+                "southern UTM CRS equator inverse"
+        );
+    }
+
+    private static void expectFailureMessage(
+            Runnable operation,
+            String fragment,
+            String message
+    ) {
+        try {
+            operation.run();
+        } catch (IllegalArgumentException expected) {
+            if (expected.getMessage() == null
+                    || !expected.getMessage().contains(fragment)) {
+                throw new AssertionError(
+                        message + ": unexpected message " + expected.getMessage()
+                );
+            }
+            return;
+        }
+        throw new AssertionError(message);
     }
 
     private static void closeLongitude(

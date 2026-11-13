@@ -24,7 +24,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -33,18 +32,6 @@ import java.util.function.Supplier;
  * Every check collects all failing rows and prints the largest error measured.
  */
 public final class ReferenceVectorTest {
-    /**
-     * Checks that are known to fail and are reported without failing the run.
-     * Must be empty on a green build.
-     */
-    private static final Set<String> PENDING = Set.of(
-            "utm-ups-forward",
-            "utm-ups-inverse",
-            "mgrs-forward",
-            "mgrs-reverse",
-            "crs",
-            "gars"
-    );
     private static final double METRES_PER_DEGREE = 6378137 * Math.PI / 180;
 
     private final Path directory;
@@ -468,11 +455,7 @@ public final class ReferenceVectorTest {
             }
             String summary = name + ": " + failures.size() + " of " + rows + " rows failed\n  "
                     + String.join("\n  ", failures.subList(0, Math.min(10, failures.size())));
-            if (PENDING.contains(name)) {
-                System.out.println("PENDING " + summary);
-            } else {
-                hardFailures.add(summary);
-            }
+            hardFailures.add(summary);
         }
     }
 

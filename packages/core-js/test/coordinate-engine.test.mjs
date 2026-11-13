@@ -501,3 +501,67 @@ test("MGRS geri dönüşü metin eşitliği yerine kaynak hücre kapsamını kor
     }
   }
 });
+
+test("boylam +180° standart zonda zon 1'e, GARS'ta 001 bandına düşer", () => {
+  assert.equal(utmUpsForward(0, 180).zone, 1);
+  assert.equal(utmUpsForward(0, -180).zone, 1);
+  assert.equal(utmUpsForward(0, 179.999999999).zone, 60);
+  assert.equal(encodeMgrs(0, 180, 0), "01NAA");
+  assert.equal(encodeGars(180, 0), encodeGars(-180, 0));
+});
+
+test("MGRS zonu her zaman iki haneyle yazılır ve iki biçim de çözülür", () => {
+  assert.equal(encodeMgrs(-37.25, -177, 0), "01HEU"); // GeoConvert -m -p -5
+  const padded = decodeMgrs("01HEU");
+  const bare = decodeMgrs("1HEU");
+  assert.equal(padded.latitude, bare.latitude);
+  assert.equal(padded.longitude, bare.longitude);
+});
+
+test("bandıyla tutarsız MGRS karesi reddedilir", () => {
+  // GeoConvert rejects these; the old decoder silently accepted them.
+  for (const code of ["32NQQ7070975688", "26PJD", "54JSV20"]) {
+    assert.throws(() => decodeMgrs(code), /not in its zone and latitude band/);
+  }
+  // Valid squares at the edge of a band are still accepted.
+  assert.doesNotThrow(() => decodeMgrs("57CTL19"));
+});
+
+test("UPS 60° sınırında kendi çıktısını geri çevirir", () => {
+  for (const [latitude, longitude] of [[60, 45], [-60, -135], [60, 180]]) {
+    const grid = transformCrs(
+      "EPSG:4326",
+      latitude > 0 ? "EPSG:5041" : "EPSG:5042",
+      longitude,
+      latitude,
+    );
+    const back = transformCrs(grid.target, "EPSG:4326", grid.x, grid.y);
+    closeTo(back.y, latitude, 1e-12, "latitude");
+    closeTo(back.x, longitude, 1e-12, "longitude");
+  }
+  assert.throws(
+    () => transformCrs("EPSG:5041", "EPSG:4326", 5500000, 2000000),
+    /outside the supported range/,
+  );
+});
+
+test("UPS kutup ve antimeridyende derece-tam trigonometri kullanır", () => {
+  // sin(-180°) must be exactly zero: the point lies on the east/west split
+  // and GeographicLib places it in the eastern (B) band.
+  assert.equal(encodeMgrs(-80.5, -180, 0), "BAB");
+  assert.equal(utmUpsForward(-85, -180).easting, 2000000);
+});
+
+test("güney UTM CRS'i ekvatorda 10 000 km false northing kullanır", () => {
+  // By definition the central meridian at the equator is (500 000, 0) in the
+  // northern CRS and (500 000, 10 000 000) in the southern CRS.
+  const south = transformCrs("EPSG:4326", "EPSG:32735", 27, 0);
+  assert.equal(south.x, 500000);
+  assert.equal(south.y, 10000000);
+  const north = transformCrs("EPSG:4326", "EPSG:32635", 27, 0);
+  assert.equal(north.x, 500000);
+  assert.equal(north.y, 0);
+  const back = transformCrs("EPSG:32735", "EPSG:4326", 500000, 10000000);
+  assert.equal(back.x, 27);
+  assert.equal(Math.abs(back.y), 0);
+});

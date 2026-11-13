@@ -163,7 +163,8 @@ public final class CrsTransformer {
             GridCoordinate grid = UtmUps.utmForward(
                     point.latitude(),
                     point.longitude(),
-                    number - 32600
+                    number - 32600,
+                    true
             );
             return new double[]{grid.easting(), grid.northing()};
         }
@@ -176,7 +177,8 @@ public final class CrsTransformer {
             GridCoordinate grid = UtmUps.utmForward(
                     point.latitude(),
                     point.longitude(),
-                    number - 32700
+                    number - 32700,
+                    false
             );
             return new double[]{grid.easting(), grid.northing()};
         }

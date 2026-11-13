@@ -31,7 +31,7 @@ kütüphanesi), Python 3.14.7, Apple clang 21.
 | `utm-ups-inverse.csv` | 2885 | `GeoConvert -g -p 9`, girdi `ZONh DOĞU KUZEY` | 1 µm (yer mesafesi) |
 | `mgrs-forward.csv` | 15360 | `GeoConvert -m -p (HASSASİYET-5)` | birebir metin |
 | `mgrs-reverse.csv` | 5428 | `GeoConvert -u -p 9` ve `-g -p 9`, MGRS girdisi (hücre merkezi); `valid=0` GeoConvert'in reddettiği kodlar | 1 µm; geçersizde hata zorunlu |
-| `coordinate-projections.csv` | 1334 | EPSG:3857 `web_mercator.py`; EPSG:326xx/327xx `GeoConvert -z ZONh`; EPSG:5041/5042 GeographicLib `PolarStereographic::UPS()` | 1 µm; gidiş-dönüş 1 µm |
+| `coordinate-projections.csv` | 1358 | EPSG:3857 `web_mercator.py`; EPSG:326xx/327xx `GeoConvert -z ZONh`; EPSG:5041/5042 GeographicLib `PolarStereographic::UPS()` | 1 µm; gidiş-dönüş 1 µm |
 | `geodesic-wgs84.csv` | 2533 | `GeodSolve -i -f -p 9` | 0,1 mm |
 | `geodesic-direct.csv` | 1005 | `GeodSolve -p 9` | 0,1 mm; son azimut 1e-6° |
 | `gars.csv` | 2532 | GeographicLib `GARS::Forward/Reverse` | birebir metin; merkez 1e-12° |
@@ -51,7 +51,8 @@ Zon sınırları (her 6° sınırı, sınırın 1e-9° doğusu ve batısı), Nor
 3°–12°D) ve Svalbard (72°–84°K, 0°–42°D) istisnaları ve sınırları, 80°G ve 84°K
 sınırları (±1e-9°), her iki kutup, ±180° antimeridyen, ekvator (0 ve ±1e-9°), UPS
 halkası, MGRS bant sınırları, 100 km kare kenarlarının 1 mm iki yanı, rastgele
-noktalar. Jeodezikte: kutuplar, tam ve yakın antipodlar, ekvatoral ve meridyenel
+noktalar, EPSG:326xx ve 327xx'te ekvator (güney CRS'te 10 000 km false
+northing). Jeodezikte: kutuplar, tam ve yakın antipodlar, ekvatoral ve meridyenel
 hatlar, antimeridyen geçişi, 1 mm–1 km kısa hatlar, 1500 küresel rastgele çift,
 500 kısa ve 500 antipoda yakın rastgele çift.
 

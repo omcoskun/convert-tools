@@ -26,20 +26,6 @@ import {
   readVectors,
 } from "./support/vectors.mjs";
 
-// Rows that fail before the stage-2 fixes (UTM series, longitude 180, MGRS
-// lettering rules, GARS wrap). node:test runs todo tests and reports their
-// failures without failing the run; the set must be empty once fixed.
-const PENDING = new Set([
-  "utm-ups-forward",
-  "utm-ups-inverse",
-  "mgrs-forward",
-  "mgrs-reverse",
-  "crs",
-  "gars",
-]);
-const pending = (name) =>
-  PENDING.has(name) ? { todo: "known failure, fixed in stage 2" } : {};
-
 function assertNoFailures(failures, total) {
   assert.equal(
     failures.length,
@@ -57,7 +43,7 @@ function attempt(failures, id, operation) {
   }
 }
 
-test("UTM/UPS forward matches GeoConvert within 1 micrometre", pending("utm-ups-forward"), (t) => {
+test("UTM/UPS forward matches GeoConvert within 1 micrometre", (t) => {
   const rows = readVectors("utm-ups-forward.csv");
   const failures = [];
   const error = new MaxError("UTM/UPS forward", "m");
@@ -91,7 +77,7 @@ test("UTM/UPS forward matches GeoConvert within 1 micrometre", pending("utm-ups-
   assertNoFailures(failures, rows.length);
 });
 
-test("UTM/UPS inverse matches GeoConvert within 1 micrometre", pending("utm-ups-inverse"), (t) => {
+test("UTM/UPS inverse matches GeoConvert within 1 micrometre", (t) => {
   const rows = readVectors("utm-ups-inverse.csv");
   const failures = [];
   const error = new MaxError("UTM/UPS inverse", "m");
@@ -120,7 +106,7 @@ test("UTM/UPS inverse matches GeoConvert within 1 micrometre", pending("utm-ups-
   assertNoFailures(failures, rows.length);
 });
 
-test("MGRS encoding matches GeoConvert exactly at every precision", pending("mgrs-forward"), () => {
+test("MGRS encoding matches GeoConvert exactly at every precision", () => {
   const rows = readVectors("mgrs-forward.csv");
   const failures = [];
   for (const row of rows) {
@@ -134,7 +120,7 @@ test("MGRS encoding matches GeoConvert exactly at every precision", pending("mgr
   assertNoFailures(failures, rows.length);
 });
 
-test("MGRS decoding matches GeoConvert cell centres and rejects what it rejects", pending("mgrs-reverse"), (t) => {
+test("MGRS decoding matches GeoConvert cell centres and rejects what it rejects", (t) => {
   const rows = readVectors("mgrs-reverse.csv");
   const failures = [];
   const gridError = new MaxError("MGRS centre grid", "m");
@@ -177,7 +163,7 @@ test("MGRS decoding matches GeoConvert cell centres and rejects what it rejects"
   assertNoFailures(failures, rows.length);
 });
 
-test("CRS transformations match independent references and round-trip", pending("crs"), (t) => {
+test("CRS transformations match independent references and round-trip", (t) => {
   const rows = readVectors("coordinate-projections.csv");
   const failures = [];
   const errors = new Map();
@@ -302,7 +288,7 @@ test("direct geodesic matches GeodSolve", (t) => {
   assertNoFailures(failures, rows.length);
 });
 
-test("GARS matches GeographicLib codes and cell centres", pending("gars"), (t) => {
+test("GARS matches GeographicLib codes and cell centres", (t) => {
   const rows = readVectors("gars.csv");
   const failures = [];
   const centre = new MaxError("GARS centre", "deg");

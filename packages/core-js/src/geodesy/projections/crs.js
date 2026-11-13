@@ -73,14 +73,14 @@ function fromWgs84(definition, point) {
     if (point.latitude < 0) {
       throw new Error("A northern UTM CRS cannot encode a southern point.");
     }
-    const grid = utmForward(point.latitude, point.longitude, number - 32600);
+    const grid = utmForward(point.latitude, point.longitude, number - 32600, true);
     return [grid.easting, grid.northing];
   }
   if (number >= 32701 && number <= 32760) {
     if (point.latitude > 0) {
       throw new Error("A southern UTM CRS cannot encode a northern point.");
     }
-    const grid = utmForward(point.latitude, point.longitude, number - 32700);
+    const grid = utmForward(point.latitude, point.longitude, number - 32700, false);
     return [grid.easting, grid.northing];
   }
   const north = number === 5041;
