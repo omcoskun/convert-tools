@@ -278,7 +278,7 @@ test("belgelenen kesin girdi sınırı dönüşüm büyüse de korunur", () => {
 test("JavaScript ortak birim sözleşmesi vektörlerini karşılar", async () => {
   const source = await readFile(
     new URL(
-      "../contracts/test-vectors/unit-conversions.csv",
+      "../../../contracts/test-vectors/unit-conversions.csv",
       import.meta.url,
     ),
     "utf8",

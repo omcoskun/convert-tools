@@ -9,7 +9,7 @@ import {
 } from "@convert-tools/core/geodesy";
 
 const VECTOR_URL = new URL(
-  "../contracts/test-vectors/geodesic-wgs84.csv",
+  "../../../contracts/test-vectors/geodesic-wgs84.csv",
   import.meta.url,
 );
 

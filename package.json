@@ -12,7 +12,7 @@
     "build:pages": "vite build && node scripts/build-pages.mjs",
     "start": "vite --host 127.0.0.1",
     "test": "pnpm test:core && vite build && pnpm test:integration",
-    "test:core": "node --test tests/unit-engine.test.mjs tests/coordinate-engine.test.mjs tests/geodesic-engine.test.mjs",
+    "test:core": "node --test packages/core-js/test/",
     "test:integration": "node --test tests/rendered-html.test.mjs tests/api.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "typecheck": "tsc --noEmit"

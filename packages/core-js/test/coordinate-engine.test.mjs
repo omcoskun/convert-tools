@@ -53,7 +53,7 @@ const COORDINATE_VECTOR_COLUMNS = Object.freeze([
 function coordinateProjectionVectors() {
   const source = readFileSync(
     new URL(
-      "../contracts/test-vectors/coordinate-projections.csv",
+      "../../../contracts/test-vectors/coordinate-projections.csv",
       import.meta.url,
     ),
     "utf8",
