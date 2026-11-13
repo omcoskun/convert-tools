@@ -62,12 +62,6 @@
     ]
   },
   "map": {
-    "boundaries": "map-data/world-boundaries.geojson",
-    "labels": "map-data/world-labels.geojson",
-    "imagery": {
-      "exportUrl": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export",
-      "attribution": "Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community",
-      "maxSize": 4096
-    }
+    "style": "https://tiles.openfreemap.org/styles/positron"
   }
 }

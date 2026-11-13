@@ -7,6 +7,7 @@ import config, {
   BROWSER_TARGETS,
   CONTENT_SECURITY_POLICY,
   IWC_VALUES,
+  MAP_STYLE_ORIGIN,
   resolveIwc,
 } from "../webpack.config.js";
 import { APP_ROOT, readJson } from "./support/files.mjs";
@@ -76,10 +77,26 @@ test("production pages carry the Content-Security-Policy meta tag, development p
   });
   assert.match(CONTENT_SECURITY_POLICY, /script-src 'self'(;|$)/);
   assert.doesNotMatch(CONTENT_SECURITY_POLICY, /unsafe-eval/);
-  // Images: the app itself, inline data URIs and the satellite imagery host only.
-  const imageryOrigin = new URL(readJson("public/config.json").map.imagery.exportUrl).origin;
-  assert.match(CONTENT_SECURITY_POLICY, new RegExp(`img-src 'self' data: ${imageryOrigin}(;|$)`));
+  // No image host: the basemap is vector data fetched from the style's origin.
+  assert.match(CONTENT_SECURITY_POLICY, /img-src 'self' data: blob:(;|$)/);
+  assert.equal(MAP_STYLE_ORIGIN, new URL(readJson("public/config.json").map.style).origin);
+  assert.match(CONTENT_SECURITY_POLICY, new RegExp(`connect-src 'self' ${MAP_STYLE_ORIGIN}(;|$)`));
+  assert.match(CONTENT_SECURITY_POLICY, /worker-src 'self'(;|$)/);
+  assert.doesNotMatch(CONTENT_SECURITY_POLICY, /arcgis|unsafe-eval/);
   assert.deepEqual(plugin(configWith(undefined, "development"), "HtmlWebpackPlugin").userOptions.meta, {});
+});
+
+test("MapLibre is a separate chunk with its stylesheet and worker copied to vendor/", () => {
+  const production = configWith(undefined, "production");
+  assert.match(production.output.chunkFilename, /^assets\/.*\[contenthash/);
+  const copied = plugin(production, "CopyPlugin").patterns.map((pattern) => [path.basename(pattern.from), pattern.to]);
+  assert.deepEqual(copied, [
+    ["public", "."],
+    ["maplibre-gl.css", "vendor/"],
+    ["maplibre-gl-worker.mjs", "vendor/"],
+  ]);
+  const loaderRule = production.module.rules.find((rule) => String(rule.loader).endsWith("blank-import-meta-url.cjs"));
+  assert.ok(loaderRule.test.test(path.join("node_modules", "maplibre-gl", "dist", "maplibre-gl.mjs")));
 });
 
 test("Babel compiles only src/ for the MUI v5 browser baseline", () => {

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import ToolIcon from "./components/ToolIcon.jsx";
+import Icon from "./components/Icon.jsx";
 import { ConfigContext, LanguageContext } from "./context.js";
-import { NAVY, NAVY_TEXT, theme } from "./theme.js";
+import { prefetchMapLibre } from "./map/maplibre.js";
+import { COLORS, PHONE, theme } from "./theme.js";
 import CrsConverter from "./tools/coordinates/CrsConverter.jsx";
 import DistanceCalculator from "./tools/coordinates/DistanceCalculator.jsx";
 import PositionConverter from "./tools/coordinates/PositionConverter.jsx";
@@ -14,7 +15,7 @@ import {
   ThemeProvider,
   ToggleButton,
   ToggleButtonGroup,
-  Typography,
+  visuallyHidden,
 } from "./ui/index.js";
 
 // [id, text key of the navigation label, component]
@@ -24,29 +25,59 @@ const TOOLS = [
   ["crs", "crs", CrsConverter],
   ["distance", "distance", DistanceCalculator],
 ];
+const TOOL_IDS = TOOLS.map(([id]) => id);
 
-const railButton = {
-  justifyContent: "flex-start",
-  gap: 1.25,
-  px: 1.5,
-  py: 1,
-  width: "100%",
-  textAlign: "left",
-  lineHeight: 1.3,
-  color: NAVY_TEXT,
-  borderRadius: 2,
-  "&:hover": { bgcolor: "rgba(255, 255, 255, 0.08)" },
-  "&[aria-current='page']": { color: "#ffffff", bgcolor: "rgba(255, 255, 255, 0.14)" },
-  "&:focus-visible": { outline: "2px solid #ffffff", outlineOffset: 2 },
+// The distance tool is a full-height map workspace; the others are pages.
+const FULL_HEIGHT_TOOLS = new Set(["distance"]);
+
+const TOPBAR_HEIGHT = 52;
+
+const navButton = {
+  gap: 0.75,
+  minHeight: 36,
+  px: 1.25,
+  borderRadius: "10px",
+  color: COLORS.ink2,
+  fontSize: "0.875rem",
+  whiteSpace: "nowrap",
+  "&:hover": { bgcolor: COLORS.paper2 },
+  "&[aria-current='page']": { bgcolor: COLORS.ink, color: COLORS.paper },
+  "&[aria-current='page']:hover": { bgcolor: COLORS.ink },
+  [PHONE]: { px: 1, minWidth: 0 },
 };
 
 const languageButton = {
-  color: NAVY_TEXT,
-  borderColor: "rgba(255, 255, 255, 0.28)",
-  px: 1.25,
-  "&.Mui-selected, &.Mui-selected:hover": { color: NAVY, bgcolor: "#ffffff" },
-  "&:focus-visible": { outline: "2px solid #ffffff", outlineOffset: 2 },
+  border: 0,
+  minWidth: 36,
+  height: 30,
+  px: 1,
+  borderRadius: "8px !important",
+  color: COLORS.muted,
+  fontSize: "0.8rem",
+  "&.Mui-selected, &.Mui-selected:hover": {
+    bgcolor: COLORS.sheet,
+    color: COLORS.ink,
+    boxShadow: "0 1px 2px rgba(22, 25, 28, 0.14)",
+  },
 };
+
+function BrandMark() {
+  return (
+    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true" focusable="false" style={{ flex: "none" }}>
+      <rect width="32" height="32" rx="9" fill={COLORS.ink} />
+      <path
+        d="M8.5 21.5C11 12 18 9.5 23.5 10.5"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="1.8"
+        strokeDasharray="2.6 2.4"
+        strokeLinecap="round"
+      />
+      <circle cx="8.5" cy="21.5" r="3.2" fill={COLORS.a} stroke="#ffffff" strokeWidth="1.4" />
+      <circle cx="23.5" cy="10.5" r="3.2" fill={COLORS.b} stroke="#ffffff" strokeWidth="1.4" />
+    </svg>
+  );
+}
 
 /**
  * @param {{ config: any, lang: any, initialLanguage?: string, initialTool?: string }} props
@@ -58,49 +89,118 @@ export default function App({ config, lang, initialLanguage, initialTool = "leng
   const active = useMemo(() => ({ language, ...lang[language] }), [language, lang]);
   const { text } = active;
   const Tool = TOOLS.find(([id]) => id === tool)[2];
+  const fullHeight = FULL_HEIGHT_TOOLS.has(tool);
 
   useEffect(() => {
     document.documentElement.lang = language;
     document.title = text.pageTitle;
   }, [language, text.pageTitle]);
 
+  // The address remembers the open tool (#length, #positions, #crs, #distance).
+  useEffect(() => {
+    const fromHash = () => {
+      const id = window.location.hash.slice(1);
+      if (TOOL_IDS.includes(id)) setTool(id);
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, []);
+
+  function selectTool(id) {
+    setTool(id);
+    window.history.replaceState(null, "", `#${id}`);
+  }
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ConfigContext.Provider value={config}>
         <LanguageContext.Provider value={active}>
-          <Box sx={{ minHeight: "100vh", display: { md: "grid" }, gridTemplateColumns: { md: "232px minmax(0, 1fr)" } }}>
+          <Box
+            sx={{
+              minHeight: "100vh",
+              display: "flex",
+              flexDirection: "column",
+              ...(fullHeight && {
+                height: "100vh",
+                overflow: "hidden",
+                "@supports (height: 100dvh)": { height: "100dvh" },
+              }),
+            }}
+          >
+            <Box
+              component="a"
+              href="#main"
+              sx={{
+                position: "absolute",
+                left: 12,
+                top: -60,
+                zIndex: 2000,
+                px: 1.5,
+                py: 1,
+                borderRadius: "9px",
+                bgcolor: COLORS.ink,
+                color: COLORS.paper,
+                textDecoration: "none",
+                "&:focus": { top: 10 },
+              }}
+            >
+              {text.skipToContent}
+            </Box>
             <Box
               component="header"
               sx={{
-                bgcolor: NAVY,
-                color: "#ffffff",
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: { xs: "center", md: "stretch" },
-                flexDirection: { md: "column" },
-                alignContent: { md: "stretch" },
-                gap: { xs: 1.5, md: 3 },
-                px: 2,
-                py: { xs: 1.5, md: 3 },
-                position: { md: "sticky" },
+                position: "sticky",
                 top: 0,
-                height: { md: "100vh" },
+                zIndex: 1100,
+                flex: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: { xs: 1, sm: 2 },
+                height: TOPBAR_HEIGHT,
+                px: { xs: 1.25, sm: 2 },
+                bgcolor: COLORS.sheet,
+                borderBottom: `1px solid ${COLORS.rule}`,
               }}
             >
-              <Typography component="p" sx={{ fontWeight: 800, letterSpacing: "0.12em", fontSize: "1rem", px: { md: 1.5 } }}>
-                <Box component="span" aria-hidden="true" sx={{ color: "#5eead4", mr: 1 }}>
-                  ↔
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 700, fontSize: "1rem" }}>
+                <BrandMark />
+                <Box component="span" sx={{ display: { xs: "none", md: "inline" } }}>
+                  Convert
                 </Box>
-                CONVERT
-              </Typography>
+              </Box>
+              <Box component="nav" aria-label={text.navigation} sx={{ flex: 1, minWidth: 0 }}>
+                <Box
+                  component="ul"
+                  sx={{ listStyle: "none", m: 0, p: 0, display: "flex", gap: 0.5, [PHONE]: { justifyContent: "center", gap: 0.25 } }}
+                >
+                  {TOOLS.map(([id, labelKey]) => (
+                    <li key={id}>
+                      <Button
+                        onClick={() => selectTool(id)}
+                        onPointerEnter={id === "distance" ? prefetchMapLibre : undefined}
+                        onFocus={id === "distance" ? prefetchMapLibre : undefined}
+                        aria-current={id === tool ? "page" : undefined}
+                        sx={navButton}
+                      >
+                        <Icon name={id} size={18} />
+                        {/* On phones only the open tool keeps a visible label. */}
+                        <Box component="span" sx={id === tool ? undefined : { [PHONE]: visuallyHidden }}>
+                          {text[labelKey]}
+                        </Box>
+                      </Button>
+                    </li>
+                  ))}
+                </Box>
+              </Box>
               <ToggleButtonGroup
                 size="small"
                 exclusive
                 value={language}
                 onChange={(event, next) => next && setLanguage(next)}
                 aria-label={text.language}
-                sx={{ order: { md: 3 }, ml: { xs: "auto", md: 1.5 }, mt: { md: "auto" }, alignSelf: { md: "flex-start" } }}
+                sx={{ flex: "none", p: "3px", gap: "2px", borderRadius: "10px", bgcolor: COLORS.paper2 }}
               >
                 {config.languages.map((code) => (
                   <ToggleButton key={code} value={code} aria-label={lang[code].text.languageName} sx={languageButton}>
@@ -108,37 +208,21 @@ export default function App({ config, lang, initialLanguage, initialTool = "leng
                   </ToggleButton>
                 ))}
               </ToggleButtonGroup>
-              <Box component="nav" aria-label={text.navigation} sx={{ flexBasis: { xs: "100%", md: "auto" }, order: { md: 2 }, minWidth: 0 }}>
-                <Box
-                  component="ul"
-                  sx={{
-                    listStyle: "none",
-                    m: 0,
-                    p: 0,
-                    // Every tool stays visible on phones: 2 x 2, then one row, then the rail.
-                    display: "grid",
-                    gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr))", md: "minmax(0, 1fr)" },
-                    gap: 0.5,
-                  }}
-                >
-                  {TOOLS.map(([id, labelKey]) => (
-                    <li key={id}>
-                      <Button
-                        onClick={() => setTool(id)}
-                        aria-current={id === tool ? "page" : undefined}
-                        sx={railButton}
-                      >
-                        <ToolIcon name={id} />
-                        {text[labelKey]}
-                      </Button>
-                    </li>
-                  ))}
-                </Box>
-              </Box>
             </Box>
-            <Container component="main" maxWidth="xl" sx={{ py: { xs: 3, md: 5 }, px: { xs: 2, md: 5 } }}>
-              <Tool />
-            </Container>
+            <Box
+              component="main"
+              id="main"
+              tabIndex={-1}
+              sx={{ flex: 1, minHeight: 0, outline: "none", display: "flex", flexDirection: "column" }}
+            >
+              {fullHeight ? (
+                <Tool />
+              ) : (
+                <Container maxWidth="lg" sx={{ py: { xs: 2.5, md: 4 }, px: { xs: 2, md: 3 } }}>
+                  <Tool />
+                </Container>
+              )}
+            </Box>
           </Box>
         </LanguageContext.Provider>
       </ConfigContext.Provider>
