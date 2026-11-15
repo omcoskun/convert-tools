@@ -1,7 +1,7 @@
 // Plain helper for the distance tool. The geodesic, its sampled points and
 // the unit conversions all come from @convert-tools/core.
 
-import { convertLength, sampleGeodesicPath } from "@convert-tools/core";
+import { convertLength, inverseGeodesic, sampleGeodesicPath } from "@convert-tools/core";
 
 /**
  * Runs the core: sampled geodesic plus the distance in three length units.
@@ -21,6 +21,47 @@ export function measure(values, pathOptions) {
     kilometres: convertLength(metres, "metre", "kilometre", 9).value,
     nauticalMiles: convertLength(metres, "metre", "nautical-mile", 9).value,
   };
+}
+
+/**
+ * The same two points measured on a sphere of the given radius (a great
+ * circle), for comparison with sphere-based web maps. Secondary: any failure
+ * means "no comparison" and never an error of the main measurement.
+ * @param {{ startLatitude: string, startLongitude: string, endLatitude: string, endLongitude: string }} values
+ * @param {number} radiusMetres
+ * @param {number} ellipsoidalMetres the main result, to compare against
+ * @returns {null | { radiusMetres: number, metres: number, differenceMetres: number, differencePercent: number }}
+ */
+export function sphericalComparison(values, radiusMetres, ellipsoidalMetres) {
+  const radius = Number(radiusMetres);
+  if (!Number.isFinite(radius) || radius <= 0 || !(ellipsoidalMetres > 0)) return null;
+  try {
+    const sphere = inverseGeodesic(
+      { latitude: values.startLatitude, longitude: values.startLongitude },
+      { latitude: values.endLatitude, longitude: values.endLongitude },
+      { ellipsoid: { a: radius, f: 0 } },
+    );
+    const metres = Number(sphere.distanceMetres);
+    if (!Number.isFinite(metres)) return null;
+    const differenceMetres = metres - ellipsoidalMetres;
+    return { radiusMetres: radius, metres, differenceMetres, differencePercent: (differenceMetres / ellipsoidalMetres) * 100 };
+  } catch {
+    // Whatever the core says about this optional line, the measurement stands.
+    return null;
+  }
+}
+
+/**
+ * A signed number for display: "+0.207", "−726.1" (a real minus sign).
+ * @param {number} value
+ * @param {number} decimals
+ * @param {string} language
+ */
+export function signedDecimal(value, decimals, language) {
+  const fixed = value.toFixed(decimals);
+  const zero = Number(fixed) === 0;
+  const shown = localeDecimal(zero ? fixed.replace("-", "") : fixed, decimals, language);
+  return zero || shown.startsWith("−") ? shown : `+${shown}`;
 }
 
 export const EMPTY_POINTS = Object.freeze({

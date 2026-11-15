@@ -11,6 +11,8 @@ import {
   fieldIsInvalid,
   localeDecimal,
   measure,
+  signedDecimal,
+  sphericalComparison,
   swapEndpoints,
 } from "../src/tools/coordinates/distance.js";
 import { readJson, vector } from "./support/files.mjs";
@@ -74,4 +76,31 @@ test("displayDistance converts with the core: 1852 m is exactly 1 NM", () => {
   assert.equal(displayDistance(1852, "nautical-mile", 3, "en"), "1.000");
   assert.equal(displayDistance(350123.4567, "kilometre", 2, "tr"), "350,12");
   assert.equal(displayDistance(350123.4567, "metre", 1, "en"), "350,123.5");
+});
+
+test("sphericalComparison measures the great circle through the core", () => {
+  const row = vector("geodesic-wgs84.csv", "ankara-istanbul");
+  const values = { startLatitude: row.startLatitude, startLongitude: row.startLongitude, endLatitude: row.endLatitude, endLongitude: row.endLongitude };
+  const ellipsoidal = Number(row.distanceMetres);
+  const radius = readJson("public/config.json").distance.comparisonSphereRadiusMetres;
+  const result = sphericalComparison(values, radius, ellipsoidal);
+  // Haversine on R = 6371008.8 m (IUGG mean radius): 349365.585 m.
+  assert.ok(Math.abs(result.metres - 349365.585) < 0.01, String(result.metres));
+  assert.equal(result.radiusMetres, radius);
+  assert.ok(Math.abs(result.differenceMetres - (result.metres - ellipsoidal)) < 1e-9);
+  assert.ok(result.differencePercent < -0.2 && result.differencePercent > -0.21, String(result.differencePercent));
+});
+
+test("sphericalComparison yields no comparison instead of an error", () => {
+  const values = { startLatitude: "39.9", startLongitude: "32.8", endLatitude: "41", endLongitude: "29" };
+  assert.equal(sphericalComparison(values, 0, 350000), null);
+  assert.equal(sphericalComparison(values, "abc", 350000), null);
+  assert.equal(sphericalComparison(values, 6371008.8, 0), null, "no percentage of zero");
+  assert.equal(sphericalComparison({ ...values, endLatitude: "x" }, 6371008.8, 350000), null);
+});
+
+test("signedDecimal always shows the sign and a real minus", () => {
+  assert.equal(signedDecimal(-726.119, 1, "en"), "−726.1");
+  assert.equal(signedDecimal(0.2071, 3, "tr"), "+0,207");
+  assert.equal(signedDecimal(-0.00001, 3, "en"), "0.000");
 });

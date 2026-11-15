@@ -1,16 +1,28 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { coordinateResults } from "@convert-tools/core";
+import { coordinateResults, formatDms } from "@convert-tools/core";
 import CopyButton from "../../components/CopyButton.jsx";
 import ErrorMessage from "../../components/ErrorMessage.jsx";
 import Field from "../../components/Field.jsx";
 import Icon from "../../components/Icon.jsx";
+import PasteHint from "../../components/PasteHint.jsx";
 import { fill, useConfig, useLanguage } from "../../context.js";
 import { attempt } from "../../lib/attempt.js";
+import { copyText } from "../../lib/clipboard.js";
+import { formatPairForCopy, parseCoordinatePaste, pastedText } from "../../lib/coordinate-paste.js";
 import MeasurementMap from "../../map/MeasurementMap.jsx";
 import { isBeyondDisplay } from "../../map/map-adapter.js";
 import { COLORS, MONO_FONT, PHONE } from "../../theme.js";
 import { Box, Button, Stack, Typography, visuallyHidden } from "../../ui/index.js";
-import { displayDistance, endpointOf, endpointStatus, fieldIsInvalid, localeDecimal, measure } from "./distance.js";
+import {
+  displayDistance,
+  endpointOf,
+  endpointStatus,
+  fieldIsInvalid,
+  localeDecimal,
+  measure,
+  signedDecimal,
+  sphericalComparison,
+} from "./distance.js";
 import { createMeasurementState, measurementReducer } from "./measurement-state.js";
 
 // Units of the large readout: decimals there and on the map's distance tag.
@@ -23,6 +35,35 @@ const READOUT_UNITS = [
 // Phone layout: share of the workspace height the bottom sheet may take.
 const SHEET_MIN = 0.12;
 const SHEET_MAX = 0.86;
+
+// Desktop layout: the panel is wide enough for two full-precision coordinate
+// inputs side by side (17+ characters each) and grows with the window, while
+// the map keeps most of the width. Dragging or the arrow keys on its edge
+// override this; the width is remembered per browser.
+const PANEL_DEFAULT = "clamp(360px, 20vw + 190px, 560px)";
+const PANEL_MIN = 360;
+const PANEL_MAX = 720;
+const PANEL_MAX_SHARE = 0.55;
+const PANEL_STEP = 16;
+const PANEL_STORAGE_KEY = "convert-tools.distance.panelWidth";
+
+function readStoredWidth() {
+  try {
+    const stored = Number(window.localStorage.getItem(PANEL_STORAGE_KEY));
+    return Number.isFinite(stored) && stored >= PANEL_MIN && stored <= PANEL_MAX ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeWidth(width) {
+  try {
+    if (width == null) window.localStorage.removeItem(PANEL_STORAGE_KEY);
+    else window.localStorage.setItem(PANEL_STORAGE_KEY, String(Math.round(width)));
+  } catch {
+    // Storage may be blocked (private mode); the width then lasts this visit.
+  }
+}
 
 const PIN = {
   start: { color: COLORS.a, soft: COLORS.aSoft, ink: COLORS.aInk, letter: "A" },
@@ -71,7 +112,54 @@ function LetterBadge({ target, size = 22 }) {
   );
 }
 
-function PointCard({ target, values, activeTarget, onEdit, onArm }) {
+const cardButton = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "5px",
+  flex: "none",
+  height: 30,
+  px: "10px",
+  border: `1px solid ${COLORS.rule2}`,
+  borderRadius: "8px",
+  bgcolor: COLORS.sheet,
+  font: "inherit",
+  fontSize: 12.5,
+  fontWeight: 650,
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+  "&:hover": { borderColor: COLORS.ink2 },
+};
+
+/** Icon button that copies a point as "latitude, longitude" for web maps. */
+function CopyPointButton({ value, label }) {
+  const { text } = useLanguage();
+  const [copied, setCopied] = useState(false);
+  const timer = useRef(0);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(() => setCopied(false), [value]);
+
+  async function handleClick() {
+    await copyText(value);
+    setCopied(true);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setCopied(false), 1400);
+  }
+
+  return (
+    <Box
+      component="button"
+      type="button"
+      onClick={handleClick}
+      aria-label={copied ? text.copied : label}
+      title={copied ? text.copied : label}
+      sx={{ ...cardButton, width: 30, px: 0, justifyContent: "center", color: copied ? "success.main" : COLORS.ink2 }}
+    >
+      <Icon name={copied ? "check" : "copy"} size={16} />
+    </Box>
+  );
+}
+
+function PointCard({ target, values, activeTarget, onEdit, onArm, onPastePoints }) {
   const { text } = useLanguage();
   const pin = PIN[target];
   const latitudeKey = `${target}Latitude`;
@@ -84,8 +172,12 @@ function PointCard({ target, values, activeTarget, onEdit, onArm }) {
   const pointLongitude = point?.longitude;
   const formats = useMemo(() => {
     if (pointLatitude === undefined) return null;
-    const result = attempt(() => coordinateResults({ latitude: pointLatitude, longitude: pointLongitude }, 5));
-    return result.ok ? { dms: result.value.dms, mgrs: result.value.mgrs } : null;
+    const result = attempt(() => ({
+      latitude: formatDms(pointLatitude, "latitude", 3),
+      longitude: formatDms(pointLongitude, "longitude", 3),
+      mgrs: coordinateResults({ latitude: pointLatitude, longitude: pointLongitude }, 5).mgrs,
+    }));
+    return result.ok ? result.value : null;
   }, [pointLatitude, pointLongitude]);
   const active = activeTarget === target;
   const titleId = `distance-${target}-title`;
@@ -93,6 +185,15 @@ function PointCard({ target, values, activeTarget, onEdit, onArm }) {
   let message = "";
   if (status === "invalid") message = `${text.coordinateInvalid} (${text.coordinateRange})`;
   else if (status === "incomplete") message = text.pointIncomplete;
+
+  // A pasted "latitude, longitude" pair (or two pairs) fills whole points;
+  // anything else is pasted into the field as usual.
+  function handlePaste(event) {
+    const parsed = parseCoordinatePaste(pastedText(event));
+    if (parsed == null) return;
+    event.preventDefault();
+    onPastePoints(target, parsed);
+  }
 
   return (
     <Box
@@ -103,8 +204,9 @@ function PointCard({ target, values, activeTarget, onEdit, onArm }) {
         display: "flex",
         flexDirection: "column",
         gap: 1.25,
-        p: "11px 12px 12px",
+        p: "10px 12px 12px",
         minWidth: 0,
+        containerType: "inline-size",
         border: `1px solid ${active ? pin.color : COLORS.rule}`,
         borderLeft: `3px solid ${pin.color}`,
         borderRadius: "12px",
@@ -113,11 +215,16 @@ function PointCard({ target, values, activeTarget, onEdit, onArm }) {
         transition: "border-color 140ms ease, box-shadow 140ms ease",
       }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, minHeight: 30 }}>
         <LetterBadge target={target} />
-        <Box component="span" id={titleId} sx={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700 }}>
+        <Box
+          component="span"
+          id={titleId}
+          sx={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+        >
           {target === "start" ? text.startPoint : text.endPoint}
         </Box>
+        {point && <CopyPointButton value={formatPairForCopy(values[latitudeKey], values[longitudeKey])} label={fill(text.copyPoint, { point: pin.letter })} />}
         <Box
           component="button"
           type="button"
@@ -125,33 +232,43 @@ function PointCard({ target, values, activeTarget, onEdit, onArm }) {
           aria-label={target === "start" ? text.mapPickStart : text.mapPickEnd}
           onClick={() => onArm(target)}
           sx={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "5px",
-            height: 30,
-            px: "10px",
-            border: `1px solid ${active ? pin.color : COLORS.rule2}`,
-            borderRadius: "8px",
+            ...cardButton,
+            borderColor: active ? pin.color : COLORS.rule2,
             bgcolor: active ? pin.color : COLORS.sheet,
             color: active ? "#ffffff" : pin.ink,
-            font: "inherit",
-            fontSize: 12.5,
-            fontWeight: 700,
-            whiteSpace: "nowrap",
-            cursor: "pointer",
             "&:hover": { borderColor: pin.color },
+            // In a narrow card the icon stays; the button keeps its aria-label.
+            "@container (max-width: 310px)": { width: 30, px: 0, justifyContent: "center", "& > span": { display: "none" } },
           }}
         >
           <Icon name="crosshair" size={16} />
-          {active ? text.pickingPoint : point ? text.repickPoint : text.pickPoint}
+          <span>{active ? text.pickingPoint : point ? text.repickPoint : text.pickPoint}</span>
         </Box>
       </Box>
-      <Stack direction="row" spacing={1}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr)",
+          gap: 1,
+          // Side by side only where each input still shows a full-precision
+          // value such as 41.73987943886398 (17 characters of 14 px mono
+          // need a card of about 340 px, of 13 px mono on phones about 300
+          // px); stacked in narrower panels.
+          "@container (min-width: 344px)": { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" },
+          "& .MuiInputBase-input": { fontSize: 14, px: "11px", fontVariantNumeric: "tabular-nums" },
+          [PHONE]: {
+            "@container (min-width: 300px)": { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" },
+            "& .MuiInputBase-input": { fontSize: 13, px: "10px" },
+          },
+        }}
+      >
         <Field
           id={`distance-${latitudeKey}`}
           label={text.latitude}
           value={values[latitudeKey]}
           onChange={(value) => onEdit(latitudeKey, value)}
+          onPaste={handlePaste}
+          placeholder="41.7399"
           inputMode="decimal"
           error={latitudeInvalid}
         />
@@ -160,27 +277,40 @@ function PointCard({ target, values, activeTarget, onEdit, onArm }) {
           label={text.longitude}
           value={values[longitudeKey]}
           onChange={(value) => onEdit(longitudeKey, value)}
+          onPaste={handlePaste}
+          placeholder="34.0177"
           inputMode="decimal"
           error={longitudeInvalid}
         />
-      </Stack>
+      </Box>
       {message ? (
         <Typography id={messageId} variant="body2" sx={{ color: "error.main", fontWeight: 600, fontSize: 12.5 }}>
           {message}
         </Typography>
       ) : (
         formats && (
-          <Box component="dl" sx={{ m: 0, display: "grid", gridTemplateColumns: "44px minmax(0, 1fr)", gap: "2px 6px" }}>
+          <Box
+            component="dl"
+            sx={{ m: 0, display: "grid", gridTemplateColumns: "40px minmax(0, 1fr)", gap: "3px 8px", alignItems: "baseline" }}
+          >
             {[
-              ["DMS", formats.dms],
-              ["MGRS", formats.mgrs],
-            ].map(([label, value]) => (
+              ["DMS", [formats.latitude, formats.longitude]],
+              ["MGRS", [formats.mgrs]],
+            ].map(([label, parts]) => (
               <Box key={label} sx={{ display: "contents" }}>
-                <Box component="dt" sx={{ color: COLORS.faint, fontWeight: 700, fontSize: 10.5, letterSpacing: "0.06em", pt: "1px" }}>
+                <Box component="dt" sx={{ color: COLORS.faint, fontWeight: 700, fontSize: 10.5, letterSpacing: "0.06em" }}>
                   {label}
                 </Box>
-                <Box component="dd" sx={{ m: 0, color: COLORS.ink2, fontFamily: MONO_FONT, fontSize: 12, overflowWrap: "anywhere" }}>
-                  {value}
+                <Box
+                  component="dd"
+                  sx={{ m: 0, display: "flex", flexWrap: "wrap", columnGap: "12px", color: COLORS.ink2, fontFamily: MONO_FONT, fontSize: 12, lineHeight: 1.5 }}
+                >
+                  {parts.map((part) => (
+                    // Each angle stays on one line; the pair breaks between them if it must.
+                    <Box key={part} component="span" sx={{ whiteSpace: "nowrap" }}>
+                      {part}
+                    </Box>
+                  ))}
                 </Box>
               </Box>
             ))}
@@ -189,6 +319,36 @@ function PointCard({ target, values, activeTarget, onEdit, onArm }) {
       )}
     </Box>
   );
+}
+
+/** One label/value row of the calculation details. */
+function DetailRow({ label, value, mono }) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexWrap: "wrap",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: "2px 12px",
+        py: "5px",
+        "& + &": { borderTop: `1px dashed ${COLORS.rule}` },
+      }}
+    >
+      <Box component="dt" sx={{ color: COLORS.muted }}>
+        {label}
+      </Box>
+      <Box component="dd" sx={{ m: 0, ml: "auto", textAlign: "right", fontFamily: mono ? MONO_FONT : undefined, overflowWrap: "anywhere" }}>
+        {value}
+      </Box>
+    </Box>
+  );
+}
+
+/** Number of decimals a configured number is written with (6371008.8 -> 1). */
+function decimalsOf(value) {
+  const [, fraction = ""] = String(value).split(".");
+  return fraction.length;
 }
 
 const sectionLabel = {
@@ -208,12 +368,17 @@ export default function DistanceCalculator() {
   const [panelOpen, setPanelOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [sheetRatio, setSheetRatio] = useState(0.46);
+  // Desktop panel width in px chosen by the user, or null for the default.
+  const [panelWidth, setPanelWidth] = useState(() => (typeof window === "undefined" ? null : readStoredWidth()));
+  const [panelPixels, setPanelPixels] = useState(null);
   const workspaceRef = useRef(null);
+  const panelRef = useRef(null);
   const sheetDragRef = useRef(null);
+  const widthDragRef = useRef(null);
   // Enlarging gives the map the whole window and tucks the panel away; the
   // panel's previous state returns when the enlarged view closes.
   const panelBeforeExpandRef = useRef(true);
-  const { values, activeTarget, fitRequest } = state;
+  const { values, activeTarget, fitRequest, lastPaste } = state;
 
   const start = endpointOf(values, "start");
   const end = endpointOf(values, "end");
@@ -235,7 +400,25 @@ export default function DistanceCalculator() {
     metres === undefined || metres === 0
       ? null
       : `${displayDistance(metres, unit, unitInfo.tagDecimals, language)} ${unitInfo.symbol}`;
-  const announced = useSettledValue(readoutValue ? `${text.measurementReady} ${readoutValue} ${unitInfo.symbol}` : "", 700);
+  const comparison = useMemo(
+    () => (measurement ? sphericalComparison(values, settings.comparisonSphereRadiusMetres, measurement.path.distanceMetres) : null),
+    [measurement, values, settings.comparisonSphereRadiusMetres],
+  );
+
+  let pasteNotice = "";
+  if (lastPaste) {
+    const [target] = lastPaste.targets;
+    pasteNotice =
+      lastPaste.targets.length === 2
+        ? text.pastedPoints
+        : fill(text.pastedPoint, {
+            point: PIN[target].letter,
+            value: formatPairForCopy(values[`${target}Latitude`], values[`${target}Longitude`]),
+          });
+    if (lastPaste.swapped) pasteNotice = `${pasteNotice} ${text.pastedSwapped}`;
+  }
+  const readoutAnnouncement = readoutValue ? `${text.measurementReady} ${readoutValue} ${unitInfo.symbol}` : "";
+  const announced = useSettledValue([pasteNotice, readoutAnnouncement].filter(Boolean).join(" "), 700);
   const polarPoints = [start && isBeyondDisplay(start) ? "A" : null, end && isBeyondDisplay(end) ? "B" : null]
     .filter(Boolean)
     .join(", ");
@@ -246,6 +429,10 @@ export default function DistanceCalculator() {
   const onCancel = useCallback(() => dispatch({ type: "cancel" }), []);
   const onStartPicking = useCallback(() => dispatch({ type: "startPicking" }), []);
   const onEdit = useCallback((key, value) => dispatch({ type: "edit", key, value }), []);
+  const onPastePoints = useCallback(
+    (target, parsed) => dispatch({ type: "paste", target, points: parsed.points, swapped: parsed.swapped }),
+    [],
+  );
 
   function toggleExpanded() {
     if (expanded) {
@@ -321,6 +508,63 @@ export default function DistanceCalculator() {
     }
   }
 
+  // Desktop layout: the panel's right edge resizes it against the map.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (panel == null || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => setPanelPixels(Math.round(panel.getBoundingClientRect().width)));
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
+  function panelLimit() {
+    const workspace = workspaceRef.current?.getBoundingClientRect().width ?? PANEL_MAX / PANEL_MAX_SHARE;
+    return Math.max(PANEL_MIN, Math.min(PANEL_MAX, Math.floor(workspace * PANEL_MAX_SHARE)));
+  }
+  function applyPanelWidth(width) {
+    const next = width == null ? null : Math.round(Math.min(panelLimit(), Math.max(PANEL_MIN, width)));
+    setPanelWidth(next);
+    storeWidth(next);
+  }
+  function onWidthPointerDown(event) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    widthDragRef.current = { frame: 0, x: event.clientX, startX: event.clientX, startWidth: panelRef.current.getBoundingClientRect().width };
+  }
+  function onWidthPointerMove(event) {
+    const drag = widthDragRef.current;
+    if (!drag) return;
+    drag.x = event.clientX;
+    if (drag.frame) return;
+    drag.frame = requestAnimationFrame(() => {
+      drag.frame = 0;
+      setPanelWidth(Math.round(Math.min(panelLimit(), Math.max(PANEL_MIN, drag.startWidth + drag.x - drag.startX))));
+    });
+  }
+  function onWidthPointerUp(event) {
+    const drag = widthDragRef.current;
+    if (!drag) return;
+    if (drag.frame) cancelAnimationFrame(drag.frame);
+    widthDragRef.current = null;
+    if (event.clientX !== drag.startX) applyPanelWidth(drag.startWidth + event.clientX - drag.startX);
+  }
+  function onWidthKey(event) {
+    const current = panelRef.current.getBoundingClientRect().width;
+    const steps = { ArrowLeft: -PANEL_STEP, ArrowRight: PANEL_STEP, PageUp: 4 * PANEL_STEP, PageDown: -4 * PANEL_STEP };
+    if (event.key in steps) {
+      event.preventDefault();
+      applyPanelWidth(current + steps[event.key]);
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      applyPanelWidth(event.key === "Home" ? PANEL_MIN : panelLimit());
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      applyPanelWidth(null);
+    }
+  }
+  const panelColumn =
+    panelWidth == null ? PANEL_DEFAULT : `clamp(${PANEL_MIN}px, ${panelWidth}px, max(${PANEL_MIN}px, ${PANEL_MAX_SHARE * 100}%))`;
+
   let readoutHint = text.readoutEmpty;
   if (startStatus === "invalid" || endStatus === "invalid") readoutHint = text.coordinateInvalid;
   else if (start && !end) readoutHint = text.readoutWaitingEnd;
@@ -342,7 +586,7 @@ export default function DistanceCalculator() {
         flex: 1,
         minHeight: 0,
         display: "grid",
-        gridTemplateColumns: panelOpen ? "clamp(320px, 22vw + 56px, 380px) minmax(0, 1fr)" : "minmax(0, 1fr)",
+        gridTemplateColumns: panelOpen ? `${panelColumn} minmax(0, 1fr)` : "minmax(0, 1fr)",
         bgcolor: COLORS.paper,
         ...(expanded && {
           position: "fixed",
@@ -358,6 +602,7 @@ export default function DistanceCalculator() {
       <Box
         component="aside"
         id="measure-panel"
+        ref={panelRef}
         aria-labelledby="tool-title"
         sx={{
           position: "relative",
@@ -418,16 +663,18 @@ export default function DistanceCalculator() {
             alignItems: "center",
             gap: 1.25,
             flex: "none",
-            p: "12px 10px 10px 18px",
+            p: "14px 12px 12px 20px",
             borderBottom: `1px solid ${COLORS.rule}`,
             [PHONE]: { p: "0 8px 8px 16px" },
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography id="tool-title" variant="h1" sx={{ fontSize: 16, letterSpacing: "-0.01em" }}>
+            <Typography id="tool-title" variant="h1" sx={{ fontSize: 17, lineHeight: 1.35, letterSpacing: "-0.01em" }}>
               {text.distanceTitle}
             </Typography>
-            <Typography sx={{ color: COLORS.muted, fontSize: 12, mt: 0.25, [PHONE]: { display: "none" } }}>
+            <Typography
+              sx={{ color: COLORS.muted, fontSize: 12.5, lineHeight: 1.45, mt: 0.25, textWrap: "pretty", [PHONE]: { display: "none" } }}
+            >
               {text.distanceSubtitle}
             </Typography>
           </Box>
@@ -476,8 +723,8 @@ export default function DistanceCalculator() {
             scrollbarGutter: "stable",
             display: "flex",
             flexDirection: "column",
-            gap: 1.75,
-            p: "14px 14px 24px 16px",
+            gap: 2,
+            p: "16px 16px 28px 20px",
             [PHONE]: { display: panelOpen ? "flex" : "none", p: "12px 12px 20px" },
           }}
         >
@@ -548,7 +795,7 @@ export default function DistanceCalculator() {
                 sx={{
                   fontSize: "clamp(28px, 2.3vw + 6px, 36px)",
                   fontWeight: 500,
-                  lineHeight: 1.05,
+                  lineHeight: 1.15,
                   letterSpacing: "-0.035em",
                   overflowWrap: "anywhere",
                   color: measurement ? "inherit" : "#6f7477",
@@ -628,9 +875,30 @@ export default function DistanceCalculator() {
             }}
             sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}
           >
-            <PointCard target="start" values={values} activeTarget={activeTarget} onEdit={onEdit} onArm={onArm} />
-            <PointCard target="end" values={values} activeTarget={activeTarget} onEdit={onEdit} onArm={onArm} />
-            <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 0.5 }}>
+            {["start", "end"].map((target) => (
+              <PointCard
+                key={target}
+                target={target}
+                values={values}
+                activeTarget={activeTarget}
+                onEdit={onEdit}
+                onArm={onArm}
+                onPastePoints={onPastePoints}
+              />
+            ))}
+            {/* After a pair paste it says what was pasted; the status above announces it. */}
+            <PasteHint hint={text.pasteHintPoints} notice={pasteNotice} announce={false} sx={{ fontSize: 12.5 }} />
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 0.75,
+                pt: 0.25,
+                "& .MuiButton-root": { whiteSpace: "nowrap", flex: "none", minHeight: 34 },
+                "& .MuiButton-startIcon": { mr: "6px" },
+              }}
+            >
               <Button type="submit" variant="outlined" size="small" startIcon={<Icon name="focus" size={17} />} sx={{ mr: "auto" }}>
                 {text.mapFit}
               </Button>
@@ -687,32 +955,55 @@ export default function DistanceCalculator() {
                 border: `1px solid ${COLORS.rule}`,
                 borderRadius: "12px",
                 fontSize: 12.5,
-                "& > summary": { p: "10px 12px", cursor: "pointer", fontSize: 13.5, fontWeight: 650 },
+                "& > summary": { p: "10px 12px", cursor: "pointer", fontSize: 13.5, fontWeight: 650, borderRadius: "12px" },
+                "&[open] > summary": { mb: "2px" },
               }}
             >
               <summary>{text.calculationDetails}</summary>
               <Box
                 component="dl"
-                sx={{ m: 0, p: "0 12px 8px", display: "grid", gridTemplateColumns: "112px minmax(0, 1fr)", gap: "6px 8px" }}
+                sx={{ m: 0, p: "0 12px" }}
               >
                 {[
                   [text.mapModel, `WGS 84 · ${text.shortestGeodesic}`],
-                  [text.solver, measurement.path.solver],
-                  [text.iterations, measurement.path.iterations],
-                  [text.mapSegments, measurement.path.segmentCount],
-                  [text.sphericalComparison, text.googleSphereDifference],
-                ].map(([label, value]) => (
-                  <Box key={label} sx={{ display: "contents" }}>
-                    <Box component="dt" sx={{ color: COLORS.muted }}>
-                      {label}
-                    </Box>
-                    <Box component="dd" sx={{ m: 0, overflowWrap: "anywhere" }}>
-                      {value}
-                    </Box>
-                  </Box>
+                  // The solver name is the core's own string, shown as is.
+                  [text.solver, String(measurement.path.solver), true],
+                  [text.iterations, measurement.path.iterations, true],
+                  [text.mapSegments, measurement.path.segmentCount, true],
+                ].map(([label, value, mono]) => (
+                  <DetailRow key={label} label={label} value={value} mono={mono} />
                 ))}
               </Box>
-              <Box component="p" sx={{ m: 0, p: "0 12px 12px", color: COLORS.muted }}>
+              {comparison && (
+                <Box
+                  component="section"
+                  aria-labelledby="distance-sphere-title"
+                  sx={{ m: "10px 12px 0", pt: "10px", borderTop: `1px solid ${COLORS.rule}` }}
+                >
+                  <Box component="h3" id="distance-sphere-title" sx={{ m: 0, fontSize: 12.5, fontWeight: 700 }}>
+                    {text.sphericalComparison}
+                  </Box>
+                  <Box component="dl" sx={{ m: 0 }}>
+                    <DetailRow
+                      label={text.sphereDistance}
+                      value={`${displayDistance(comparison.metres, unit, unitInfo.decimals, language)} ${unitInfo.symbol}`}
+                      mono
+                    />
+                    <DetailRow
+                      label={text.sphereDifference}
+                      value={fill(text.sphereDifferenceValue, {
+                        metres: signedDecimal(comparison.differenceMetres, 1, language),
+                        percent: signedDecimal(comparison.differencePercent, 3, language),
+                      })}
+                      mono
+                    />
+                  </Box>
+                  <Box component="p" sx={{ m: "4px 0 0", color: COLORS.muted, lineHeight: 1.5 }}>
+                    {fill(text.sphereComparisonNote, { radius: localeDecimal(String(comparison.radiusMetres), decimalsOf(comparison.radiusMetres), language) })}
+                  </Box>
+                </Box>
+              )}
+              <Box component="p" sx={{ m: 0, p: "10px 12px 12px", color: COLORS.muted, lineHeight: 1.5 }}>
                 {text.mapVisualOnly} {text.mapProjection}
               </Box>
             </Box>
@@ -746,6 +1037,48 @@ export default function DistanceCalculator() {
             </Box>
           </Box>
         </Box>
+        <Box
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={text.resizePanelWidth}
+          aria-controls="measure-panel"
+          aria-valuemin={PANEL_MIN}
+          aria-valuemax={PANEL_MAX}
+          aria-valuenow={panelPixels ?? undefined}
+          title={text.resizePanelWidthHint}
+          tabIndex={0}
+          onPointerDown={onWidthPointerDown}
+          onPointerMove={onWidthPointerMove}
+          onPointerUp={onWidthPointerUp}
+          onPointerCancel={onWidthPointerUp}
+          onDoubleClick={() => applyPanelWidth(null)}
+          onKeyDown={onWidthKey}
+          sx={{
+            position: "absolute",
+            top: 0,
+            right: -5,
+            bottom: 0,
+            zIndex: 4,
+            width: 9,
+            cursor: "col-resize",
+            touchAction: "none",
+            userSelect: "none",
+            // A thin line that shows on hover, focus and while dragging.
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 3,
+              width: 3,
+              bgcolor: "transparent",
+              transition: "background-color 120ms ease",
+            },
+            "&:hover::after, &:active::after, &:focus-visible::after": { bgcolor: COLORS.a },
+            "&:focus-visible": { outline: "none" },
+            [PHONE]: { display: "none" },
+          }}
+        />
       </Box>
 
       <Box sx={{ display: "flex", minWidth: 0, minHeight: 0, "& > .map-stage": { flex: 1 }, [PHONE]: { order: 0, flex: "1 1 auto", minHeight: 150 } }}>

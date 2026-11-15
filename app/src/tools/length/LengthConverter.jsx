@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { convertLength, getCategory } from "@convert-tools/core";
 import CopyButton from "../../components/CopyButton.jsx";
 import ErrorMessage from "../../components/ErrorMessage.jsx";
+import Icon from "../../components/Icon.jsx";
 import ToolPage from "../../components/ToolPage.jsx";
 import { fill, useConfig, useLanguage } from "../../context.js";
 import { attempt } from "../../lib/attempt.js";
@@ -104,9 +105,9 @@ export default function LengthConverter() {
             disabled={!conversion.ok}
             aria-label={text.swap}
             title={text.swap}
-            sx={{ alignSelf: "center", minWidth: 48, fontSize: "1.25rem" }}
+            sx={{ alignSelf: "center", minWidth: 44, width: 44, height: 44, p: 0 }}
           >
-            ⇄
+            <Icon name="swap" size={20} />
           </Button>
 
           <Stack spacing={2} sx={{ flex: 1 }} aria-live="polite">
