@@ -14,7 +14,12 @@ public record GeodesicPath(
         int iterations,
         List<GeoPoint> points,
         int segmentCount,
-        double sampledMaximumSegmentMetres
+        double sampledMaximumSegmentMetres,
+        double arcDegrees,
+        double reducedLengthMetres,
+        double geodesicScale12,
+        double geodesicScale21,
+        double areaSquareMetres
 ) {
     public GeodesicPath {
         points = List.copyOf(points);
@@ -38,7 +43,12 @@ public record GeodesicPath(
                 measurement.iterations(),
                 points,
                 segmentCount,
-                sampledMaximumSegmentMetres
+                sampledMaximumSegmentMetres,
+                measurement.arcDegrees(),
+                measurement.reducedLengthMetres(),
+                measurement.geodesicScale12(),
+                measurement.geodesicScale21(),
+                measurement.areaSquareMetres()
         );
     }
 }

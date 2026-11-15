@@ -28,4 +28,10 @@ export {
   measureGeodesicPolyline,
   sampleGeodesicPath,
 } from "./measurement/index.js";
+export {
+  cartesianToTriaxial,
+  directTriaxialGeodesic,
+  inverseTriaxialGeodesic,
+  triaxialToCartesian,
+} from "./triaxial/index.js";
 export { ConvertToolsError, ERROR_CODES } from "../errors.js";

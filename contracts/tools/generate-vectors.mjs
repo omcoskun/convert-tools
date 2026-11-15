@@ -3,7 +3,10 @@
 // independent reference implementations:
 //
 //   GeographicLib GeoConvert   UTM/UPS forward and inverse, MGRS, EPSG:326xx/327xx
-//   GeographicLib GeodSolve    WGS 84 inverse and direct geodesics
+//   GeographicLib GeodSolve    inverse and direct geodesics (WGS 84 and four
+//                              other ellipsoids of revolution)
+//   GeographicLib Geod3Solve   inverse and direct geodesics on triaxial
+//                              ellipsoids
 //   geographiclib-helper.cpp   GeographicLib PolarStereographic (EPSG:5041/5042),
 //                              GARS and Georef classes
 //   web_mercator.py            EPSG:3857 defining formula in Python
@@ -94,6 +97,7 @@ function parseZone(token) {
 
 const GEOCONVERT = which("GeoConvert");
 const GEODSOLVE = which("GeodSolve");
+const GEOD3SOLVE = which("Geod3Solve");
 const PREFIX =
   process.env.GEOGRAPHICLIB_PREFIX ?? path.resolve(path.dirname(realpathSync(GEOCONVERT)), "..");
 const PYTHON = process.env.PYTHON ?? "python3";
@@ -114,6 +118,7 @@ execFileSync(CXX, [
 const versions = {
   GeoConvert: execFileSync(GEOCONVERT, ["--version"]).toString().trim(),
   GeodSolve: execFileSync(GEODSOLVE, ["--version"]).toString().trim(),
+  Geod3Solve: execFileSync(GEOD3SOLVE, ["--version"]).toString().trim(),
   python: execFileSync(PYTHON, ["--version"]).toString().trim(),
   cxx: execFileSync(CXX, ["--version"]).toString().split("\n")[0].trim(),
 };
@@ -531,9 +536,29 @@ function crsVectors() {
 const GEODESIC_HEADER = [
   "id", "startLatitude", "startLongitude", "endLatitude", "endLongitude",
   "distanceMetres", "initialBearingDegrees", "finalBearingDegrees", "toleranceMetres",
-  "reducedLengthMetres",
+  "reducedLengthMetres", "arcDegrees", "geodesicScale12", "geodesicScale21", "areaSquareMetres",
 ];
-const GEODESIC_TOLERANCE = "0.0001"; // metres; see contracts/README.md
+
+// Azimuths are left empty where more than one shortest geodesic exists:
+// coincident points, a pole, exact antipodes, and two equatorial points
+// whose shortest path leaves the equator (it then has an equally short
+// mirror image across the equator). The geodesic scales and the area belong
+// to one particular route, so they are left empty on the same rows; the arc
+// length and the reduced length are the same for every such route and are
+// kept. See contracts/README.md.
+function routeUndefined(pair, s12, azi1) {
+  const lat1 = Number(pair.lat1);
+  const lat2 = Number(pair.lat2);
+  const dlon = Math.abs(((Number(pair.lon2) - Number(pair.lon1) + 540) % 360) - 180);
+  return (
+    Number(s12) === 0 ||
+    Math.abs(lat1) === 90 ||
+    Math.abs(lat2) === 90 ||
+    (lat1 === -lat2 && dlon === 180) ||
+    (lat1 === 0 && lat2 === 0 && Math.abs(Number(azi1)) !== 90)
+  );
+}
+const GEODESIC_TOLERANCE = "0.0000001"; // metres; see contracts/README.md
 
 function geodesicInverse() {
   const pairs = [];
@@ -582,36 +607,32 @@ function geodesicInverse() {
   const output = runTool(GEODSOLVE, ["-i", "-f", "-p", "9"], pairs.map((p) => `${p.lat1} ${p.lon1} ${p.lat2} ${p.lon2}`));
   const rows = pairs.map((pair, index) => {
     const fields = output[index].split(/\s+/);
-    const [azi1, azi2, s12, m12] = [fields[2], fields[5], fields[6], fields[8]];
-    // Azimuths are left empty where more than one shortest geodesic exists:
-    // coincident points, a pole, exact antipodes, and two equatorial points
-    // whose shortest path leaves the equator (it then has an equally short
-    // mirror image across the equator). See contracts/README.md.
-    const lat1 = Number(pair.lat1);
-    const lat2 = Number(pair.lat2);
-    const dlon = Math.abs(((Number(pair.lon2) - Number(pair.lon1) + 540) % 360) - 180);
-    const undefinedAzimuth =
-      Number(s12) === 0 ||
-      Math.abs(lat1) === 90 ||
-      Math.abs(lat2) === 90 ||
-      (lat1 === -lat2 && dlon === 180) ||
-      (lat1 === 0 && lat2 === 0 && Math.abs(Number(azi1)) !== 90);
+    const [azi1, azi2, s12, a12, m12, M12, M21, S12] = [
+      fields[2], fields[5], fields[6], fields[7], fields[8], fields[9], fields[10], fields[11],
+    ];
+    const undefinedRoute = routeUndefined(pair, s12, azi1);
+    const routeValue = (value) => (undefinedRoute ? "" : value);
     return [
       pair.id, pair.lat1, pair.lon1, pair.lat2, pair.lon2, s12,
-      undefinedAzimuth ? "" : azi1, undefinedAzimuth ? "" : azi2, GEODESIC_TOLERANCE, m12,
+      routeValue(azi1), routeValue(azi2), GEODESIC_TOLERANCE, m12,
+      a12, routeValue(M12), routeValue(M21), routeValue(S12),
     ];
   });
   manifest.files.push({
     ...writeCsv("geodesic-wgs84.csv", GEODESIC_HEADER, rows),
-    source: "GeodSolve -i -f -p 9 (azi1, azi2, s12, m12)",
+    source: "GeodSolve -i -f -p 9 (azi1, azi2, s12, a12, m12, M12, M21, S12)",
   });
 }
 
+const DIRECT_HEADER = [
+  "id", "startLatitude", "startLongitude", "initialBearingDegrees", "distanceMetres",
+  "expectedLatitude", "expectedLongitude", "expectedFinalBearingDegrees", "toleranceMetres",
+  "expectedArcDegrees", "expectedReducedLengthMetres", "expectedGeodesicScale12",
+  "expectedGeodesicScale21", "expectedAreaSquareMetres",
+];
+
 function geodesicDirect() {
-  const header = [
-    "id", "startLatitude", "startLongitude", "initialBearingDegrees", "distanceMetres",
-    "expectedLatitude", "expectedLongitude", "expectedFinalBearingDegrees", "toleranceMetres",
-  ];
+  const header = DIRECT_HEADER;
   const inputs = [];
   const add = (id, lat, lon, azi, s) => inputs.push({ id, lat: dec(lat, 12), lon: dec(lon, 12), azi: dec(azi, 12), s: dec(s, 6) });
   add("equator-east", 0, 0, 90, 1000000);
@@ -622,14 +643,143 @@ function geodesicDirect() {
   for (let index = 0; index < 1000; index += 1) {
     add(`random-${String(index).padStart(4, "0")}`, sphereLatitude(), uniform(-180, 180), uniform(0, 360), uniform(0, 19900000));
   }
-  const output = runTool(GEODSOLVE, ["-p", "9"], inputs.map((p) => `${p.lat} ${p.lon} ${p.azi} ${p.s}`));
+  // -f: lat1 lon1 azi1 lat2 lon2 azi2 s12 a12 m12 M12 M21 S12
+  const output = runTool(GEODSOLVE, ["-f", "-p", "9"], inputs.map((p) => `${p.lat} ${p.lon} ${p.azi} ${p.s}`));
   const rows = inputs.map((input, index) => {
-    const [lat2, lon2, azi2] = output[index].split(/\s+/);
-    return [input.id, input.lat, input.lon, input.azi, input.s, lat2, lon2, azi2, GEODESIC_TOLERANCE];
+    const fields = output[index].split(/\s+/);
+    return [
+      input.id, input.lat, input.lon, input.azi, input.s,
+      fields[3], fields[4], fields[5], GEODESIC_TOLERANCE,
+      fields[7], fields[8], fields[9], fields[10], fields[11],
+    ];
   });
   manifest.files.push({
     ...writeCsv("geodesic-direct.csv", header, rows),
-    source: "GeodSolve -p 9",
+    source: "GeodSolve -f -p 9 (lat2, lon2, azi2, a12, m12, M12, M21, S12)",
+  });
+}
+
+// Geodesics on five more ellipsoids of revolution: a sphere, two oblate ones
+// flatter than the Earth and two prolate ones (b > a). Nearly equatorial
+// lines on a prolate ellipsoid exercise the bracketing of the inverse
+// solver's Newton iteration. The inputs come from a
+// separate generator so that the shared random stream, and with it every
+// other file, stays exactly as it was.
+const OTHER_ELLIPSOIDS = [
+  { id: "SPHERE", a: "6371000", f: "0" },
+  { id: "OBLATE-1/150", a: "6378137", f: "0.006666666666666667" },
+  { id: "OBLATE-1/50", a: "6378137", f: "0.02" },
+  { id: "PROLATE-1/150", a: "6378137", f: "-0.006666666666666667" },
+  { id: "PROLATE-1/50", a: "6378137", f: "-0.02" },
+];
+const ELLIPSOID_SEED = 0xe111b5e;
+
+function ellipsoidInputs() {
+  const next = mulberry32(ELLIPSOID_SEED);
+  const u = (min, max) => min + next() * (max - min);
+  const lat = () => (Math.asin(u(-1, 1)) * 180) / Math.PI;
+  const lon = (value) => (((value + 180) % 360) + 360) % 360 - 180;
+  const pairs = [];
+  const add = (id, lat1, lon1, lat2, lon2) =>
+    pairs.push({ id, lat1: dec(lat1, 12), lon1: dec(lon(lon1), 12), lat2: dec(lat2, 12), lon2: dec(lon(lon2), 12) });
+  add("exact-antipodes", 30, 0, -30, 180);
+  add("exact-antipodes-south", -30, 0, 30, 180);
+  add("pole-to-pole", 90, 0, -90, 0);
+  add("coincident", 12.5, 45, 12.5, 45);
+  add("equatorial-170", 0, 0, 0, 170);
+  for (let index = 0; index < 150; index += 1) {
+    add(`random-${String(index).padStart(3, "0")}`, lat(), u(-180, 180), lat(), u(-180, 180));
+  }
+  for (let index = 0; index < 100; index += 1) {
+    const lat1 = u(-80, 80);
+    const lon1 = u(-180, 180);
+    add(`near-antipodal-${String(index).padStart(3, "0")}`, lat1, lon1, -lat1 + u(-1, 1) * 10 ** u(-4, 0), lon1 + 180 - 10 ** u(-4, 0.3));
+  }
+  for (let index = 0; index < 25; index += 1) {
+    const lat1 = lat();
+    const lon1 = u(-180, 180);
+    const scale = 10 ** u(-7, -1);
+    add(`short-${String(index).padStart(3, "0")}`, lat1, lon1, Math.max(-90, Math.min(90, lat1 + u(-1, 1) * scale)), lon1 + u(-1, 1) * scale);
+  }
+  for (let index = 0; index < 100; index += 1) {
+    add(`near-equatorial-${String(index).padStart(3, "0")}`, u(-1, 1) * 1e-6, u(-180, 180), u(-1, 1) * 1e-6, u(-180, 180));
+  }
+  for (let index = 0; index < 20; index += 1) {
+    const lon1 = u(-180, 180);
+    add(`meridional-${String(index).padStart(3, "0")}`, lat(), lon1, lat(), lon1 + (next() < 0.5 ? 0 : 180));
+  }
+  const directs = [];
+  for (let index = 0; index < 150; index += 1) {
+    directs.push({
+      id: `random-${String(index).padStart(3, "0")}`,
+      lat: dec(lat(), 12), lon: dec(u(-180, 180), 12), azi: dec(u(0, 360), 12), s: dec(u(0, 2.5e7), 6),
+    });
+  }
+  directs.push({ id: "over-north-pole", lat: "30", lon: "0", azi: "0", s: "12000000" });
+  directs.push({ id: "zero-distance", lat: "-12.5", lon: "45", azi: "30", s: "0" });
+  return { pairs, directs };
+}
+
+function geodesicEllipsoids() {
+  const { pairs, directs } = ellipsoidInputs();
+  const inverseRows = [];
+  const directRows = [];
+  for (const ellipsoid of OTHER_ELLIPSOIDS) {
+    const shape = ["-e", ellipsoid.a, ellipsoid.f];
+    const output = runTool(GEODSOLVE, ["-i", "-f", "-p", "9", ...shape], pairs.map((p) => `${p.lat1} ${p.lon1} ${p.lat2} ${p.lon2}`));
+    pairs.forEach((pair, index) => {
+      const fields = output[index].split(/\s+/);
+      const undefinedRoute = routeUndefined(pair, fields[6], fields[2]);
+      const routeValue = (value) => (undefinedRoute ? "" : value);
+      inverseRows.push([
+        `${ellipsoid.id}-${pair.id}`, ellipsoid.id, ellipsoid.a, ellipsoid.f,
+        pair.lat1, pair.lon1, pair.lat2, pair.lon2, fields[6],
+        routeValue(fields[2]), routeValue(fields[5]), GEODESIC_TOLERANCE, fields[8],
+        fields[7], routeValue(fields[9]), routeValue(fields[10]), routeValue(fields[11]),
+      ]);
+    });
+    const directOutput = runTool(GEODSOLVE, ["-f", "-p", "9", ...shape], directs.map((p) => `${p.lat} ${p.lon} ${p.azi} ${p.s}`));
+    directs.forEach((input, index) => {
+      const fields = directOutput[index].split(/\s+/);
+      directRows.push([
+        `${ellipsoid.id}-${input.id}`, ellipsoid.id, ellipsoid.a, ellipsoid.f,
+        input.lat, input.lon, input.azi, input.s,
+        fields[3], fields[4], fields[5], GEODESIC_TOLERANCE,
+        fields[7], fields[8], fields[9], fields[10], fields[11],
+      ]);
+    });
+  }
+  const shapeColumns = ["ellipsoid", "a", "f"];
+  manifest.files.push({
+    ...writeCsv(
+      "geodesic-ellipsoids.csv",
+      [GEODESIC_HEADER[0], ...shapeColumns, ...GEODESIC_HEADER.slice(1)],
+      inverseRows,
+    ),
+    source: "GeodSolve -i -f -p 9 -e a f (sphere, f = 1/150, f = 1/50, f = -1/150, f = -1/50)",
+  });
+  manifest.files.push({
+    ...writeCsv(
+      "geodesic-direct-ellipsoids.csv",
+      [DIRECT_HEADER[0], ...shapeColumns, ...DIRECT_HEADER.slice(1)],
+      directRows,
+    ),
+    source: "GeodSolve -f -p 9 -e a f (sphere, f = 1/150, f = 1/50, f = -1/150, f = -1/50)",
+  });
+}
+
+// geodtest-sample.csv is a checked-in sample of Karney's GeodTest.dat, which
+// is not distributed with this repository (DOI 10.5281/zenodo.32156,
+// CC0-1.0). It is not regenerated here, but its manifest entry is recorded so
+// that running this script does not drop the file from manifest.json. Update
+// the recorded hash if the checked-in sample is ever regenerated.
+function geodtestSample() {
+  manifest.files.push({
+    name: "geodtest-sample.csv",
+    rows: 1000,
+    sha256: "70668bb1889e94de241970da1e72272e50b4c18f14cded81ae10079c18db7830",
+    source: "Karney's GeodTest.dat, DOI 10.5281/zenodo.32156, CC0-1.0, MD5 3461c4dc2500a8bad9394cd530b13dbe",
+    selection: "awk 'BEGIN{print \"id,lat1,lon1,azi1,lat2,lon2,azi2,s12,a12,m12,S12\"} (NR-1)%500==0 {printf \"geodtest-%06d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\\n\", NR-1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' GeodTest.dat",
   });
 }
 
@@ -709,6 +859,90 @@ function georefVectors() {
   });
 }
 
+// ------------------------------------------------------ triaxial geodesics
+
+// Geod3Solve prints positions, headings and lengths only: m12, M12 and M21
+// are checked by finite differences in the tests, not against these files.
+// The draws come after every other file's, so adding this section left the
+// other files byte-identical.
+const TRIAXIAL_ELLIPSOIDS = [
+  { id: "CAYLEY", a: Math.SQRT2, b: 1, c: Math.SQRT1_2 },
+  { id: "EARTH3", a: 6378172, b: 6378102, c: 6356752 },
+  { id: "MILD", a: 1.2, b: 1.1, c: 1 },
+  { id: "OBLATE", a: 6378137, b: 6378137, c: 6356752.314245 },
+  { id: "PROLATE", a: 1, b: 0.8, c: 0.8 },
+];
+// Relative to b; covers Geod3Solve's own error near umbilical points
+// (docs/TRIAXIAL_VALIDATION.md).
+const TRIAXIAL_TOLERANCE = 1e-10;
+const TRIAXIAL_HEADER = ["id", "ellipsoid", "a", "b", "c", "bet1", "omg1"];
+
+function triaxialPairs() {
+  const pairs = [];
+  const add = (kind, bet1, omg1, bet2, omg2) => pairs.push({ kind, bet1, omg1, bet2, omg2 });
+  for (let i = 0; i < 6; i += 1) add("random", sphereLatitude(), uniform(-180, 180), sphereLatitude(), uniform(-180, 180));
+  for (let i = 0; i < 2; i += 1) {
+    const bet1 = sphereLatitude();
+    const omg1 = uniform(-180, 180);
+    add("near-antipodal", bet1, omg1, Math.max(-90, Math.min(90, -bet1 + uniform(-1, 1))), omg1 + 180 + uniform(-1, 1) - (omg1 > 0 ? 360 : 0));
+  }
+  add("ellipse-equator", 0, uniform(-180, 180), 0, uniform(-180, 180));
+  add("ellipse-meridian", uniform(-90, 90), 90, uniform(-90, 90), -90);
+  add("umbilic-start", 90, 0, sphereLatitude(), uniform(-180, 180));
+  add("umbilic-end", sphereLatitude(), uniform(-180, 180), -90, 180);
+  add("near-umbilic", 90 - uniform(0, 1e-3), uniform(-1e-3, 1e-3), sphereLatitude(), uniform(-180, 180));
+  const bet = sphereLatitude();
+  const omg = uniform(-179, 179);
+  add("short", bet, omg, bet + uniform(-1e-3, 1e-3), omg + uniform(-1e-3, 1e-3));
+  return pairs;
+}
+
+function triaxialVectors() {
+  const inverseRows = [];
+  const directRows = [];
+  for (const ellipsoid of TRIAXIAL_ELLIPSOIDS) {
+    const axes = [ellipsoid.a, ellipsoid.b, ellipsoid.c].map(String);
+    const tolerance = String(TRIAXIAL_TOLERANCE * ellipsoid.b);
+    const pairs = triaxialPairs().map((pair) => ({
+      ...pair,
+      bet1: dec(pair.bet1, 12),
+      omg1: dec(pair.omg1, 12),
+      bet2: dec(pair.bet2, 12),
+      omg2: dec(pair.omg2, 12),
+    }));
+    const inverse = runTool(GEOD3SOLVE, ["-i", "-t", ...axes, "-p", "15"], pairs.map((p) => `${p.bet1} ${p.omg1} ${p.bet2} ${p.omg2}`));
+    pairs.forEach((pair, index) => {
+      const [alp1, alp2, s12] = inverse[index].split(/\s+/);
+      if (!(Number(s12) > 0)) throw new Error(`Geod3Solve inverse ${ellipsoid.id} ${pair.kind}: ${inverse[index]}`);
+      inverseRows.push([`${ellipsoid.id}-${pair.kind}-${String(index).padStart(2, "0")}`, ellipsoid.id, ...axes, pair.bet1, pair.omg1, pair.bet2, pair.omg2, alp1, alp2, s12, tolerance]);
+    });
+    const starts = [];
+    for (let i = 0; i < 12; i += 1) starts.push({ kind: "random", bet1: sphereLatitude(), omg1: uniform(-180, 180) });
+    starts.push({ kind: "umbilic", bet1: 90, omg1: 0 }, { kind: "umbilic", bet1: -90, omg1: 180 });
+    starts.push({ kind: "ellipse", bet1: 0, omg1: uniform(-180, 180) }, { kind: "ellipse", bet1: uniform(-90, 90), omg1: 90 });
+    const lines = starts.map((start) => ({
+      ...start,
+      bet1: dec(start.bet1, 12),
+      omg1: dec(start.omg1, 12),
+      alp1: dec(uniform(-180, 180), 12),
+      s12: dec(uniform(0, 4) * ellipsoid.b, 6),
+    }));
+    const direct = runTool(GEOD3SOLVE, ["-t", ...axes, "-p", "15"], lines.map((l) => `${l.bet1} ${l.omg1} ${l.alp1} ${l.s12}`));
+    lines.forEach((line, index) => {
+      const [bet2, omg2, alp2] = direct[index].split(/\s+/);
+      directRows.push([`${ellipsoid.id}-${line.kind}-${String(index).padStart(2, "0")}`, ellipsoid.id, ...axes, line.bet1, line.omg1, line.alp1, line.s12, bet2, omg2, alp2, tolerance]);
+    });
+  }
+  manifest.files.push({
+    ...writeCsv("triaxial-inverse.csv", [...TRIAXIAL_HEADER, "bet2", "omg2", "expected_alp1", "expected_alp2", "expected_s12", "tolerance"], inverseRows),
+    source: "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)",
+  });
+  manifest.files.push({
+    ...writeCsv("triaxial-direct.csv", [...TRIAXIAL_HEADER, "alp1", "s12", "expected_bet2", "expected_omg2", "expected_alp2", "tolerance"], directRows),
+    source: "Geod3Solve -t a b c -p 15 (bet2, omg2, alp2)",
+  });
+}
+
 // ------------------------------------------------------------------ run
 
 const forwardRows = utmUpsForward();
@@ -718,8 +952,11 @@ mgrsReverse(codes);
 crsVectors();
 geodesicInverse();
 geodesicDirect();
+geodesicEllipsoids();
+geodtestSample();
 garsVectors();
 georefVectors();
+triaxialVectors();
 
 manifest.skipped = skipped;
 manifest.files.sort((a, b) => a.name.localeCompare(b.name));

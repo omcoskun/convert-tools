@@ -77,8 +77,11 @@
 /**
  * @typedef {object} GeodesicOptions
  * @property {Ellipsoid} [ellipsoid] default WGS 84
- * @property {number} [tolerance]
- * @property {number} [maxIterations]
+ * @property {number} [tolerance] Deprecated. Validated by `inverseGeodesic`
+ *   as before, but ignored by Karney's solver, which carries its own stopping
+ *   rules.
+ * @property {number} [maxIterations] Deprecated. Validated by
+ *   `inverseGeodesic` as before, but ignored by Karney's solver.
  */
 
 /**
@@ -88,12 +91,28 @@
  *   (coincident points)
  * @property {number | null} finalBearingDegrees
  * @property {boolean} azimuthDefined
- * @property {boolean} ambiguous several routes are equally short within the
- *   solver accuracy (antipodal points)
+ * @property {boolean} ambiguous more than one shortest geodesic joins the
+ *   points: `lat1 + lat2 == 0` exactly and either both points are poles, or
+ *   |lon12| is exactly 180°, or (for f > 0 only) |lon12| exceeds the cut
+ *   locus 180 (1 - f A3(eps) cos(beta1)) by more than 1e-9°. For f < 0 only
+ *   the pole and exact-180° conditions apply. A nearly antipodal but unique
+ *   route is not ambiguous.
  * @property {string} ellipsoid
  * @property {"ellipsoidal"} algorithm
- * @property {"identity" | "vincenty-inverse" | "vincenty-direct-shooting"} solver
- * @property {number} iterations
+ * @property {"identity" | "karney-inverse"} solver
+ * @property {number} iterations inverse: longitude evaluations performed by
+ *   the Newton/bisection loop (the loop counter plus the final evaluation);
+ *   0 only for the identity result and the closed-form meridional,
+ *   equatorial and short-line paths
+ * @property {number} arcDegrees arc length a12 on the auxiliary sphere
+ * @property {number} reducedLengthMetres reduced length m12
+ * @property {number} geodesicScale12 geodesic scale M12 (point 2 relative to
+ *   point 1)
+ * @property {number} geodesicScale21 geodesic scale M21
+ * @property {number} areaSquareMetres area S12 between the geodesic and the
+ *   equator: the counter-clockwise area of the quadrilateral (lat1, lon1),
+ *   (0, lon1), (0, lon2), (lat2, lon2), as GeographicLib defines it. With
+ *   exact antipodes all five describe the returned route over the north pole
  */
 
 /**
@@ -102,8 +121,16 @@
  * @property {number} longitude
  * @property {number} finalBearingDegrees
  * @property {string} ellipsoid
- * @property {"vincenty-direct"} algorithm
- * @property {number} iterations
+ * @property {"karney-direct"} algorithm
+ * @property {number} iterations always 0: the direct problem is closed form
+ * @property {number} arcDegrees arc length a12 on the auxiliary sphere
+ * @property {number} reducedLengthMetres reduced length m12
+ * @property {number} geodesicScale12 geodesic scale M12 (point 2 relative to
+ *   point 1)
+ * @property {number} geodesicScale21 geodesic scale M21
+ * @property {number} areaSquareMetres area S12 between the geodesic and the
+ *   equator: the counter-clockwise area of the quadrilateral (lat1, lon1),
+ *   (0, lon1), (0, lon2), (lat2, lon2), as GeographicLib defines it
  */
 
 /**
@@ -176,6 +203,49 @@
  * @property {number} y
  * @property {string} formattedX
  * @property {string} formattedY
+ */
+
+/**
+ * @typedef {object} TriaxialEllipsoid
+ * @property {number} a largest semiaxis
+ * @property {number} b middle semiaxis
+ * @property {number} c smallest semiaxis; a >= b >= c > 0
+ */
+
+/**
+ * @typedef {object} TriaxialOptions
+ * @property {TriaxialEllipsoid} ellipsoid required
+ */
+
+/**
+ * @typedef {object} TriaxialPoint
+ * @property {number | string} beta ellipsoidal latitude in degrees, -90..90
+ * @property {number | string} omega ellipsoidal longitude in degrees,
+ *   -180..180
+ */
+
+/**
+ * @typedef {object} TriaxialInverseResult
+ * @property {number} distance length of the shortest geodesic, in the unit of
+ *   the semiaxes
+ * @property {number | null} initialAzimuthDegrees heading at the start,
+ *   clockwise from the line of constant omega, [0, 360); null for coincident
+ *   points
+ * @property {number | null} finalAzimuthDegrees heading at the end; null for
+ *   coincident points
+ * @property {number} reducedLength reduced length m12
+ * @property {number} geodesicScale12 geodesic scale M12
+ * @property {number} geodesicScale21 geodesic scale M21
+ */
+
+/**
+ * @typedef {object} TriaxialDirectResult
+ * @property {number} beta ellipsoidal latitude of the end, -90..90
+ * @property {number} omega ellipsoidal longitude of the end, (-180, 180]
+ * @property {number} finalAzimuthDegrees heading at the end, [0, 360)
+ * @property {number} reducedLength reduced length m12
+ * @property {number} geodesicScale12 geodesic scale M12
+ * @property {number} geodesicScale21 geodesic scale M21
  */
 
 export {};

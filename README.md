@@ -31,7 +31,7 @@ contracts/
   test-vectors/   GeographicLib ile üretilmiş ortak doğruluk vektörleri (CSV)
   error-codes.json, error-cases.csv
                   23 hata kodu ve her iki çekirdeğin geçtiği hata durumları
-  tools/          vektör üreticisi (npm run vectors)
+  tools/          vektör üreticisi (npm run vectors) ve GeodTest doğrulama aracı
 app/              tanıtım arayüzü: React 18, Webpack 5, MUI v5 (npm workspace)
 docs/             doğrulama raporları ve başlangıç durumu
 ```
@@ -73,7 +73,7 @@ JavaScript çekirdeğinde ölçülen en büyük farklar (Java aynı vektörleri 
 | MGRS kodlama (birebir metin) / kare merkezi | GeoConvert 2.7 | 0 / 3,2 nm |
 | EPSG:326xx, 327xx, 5041, 5042 | GeoConvert, PolarStereographic | 3,3 nm |
 | EPSG:3857 | tanım formülü (Python) | 15 nm |
-| Geodezik ters (mesafe) / doğrudan (konum) | GeodSolve 2.7 | 0,08 mm / 0,09 mm |
+| Geodezik ters (mesafe) / doğrudan (konum) | GeodSolve 2.7 | 11,2 nm / 10,0 nm |
 | GARS, GEOREF (birebir metin) / hücre merkezi | GeographicLib | 0 / 1,4e-14° |
 
 Transverse Mercator, Karney (2011) 6. derece Krüger serisidir. Ayrıntılar:
@@ -91,8 +91,11 @@ Doğruluk modelinin sınırları:
   değildir. Küresel modeller (ör. Google Maps `geometry.spherical`) farklı
   sonuç verir: `(0°, 0°) → (90°, 0°)` elipsoitte yaklaşık 10 001 965,729 m,
   6 378 137 m yarıçaplı kürede yaklaşık 10 018 754,171 m'dir.
-- Antipodal kesim bölgesinde `ambiguous: true` birden fazla en kısa rota
-  olduğunu bildirir; çağıran uygulama bunu görünür kılmalıdır.
+- `ambiguous: true` yalnız `lat1 + lat2 == 0` olan simetrik çiftlerde ve birden
+  fazla en kısa rotanın bulunduğu kesim bölgesinde işaretlenir; antipoda yakın
+  ama benzersiz rotalar artık işaretlenmez. Çağıran uygulama bu bayrağı görünür
+  kılmalıdır. Kesin kural `packages/core-js/README.md` ve
+  `docs/GEODESIC_VALIDATION.md` içindedir.
 - MGRS, GARS ve GEOREF bir hücreyi adlandırır: çözümleme hücrenin merkezini
   verir, özgün noktayı değil.
 - Sayısal doğruluk, kaynak koordinatın veya sensörün doğruluğunu artırmaz.

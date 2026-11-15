@@ -12,11 +12,13 @@ export {
 } from "./units/index.js";
 export {
   WGS84,
+  cartesianToTriaxial,
   coordinateResults,
   decodeGars,
   decodeGeoref,
   decodeMgrs,
   directGeodesic,
+  directTriaxialGeodesic,
   encodeGars,
   encodeGeoref,
   encodeMgrs,
@@ -30,11 +32,13 @@ export {
   fromMgrs,
   fromUtmUps,
   inverseGeodesic,
+  inverseTriaxialGeodesic,
   measureGeodesicPolyline,
   sampleGeodesicPath,
   normalizeEpsg,
   SUPPORTED_CRS,
   transformCrs,
+  triaxialToCartesian,
   utmUpsForward,
   utmUpsInverse,
 } from "./geodesy/index.js";
