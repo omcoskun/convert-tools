@@ -3,6 +3,7 @@
   "tools": {
     "GeoConvert": "/opt/homebrew/bin/GeoConvert: GeographicLib version 2.7",
     "GeodSolve": "/opt/homebrew/bin/GeodSolve: GeographicLib version 2.7",
+    "Geod3Solve": "/opt/homebrew/bin/Geod3Solve: GeographicLib version 2.7",
     "python": "Python 3.14.7",
     "cxx": "Apple clang version 21.0.0 (clang-2100.4.1.1)"
   },
@@ -20,16 +21,35 @@
       "source": "GeographicLib GARS::Forward(lat, lon, PRECISION) and GARS::Reverse(centerp=true) via geographiclib-helper"
     },
     {
+      "name": "geodesic-direct-ellipsoids.csv",
+      "rows": 760,
+      "sha256": "4b4b4fa73f40394318b88cb50f89980e0440231133379e6b3c23e79c5457bdb4",
+      "source": "GeodSolve -f -p 9 -e a f (sphere, f = 1/150, f = 1/50, f = -1/150, f = -1/50)"
+    },
+    {
       "name": "geodesic-direct.csv",
       "rows": 1005,
-      "sha256": "ce3fcfeb5d10702e9de14e0b35218cfb0083d4dc5c343333177f2140cd17b0f8",
-      "source": "GeodSolve -p 9"
+      "sha256": "ad69b96d0dc3aaaaa2a9f88c16853c36b94e0feb8d569380b092052f6cfb7edb",
+      "source": "GeodSolve -f -p 9 (lat2, lon2, azi2, a12, m12, M12, M21, S12)"
+    },
+    {
+      "name": "geodesic-ellipsoids.csv",
+      "rows": 2000,
+      "sha256": "55e4cebed51699f62992d67e630d9349368f4763fddbb8617a9c2d2e08f2c3b6",
+      "source": "GeodSolve -i -f -p 9 -e a f (sphere, f = 1/150, f = 1/50, f = -1/150, f = -1/50)"
     },
     {
       "name": "geodesic-wgs84.csv",
       "rows": 2533,
-      "sha256": "e7874466cb86c827b685f5ec6c1fc4167bc02c6f3a803e665c9b306a4553e315",
-      "source": "GeodSolve -i -f -p 9 (azi1, azi2, s12, m12)"
+      "sha256": "7e7836477ebf4b561fa99da24cd1135688afc79a93bb90320d944ae92540e147",
+      "source": "GeodSolve -i -f -p 9 (azi1, azi2, s12, a12, m12, M12, M21, S12)"
+    },
+    {
+      "name": "geodtest-sample.csv",
+      "rows": 1000,
+      "sha256": "70668bb1889e94de241970da1e72272e50b4c18f14cded81ae10079c18db7830",
+      "source": "Karney's GeodTest.dat, DOI 10.5281/zenodo.32156, CC0-1.0, MD5 3461c4dc2500a8bad9394cd530b13dbe",
+      "selection": "awk 'BEGIN{print \"id,lat1,lon1,azi1,lat2,lon2,azi2,s12,a12,m12,S12\"} (NR-1)%500==0 {printf \"geodtest-%06d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\\n\", NR-1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' GeodTest.dat"
     },
     {
       "name": "georef.csv",
@@ -48,6 +68,18 @@
       "rows": 5428,
       "sha256": "a5928dee24c1cfcd833607c0c7949d96e86c397a7758c9da058e2202f5ac9610",
       "source": "GeoConvert -u -p 9 and GeoConvert -g -p 9 with MGRS input (cell centre); valid=0 where GeoConvert reports ERROR"
+    },
+    {
+      "name": "triaxial-direct.csv",
+      "rows": 80,
+      "sha256": "78a16a901f03c8d2fda429369b0089fc3337fdef8bc2505d1de1decc467ec5a8",
+      "source": "Geod3Solve -t a b c -p 15 (bet2, omg2, alp2)"
+    },
+    {
+      "name": "triaxial-inverse.csv",
+      "rows": 70,
+      "sha256": "dc2f39d774dea10300c301cc9ac5261d75b5b9537948007e7ecd66c71dd7d4c4",
+      "source": "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)"
     },
     {
       "name": "utm-ups-forward.csv",

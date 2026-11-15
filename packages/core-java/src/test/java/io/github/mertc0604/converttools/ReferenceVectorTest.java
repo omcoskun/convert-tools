@@ -11,6 +11,7 @@ import io.github.mertc0604.converttools.coordinates.model.GridCoordinate;
 import io.github.mertc0604.converttools.coordinates.projection.CrsTransformer;
 import io.github.mertc0604.converttools.coordinates.projection.UtmUps;
 import io.github.mertc0604.converttools.geodesy.DirectResult;
+import io.github.mertc0604.converttools.geodesy.Ellipsoid;
 import io.github.mertc0604.converttools.geodesy.GeoPoint;
 import io.github.mertc0604.converttools.geodesy.Geodesic;
 import io.github.mertc0604.converttools.geodesy.GeodesicResult;
@@ -57,6 +58,8 @@ public final class ReferenceVectorTest {
         test.crs();
         test.geodesicInverse();
         test.geodesicDirect();
+        test.geodesicLengths();
+        test.geodesicSample();
         test.gars();
         test.georef();
         if (!test.hardFailures.isEmpty()) {
@@ -319,8 +322,298 @@ public final class ReferenceVectorTest {
         check.finish();
     }
 
-    private void gars() throws IOException {
-        Check check = new Check("gars");
+    // Tolerances of the length and area columns (contracts/README.md), the
+    // same as packages/core-js/test/geodesic-vector-lengths.test.mjs:
+    //   arcDegrees            toleranceMetres / (a * 1 degree)
+    //   reducedLengthMetres   toleranceMetres
+    //   geodesicScale12/21    toleranceMetres / a
+    //   areaSquareMetres      direct: AREA_FLOOR; inverse: AREA_FLOOR
+    //                         + c^2 * AREA_AZIMUTH_NOISE / |m12|
+    // AREA_FLOOR is 16 units in the last place of c^2 pi on the Earth; an
+    // azimuth error d(alp1) moves S12 by about c^2 d(alp1), and the inverse
+    // solvers fix alp1 only to about (endpoint noise) / |m12|.
+    private static final double AREA_FLOOR = 0.25;
+    private static final double AREA_AZIMUTH_NOISE = 1e-8;
+    private static final String[] INVERSE_LENGTH_COLUMNS = {
+            "arcDegrees", "reducedLengthMetres", "geodesicScale12",
+            "geodesicScale21", "areaSquareMetres",
+    };
+    private static final String[] DIRECT_LENGTH_COLUMNS = {
+            "expectedArcDegrees", "expectedReducedLengthMetres",
+            "expectedGeodesicScale12", "expectedGeodesicScale21",
+            "expectedAreaSquareMetres",
+    };
+
+    /**
+     * Arc length, reduced length, geodesic scales and area against the
+     * GeodSolve -f columns (WGS 84 and four more ellipsoids of revolution),
+     * and distance, azimuths and positions of the multi-ellipsoid files.
+     */
+    private void geodesicLengths() throws IOException {
+        lengthRows("geodesic-wgs84.csv", true, false);
+        lengthRows("geodesic-direct.csv", false, false);
+        lengthRows("geodesic-ellipsoids.csv", true, true);
+        lengthRows("geodesic-direct-ellipsoids.csv", false, true);
+    }
+
+    private void lengthRows(String file, boolean inverse, boolean checkBasics)
+            throws IOException {
+        String prefix = file + (inverse ? " inverse" : " direct");
+        Check check = new Check(prefix + " lengths");
+        MaxError[] errors = {
+                new MaxError(prefix + " distance", "m"),
+                new MaxError(prefix + " azimuth as endpoint offset", "m"),
+                new MaxError(prefix + " position", "m"),
+                new MaxError(prefix + " arc length", "deg"),
+                new MaxError(prefix + " reduced length", "m"),
+                new MaxError(prefix + " geodesic scale", ""),
+                new MaxError(prefix + " area", "m^2"),
+        };
+        for (Map<String, String> row : read(file)) {
+            String id = row.get("id");
+            Ellipsoid ellipsoid = ellipsoidOf(row);
+            GeoPoint start = new GeoPoint(
+                    number(row, "startLatitude"), number(row, "startLongitude"));
+            double tolerance = number(row, "toleranceMetres");
+            double[] actual;
+            if (inverse) {
+                GeodesicResult result = check.attempt(id, () -> Geodesic.inverse(
+                        start,
+                        new GeoPoint(number(row, "endLatitude"), number(row, "endLongitude")),
+                        ellipsoid
+                ));
+                if (result == null) {
+                    continue;
+                }
+                if (checkBasics) {
+                    double distance = Math.abs(
+                            result.distanceMetres() - number(row, "distanceMetres"));
+                    errors[0].add(distance, id);
+                    if (!(distance <= tolerance)) {
+                        check.fail(id + ": distance off by " + distance + " m");
+                    }
+                    if (!row.get("initialBearingDegrees").isEmpty()) {
+                        if (result.initialBearingDegrees() == null
+                                || result.finalBearingDegrees() == null) {
+                            check.fail(id + ": azimuth missing");
+                        } else {
+                            double offset = Math.abs(number(row, "reducedLengthMetres"))
+                                    * Math.toRadians(Math.max(
+                                    angularDifference(result.initialBearingDegrees(),
+                                            number(row, "initialBearingDegrees")),
+                                    angularDifference(result.finalBearingDegrees(),
+                                            number(row, "finalBearingDegrees"))));
+                            errors[1].add(offset, id);
+                            if (!(offset <= tolerance)) {
+                                check.fail(id + ": azimuth moves the endpoint by "
+                                        + offset + " m");
+                            }
+                        }
+                    }
+                }
+                actual = new double[]{
+                        result.arcDegrees(), result.reducedLengthMetres(),
+                        result.geodesicScale12(), result.geodesicScale21(),
+                        result.areaSquareMetres(),
+                };
+            } else {
+                DirectResult result = check.attempt(id, () -> Geodesic.direct(
+                        start,
+                        number(row, "initialBearingDegrees"),
+                        number(row, "distanceMetres"),
+                        ellipsoid
+                ));
+                if (result == null) {
+                    continue;
+                }
+                if (checkBasics) {
+                    double position = ground(
+                            result.destination().latitude(),
+                            result.destination().longitude(),
+                            number(row, "expectedLatitude"),
+                            number(row, "expectedLongitude")
+                    );
+                    errors[2].add(position, id);
+                    if (!(position <= tolerance)) {
+                        check.fail(id + ": position off by " + position + " m");
+                    }
+                }
+                actual = new double[]{
+                        result.arcDegrees(), result.reducedLengthMetres(),
+                        result.geodesicScale12(), result.geodesicScale21(),
+                        result.areaSquareMetres(),
+                };
+            }
+            checkLengths(check, errors, row, ellipsoid, inverse, actual);
+        }
+        for (MaxError error : errors) {
+            if (error.count > 0) {
+                error.print();
+            }
+        }
+        check.finish();
+    }
+
+    private static void checkLengths(
+            Check check,
+            MaxError[] errors,
+            Map<String, String> row,
+            Ellipsoid ellipsoid,
+            boolean inverse,
+            double[] actual
+    ) {
+        String id = row.get("id");
+        String[] columns = inverse ? INVERSE_LENGTH_COLUMNS : DIRECT_LENGTH_COLUMNS;
+        double tolerance = number(row, "toleranceMetres");
+        double a = ellipsoid.semiMajorAxisMetres();
+        double a12 = Math.abs(actual[0] - number(row, columns[0]));
+        errors[3].add(a12, id);
+        if (!(a12 <= tolerance / (a * Math.PI / 180))) {
+            check.fail(id + ": a12 off by " + a12 + " deg");
+        }
+        double m12 = Math.abs(actual[1] - number(row, columns[1]));
+        errors[4].add(m12, id);
+        if (!(m12 <= tolerance)) {
+            check.fail(id + ": m12 off by " + m12 + " m");
+        }
+        if (row.get(columns[2]).isEmpty()) {
+            return; // the route is not unique: no scales, no area
+        }
+        for (int k = 2; k <= 3; k++) {
+            double scale = Math.abs(actual[k] - number(row, columns[k]));
+            errors[5].add(scale, id);
+            if (!(scale <= tolerance / a)) {
+                check.fail(id + ": " + columns[k] + " off by " + scale);
+            }
+        }
+        double area = Math.abs(actual[4] - number(row, columns[4]));
+        errors[6].add(area, id);
+        double areaTolerance = inverse
+                ? AREA_FLOOR + authalicRadiusSquared(ellipsoid) * AREA_AZIMUTH_NOISE
+                / Math.abs(number(row, columns[1]))
+                : AREA_FLOOR;
+        if (!(area <= areaTolerance)) {
+            check.fail(id + ": S12 off by " + area + " m^2 (tolerance "
+                    + areaTolerance + ")");
+        }
+    }
+
+    private static Ellipsoid ellipsoidOf(Map<String, String> row) {
+        String id = row.get("ellipsoid");
+        if (id == null) {
+            return Ellipsoid.WGS84;
+        }
+        double a = number(row, "a");
+        double f = number(row, "f");
+        return new Ellipsoid(id, a, f, a * (1 - f));
+    }
+
+    private static double authalicRadiusSquared(Ellipsoid ellipsoid) {
+        double a = ellipsoid.semiMajorAxisMetres();
+        double f = ellipsoid.flattening();
+        double b = a * (1 - f);
+        double e2 = f * (2 - f);
+        if (e2 == 0) {
+            return a * a;
+        }
+        double e = Math.sqrt(Math.abs(e2));
+        double ratio = e2 > 0
+                ? 0.5 * Math.log((1 + e) / (1 - e)) / e
+                : Math.atan(e) / e;
+        return (a * a + b * b * ratio) / 2;
+    }
+
+    /**
+     * The sampled GeodTest rows use the same thresholds as the full set:
+     * 1e-7 m for the inverse distance, for the endpoint displacement implied
+     * by an azimuth error, and for the direct end point.
+     */
+    private void geodesicSample() throws IOException {
+        Check check = new Check("geodtest-sample");
+        MaxError distanceError = new MaxError("GeodTest inverse distance", "m");
+        MaxError azimuthError = new MaxError(
+                "GeodTest inverse azimuth as endpoint offset (|m12| x azimuth error)", "m");
+        MaxError directError = new MaxError("GeodTest direct position", "m");
+        double tolerance = 1e-7;
+        for (Map<String, String> row : read("geodtest-sample.csv")) {
+            String id = row.get("id");
+            double latitude1 = number(row, "lat1");
+            double longitude1 = number(row, "lon1");
+            double latitude2 = number(row, "lat2");
+            double longitude2 = number(row, "lon2");
+            double expectedDistance = number(row, "s12");
+            GeodesicResult inverse = check.attempt(id, () -> Geodesic.inverse(
+                    new GeoPoint(latitude1, longitude1),
+                    new GeoPoint(latitude2, longitude2)
+            ));
+            if (inverse == null) {
+                continue;
+            }
+            if (!inverse.solver().equals("karney-inverse")
+                    || !inverse.algorithm().equals("ellipsoidal")) {
+                check.fail(id + ": inverse labels "
+                        + inverse.solver() + "/" + inverse.algorithm());
+            }
+            double distance = Math.abs(
+                    inverse.distanceMetres() - expectedDistance
+            );
+            distanceError.add(distance, id);
+            if (!(distance <= tolerance)) {
+                check.fail(id + ": distance off by " + distance + " m");
+            }
+            if (inverse.initialBearingDegrees() != null) {
+                double reducedLength = Math.abs(number(row, "m12"));
+                double offset = reducedLength * Math.toRadians(Math.max(
+                        angularDifference(
+                                inverse.initialBearingDegrees(),
+                                number(row, "azi1")
+                        ),
+                        angularDifference(
+                                inverse.finalBearingDegrees(),
+                                number(row, "azi2")
+                        )
+                ));
+                azimuthError.add(offset, id);
+                if (!(offset <= tolerance)) {
+                    check.fail(id + ": azimuth error moves the endpoint by "
+                            + offset + " m");
+                }
+            }
+
+            DirectResult direct = check.attempt(id + " direct", () -> Geodesic.direct(
+                    new GeoPoint(latitude1, longitude1),
+                    number(row, "azi1"),
+                    expectedDistance
+            ));
+            if (direct == null) {
+                continue;
+            }
+            if (!direct.algorithm().equals("karney-direct")
+                    || direct.iterations() != 0) {
+                check.fail(id + ": direct labels "
+                        + direct.algorithm() + "/" + direct.iterations());
+            }
+            double position = Math.hypot(
+                    (direct.destination().latitude() - latitude2)
+                            * METRES_PER_DEGREE,
+                    longitudeDelta(
+                            direct.destination().longitude(),
+                            longitude2
+                    ) * METRES_PER_DEGREE
+                            * Math.cos(Math.toRadians(latitude2))
+            );
+            directError.add(position, id);
+            if (!(position <= tolerance)) {
+                check.fail(id + ": direct position off by " + position + " m");
+            }
+        }
+        distanceError.print();
+        azimuthError.print();
+        directError.print();
+        check.finish();
+    }
+
+    private void gars() throws IOException {        Check check = new Check("gars");
         MaxError centre = new MaxError("GARS centre", "deg");
         for (Map<String, String> row : read("gars.csv")) {
             String id = row.get("id");

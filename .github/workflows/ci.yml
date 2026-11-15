@@ -68,7 +68,8 @@ jobs:
         run: mvn --batch-mode --file packages/core-java/pom.xml package
 
       # javac --release 17 -Xlint:all -Werror, then ContractTest,
-      # CoordinateContractTest, ReferenceVectorTest and ErrorContractTest
-      # against contracts/test-vectors.
+      # CoordinateContractTest, ReferenceVectorTest, ErrorContractTest,
+      # GeodesicLengthsTest, TriaxialGeodesicTest and HoldoutTest against
+      # contracts/test-vectors.
       - name: Contract checks
         run: sh packages/core-java/scripts/test.sh

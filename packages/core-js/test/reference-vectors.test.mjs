@@ -222,6 +222,19 @@ test("inverse geodesic matches GeodSolve distance and azimuths", (t) => {
       ),
     );
     if (!result) continue;
+    // The labels and the iteration count are part of the public result, not
+    // just the numbers.
+    assert.equal(result.algorithm, "ellipsoidal");
+    if (result.distanceMetres === 0) {
+      assert.equal(result.solver, "identity");
+      assert.equal(result.azimuthDefined, false);
+    } else {
+      assert.equal(result.solver, "karney-inverse");
+      assert.equal(result.azimuthDefined, true);
+    }
+    assert.ok(Number.isInteger(result.iterations));
+    assert.ok(result.iterations >= 0);
+    assert.ok(result.iterations <= 84);
     const tolerance = Number(row.toleranceMetres);
     const distance = Math.abs(result.distanceMetres - Number(row.distanceMetres));
     distanceError.add(distance, row.id);
@@ -266,6 +279,8 @@ test("direct geodesic matches GeodSolve", (t) => {
       ),
     );
     if (!result) continue;
+    assert.equal(result.algorithm, "karney-direct");
+    assert.equal(result.iterations, 0);
     const expectedLatitude = Number(row.expectedLatitude);
     const distance = groundErrorMetres(
       result.latitude,

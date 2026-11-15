@@ -1,6 +1,7 @@
 package io.github.mertc0604.converttools;
 
 import io.github.mertc0604.converttools.geodesy.DirectResult;
+import io.github.mertc0604.converttools.geodesy.Ellipsoid;
 import io.github.mertc0604.converttools.geodesy.GeoPoint;
 import io.github.mertc0604.converttools.geodesy.Geodesic;
 import io.github.mertc0604.converttools.geodesy.GeodesicPath;
@@ -35,8 +36,8 @@ public final class ContractTest {
         testLengthContractLimits();
         testGeodesics(vectors.resolve("geodesic-wgs84.csv"));
         testSubMillimetreGeodesic();
-        testCutLocusAmbiguity();
-        testVincentyCutLocusSensitivity();
+        testAmbiguityRule();
+        testKarneyLabelsAndSphere();
         testPolarGeodesicSemantics();
         testPolyline();
         testGeodesicPath();
@@ -283,54 +284,156 @@ public final class ContractTest {
         );
     }
 
-    private static void testCutLocusAmbiguity() {
-        GeoPoint start = new GeoPoint(43.139205363724, 0);
-        GeoPoint end = new GeoPoint(
-                -43.13920536372438,
-                179.55910699284908
-        );
-        GeodesicResult inverse = Geodesic.inverse(start, end);
-        DirectResult destination = Geodesic.direct(
-                start,
-                inverse.initialBearingDegrees(),
-                inverse.distanceMetres()
-        );
-
+    private static void testAmbiguityRule() {
+        // On the equator the cut locus is at (1 - f) * 180 degrees.
         require(
-                inverse.ambiguous(),
-                "Near-antipodal route ambiguity must be explicit."
+                Geodesic.inverse(
+                        new GeoPoint(0, 0),
+                        new GeoPoint(0, 179.9)
+                ).ambiguous(),
+                "179.9 degrees on the equator must be beyond the cut locus."
+        );
+        require(
+                !Geodesic.inverse(
+                        new GeoPoint(0, 0),
+                        new GeoPoint(0, 179.0)
+                ).ambiguous(),
+                "179.0 degrees on the equator must not be ambiguous."
+        );
+        // Opposite latitudes on an oblate ellipsoid, safely beyond the cut
+        // locus.
+        require(
+                Geodesic.inverse(
+                        new GeoPoint(10, 0),
+                        new GeoPoint(-10, 179.9)
+                ).ambiguous(),
+                "Opposite latitudes beyond the cut locus must be ambiguous."
+        );
+        // Nearly antipodal but with a unique route: latitudes do not sum to
+        // zero exactly, so the flag must stay false.
+        require(
+                !Geodesic.inverse(
+                        new GeoPoint(10, 0),
+                        new GeoPoint(-10.000001, 179.9)
+                ).ambiguous(),
+                "A nearly antipodal unique route must not be ambiguous."
+        );
+        // The vertex-to-vertex rows of GeodTest sit on the cut locus to
+        // within rounding noise and have a unique route.
+        GeodesicResult vertex = Geodesic.inverse(
+                new GeoPoint(4.199535552987, 0),
+                new GeoPoint(-4.199535552987, 179.398106343454992238)
+        );
+        require(
+                !vertex.ambiguous(),
+                "A vertex-to-vertex route on the cut locus is not ambiguous."
         );
         require(
                 Math.abs(
-                        destination.destination().latitude()
-                                - end.latitude()
-                ) <= 1e-12,
-                "Ambiguous route latitude closure mismatch."
+                        vertex.distanceMetres() - 19_970_505.608097405
+                ) <= 0.001,
+                "Vertex-to-vertex distance mismatch."
+        );
+
+        // Exact antipodes use the canonical route over the north pole.
+        GeodesicResult exact = Geodesic.inverse(
+                new GeoPoint(10, 0),
+                new GeoPoint(-10, 180)
         );
         require(
-                angularDifference(
-                        destination.destination().longitude(),
-                        end.longitude()
-                ) <= 1e-12,
-                "Ambiguous route longitude closure mismatch."
+                exact.ambiguous()
+                        && exact.initialBearingDegrees() == 0
+                        && exact.finalBearingDegrees() == 180,
+                "Exact antipodes must be ambiguous with a 0/180 route."
+        );
+
+        // Over the pole is not a shortest route on a prolate ellipsoid, so
+        // the solved azimuths are returned and must lead to the end point.
+        Ellipsoid prolate = new Ellipsoid(
+                "PROLATE",
+                6_400_000,
+                -1.0 / 300,
+                6_400_000 * (1 + 1.0 / 300)
+        );
+        GeoPoint prolateStart = new GeoPoint(60, 25);
+        GeodesicResult prolateExact = Geodesic.inverse(
+                prolateStart,
+                new GeoPoint(-60, -155),
+                prolate
+        );
+        GeoPoint prolateLanding = Geodesic.direct(
+                prolateStart,
+                prolateExact.initialBearingDegrees(),
+                prolateExact.distanceMetres(),
+                prolate
+        ).destination();
+        require(
+                prolateExact.ambiguous()
+                        && prolateExact.initialBearingDegrees() != 0
+                        && Math.abs(prolateLanding.latitude() + 60) <= 1e-11
+                        && Math.abs(prolateLanding.longitude() + 155) <= 1e-11,
+                "Prolate antipodes must return azimuths that reach the end."
         );
     }
 
-    private static void testVincentyCutLocusSensitivity() {
-        GeodesicResult result = Geodesic.inverse(
-                new GeoPoint(86.890600409059, 0),
-                new GeoPoint(
-                        -86.89060040905908,
-                        179.9671819225338
-                )
+    private static void testKarneyLabelsAndSphere() {
+        GeodesicResult inverse = Geodesic.inverse(
+                new GeoPoint(39.933365, 32.859742),
+                new GeoPoint(41.008238, 28.978359)
         );
         require(
-                result.solver().equals("vincenty-inverse"),
-                "Cut-locus regression must exercise Vincenty inverse."
+                inverse.solver().equals("karney-inverse")
+                        && inverse.algorithm().equals("ellipsoidal"),
+                "Inverse labels must be karney-inverse/ellipsoidal."
         );
         require(
-                result.ambiguous(),
-                "Low bearing sensitivity must be marked ambiguous."
+                inverse.iterations() > 0,
+                "A Newton inverse must report its iterations."
+        );
+
+        DirectResult direct = Geodesic.direct(
+                new GeoPoint(40, 30),
+                45,
+                1_000_000
+        );
+        require(
+                direct.algorithm().equals("karney-direct")
+                        && direct.iterations() == 0,
+                "Direct labels must be karney-direct with zero iterations."
+        );
+        DirectResult zero = Geodesic.direct(
+                new GeoPoint(90, -135),
+                45,
+                0
+        );
+        require(
+                zero.algorithm().equals("karney-direct")
+                        && zero.iterations() == 0
+                        && zero.destination().equals(new GeoPoint(90, -135)),
+                "A zero-length direct problem must keep the start point."
+        );
+
+        Ellipsoid sphere = new Ellipsoid(
+                "SPHERE",
+                6_371_008.8,
+                0,
+                6_371_008.8
+        );
+        GeodesicResult spherical = Geodesic.inverse(
+                new GeoPoint(39.933365, 32.859742),
+                new GeoPoint(41.008238, 28.978359),
+                sphere
+        );
+        require(
+                Math.abs(
+                        spherical.distanceMetres() - 349_365.5853597392
+                ) <= 1e-6,
+                "Sphere distance mismatch: " + spherical.distanceMetres()
+        );
+        require(
+                spherical.solver().equals("karney-inverse")
+                        && "SPHERE".equals(spherical.ellipsoid()),
+                "Sphere labels mismatch."
         );
     }
 

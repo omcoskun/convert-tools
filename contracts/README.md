@@ -32,11 +32,35 @@ kütüphanesi), Python 3.14.7, Apple clang 21.
 | `mgrs-forward.csv` | 15360 | `GeoConvert -m -p (HASSASİYET-5)` | birebir metin |
 | `mgrs-reverse.csv` | 5428 | `GeoConvert -u -p 9` ve `-g -p 9`, MGRS girdisi (hücre merkezi); `valid=0` GeoConvert'in reddettiği kodlar | 1 µm; geçersizde hata zorunlu |
 | `coordinate-projections.csv` | 1358 | EPSG:3857 `web_mercator.py`; EPSG:326xx/327xx `GeoConvert -z ZONh`; EPSG:5041/5042 GeographicLib `PolarStereographic::UPS()` | 1 µm; gidiş-dönüş 1 µm |
-| `geodesic-wgs84.csv` | 2533 | `GeodSolve -i -f -p 9` | 0,1 mm |
-| `geodesic-direct.csv` | 1005 | `GeodSolve -p 9` | 0,1 mm; son azimut 1e-6° |
+| `geodesic-wgs84.csv` | 2533 | `GeodSolve -i -f -p 9` | 1e-7 m; azimut `\|m12\|·Δα` 1e-7 m; a12, m12, M12, M21, S12 aşağıda |
+| `geodesic-direct.csv` | 1005 | `GeodSolve -f -p 9` | 1e-7 m; son azimut 1e-6°; a12, m12, M12, M21, S12 aşağıda |
+| `geodesic-ellipsoids.csv` | 2000 | `GeodSolve -i -f -p 9 -e a f`; küre, f = 1/150, 1/50, −1/150, −1/50 | WGS 84 ters dosyasıyla aynı |
+| `geodesic-direct-ellipsoids.csv` | 760 | `GeodSolve -f -p 9 -e a f`; aynı beş elipsoit | 1e-7 m konum; a12, m12, M12, M21, S12 aşağıda |
+| `geodtest-sample.csv` | 1000 | `GeodTest.dat` her 500. satırdan biri (aşağıdaki awk kuralı) | 1e-7 m; azimut `\|m12\|·Δα` 1e-7 m |
+| `triaxial-inverse.csv` | 70 | `Geod3Solve -i -t a b c -p 15`; Cayley, Dünya benzeri, hafif, oblate, prolate | `1e-10 · b` mesafe; azimut `\|m12\|·Δα` aynı |
+| `triaxial-direct.csv` | 80 | `Geod3Solve -t a b c -p 15`; aynı beş elipsoit | `1e-10 · b` konum; son azimut `b·Δα` aynı |
 | `gars.csv` | 3072 | GeographicLib `GARS::Forward/Reverse` | birebir metin; merkez 1e-12° |
 | `georef.csv` | 3590 | GeographicLib `Georef::Forward/Reverse` | birebir metin; merkez 1e-12° |
 | `unit-conversions.csv` | 4 | Tanımlar: 1 uluslararası deniz mili = 1852 m, 1 uluslararası ayak = 0,3048 m (kesin) | birebir kesir |
+
+`geodtest-sample.csv`, Karney'nin 500.000 satırlık resmî `GeodTest.dat`
+kümesinden (DOI 10.5281/zenodo.32156, CC0-1.0, MD5
+`3461c4dc2500a8bad9394cd530b13dbe`) deterministik olarak seçilmiş 1.000 veri
+satırıdır (başlıkla 1.001 satır). 0 tabanlı satır indeksi 500'ün katı olan
+satırlar alınır; yani rastgele bloktan 200, diğer sekiz bloktan 100'er satır.
+Sütunlar `id,lat1,lon1,azi1,lat2,lon2,azi2,s12,a12,m12,S12`; `id`, `geodtest-`
+ön eki ve altı haneli 0 tabanlı satır indeksidir. Dosyanın SHA-256 özeti
+`70668bb1889e94de241970da1e72272e50b4c18f14cded81ae10079c18db7830`'dir. Seçim
+kuralı `manifest.json` içindeki `selection` alanında aynen durur:
+
+```bash
+awk 'BEGIN{print "id,lat1,lon1,azi1,lat2,lon2,azi2,s12,a12,m12,S12"} (NR-1)%500==0 {printf "geodtest-%06d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n", NR-1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' GeodTest.dat > contracts/test-vectors/geodtest-sample.csv
+```
+
+Bu dosya iki dilin de örnek satırlarda tam set ile aynı 1e-7 m eşiğini
+uygulamasını sağlar; tam set ölçümü `docs/GEODESIC_VALIDATION.md` içindedir.
+`generate-vectors.mjs` bu dosyayı yeniden üretmez (kaynak veri seti depoda
+tutulmaz), yalnız manifest kaydını korur.
 
 `contracts/tools/geographiclib-helper.cpp`, GeoConvert'in komut satırından
 sunmadığı işlemler (GARS, GEOREF ve GeographicLib'in UPS politika aralığı olan
@@ -55,9 +79,34 @@ noktalar, EPSG:326xx ve 327xx'te ekvator (güney CRS'te 10 000 km false
 northing), GARS/GEOREF hücre sınırları (0,001'–59' çizgileri ve 1e-13° /
 1e-12° iki yanı, dört çeyrek). Jeodezikte: kutuplar, tam ve yakın antipodlar, ekvatoral ve meridyenel
 hatlar, antimeridyen geçişi, 1 mm–1 km kısa hatlar, 1500 küresel rastgele çift,
-500 kısa ve 500 antipoda yakın rastgele çift.
+500 kısa ve 500 antipoda yakın rastgele çift; ayrıca `GeodTest.dat`'ın her
+bloğundan örneklenen 1.000 satır (`geodtest-sample.csv`).
+
+İki çok elipsoitli dosya `id,ellipsoid,a,f` sütunlarıyla başlar, sonra WGS 84
+dosyalarıyla aynı sütunları taşır. Kendi rastgele sayı üreteçleri (tohum
+`0xe111b5e`) vardır; bu yüzden eklenmeleri diğer dosyaları bayt bayt
+değiştirmedi (manifest SHA-256 özetleriyle doğrulandı). Her elipsoit için kenar
+satırları, 150 rastgele, 100 antipoda yakın, 25 kısa, 100 ekvatora yakın ve 20
+meridyenel çift ile 152 doğrudan durum üretilir. Ekvatora yakın prolate satırlar,
+JavaScript çözücüsünün GeographicLib C++'tan ayrıldığı bir hatayı (9,5 cm)
+yakalamak için eklendi; eski kod bu dosyada 3 satırda 3,8 mm'ye kadar hata verir.
+
+Yeni sütunlar: ters dosyalarda `arcDegrees`, `geodesicScale12`,
+`geodesicScale21`, `areaSquareMetres` (`reducedLengthMetres` zaten vardı);
+doğrudan dosyalarda `expectedArcDegrees`, `expectedReducedLengthMetres`,
+`expectedGeodesicScale12`, `expectedGeodesicScale21`,
+`expectedAreaSquareMetres`. Azimutun boş olduğu satırlarda (rota benzersiz
+değil) M12, M21 ve S12 de boştur; a12 ve m12 rotadan bağımsız olduğu için
+doludur.
 
 ## Tolerans gerekçeleri
+
+- **Üç eksenli geodezik: `1e-10 · b`.** Geod3Solve yakın umbilik noktalarda
+  kendi hesabında 1e-11 · b düzeyinde hata yapar (docs/TRIAXIAL_VALIDATION.md);
+  tolerans bunu kapsar, diğer satırlarda farklar 5e-14 · b altındadır.
+  Geod3Solve m12, M12, M21 yazmaz; bunlar testlerde sonlu farklarla, oblate
+  sınırda iki eksenli çözücüyle ve kürede kapalı formlarla denetlenir. Tam
+  antipodlar dosyada yoktur: Geod3Solve `-i` orada geçersiz hat verebilir.
 
 - **UTM/UPS/MGRS: 1 µm.** GeographicLib 6. derece Krüger serisini kullanır
   (Karney 2011; merkez meridyenden 3900 km içinde 5 nm doğruluk). Çekirdekler aynı
@@ -65,22 +114,43 @@ hatlar, antimeridyen geçişi, 1 mm–1 km kısa hatlar, 1500 küresel rastgele 
   formül hatasını yakalar. Enlem/boylam farkları, yerel küresel ölçekle (1°≈111,32
   km) metreye çevrilir; bu çevrimin %1'lik yaklaşıklığı hata miktarının kendisine
   uygulanır, sonuca değil.
-- **Jeodezik: 0,1 mm.** Çekirdeklerin jeodezik motoru Vincenty ters çözümü ve
-  antipoda yakın bölgede direct-shooting yedeğidir; GeographicLib'in 500.000
-  satırlık `GeodTest` kümesinde en büyük mesafe farkı 0,076 mm ölçülmüştür
-  (`docs/GEODESIC_VALIDATION.md`). Eski dosyadaki 1 mm toleransı 0,1 mm'ye
-  sıkılaştırıldı. Bu motor GeographicLib'in nanometre düzeyindeki doğruluğuna
-  sahip değildir; bu bir sınırlamadır, hata değildir.
+- **Jeodezik: 1e-7 m.** Çekirdekler Karney'nin (2013) algoritmasını uygular:
+  GeographicLib `Geodesic` ve `GeodesicLine` sınıflarının altıncı derece serisi,
+  ters çözümde Newton + bisection; eski kuadratik çözüm, shooting veya kesim
+  bölgesi yedeği yoktur. 500.000 satırlık `GeodTest` kümesinde en büyük ters mesafe farkı
+  JavaScript ve Java'da 1.12e-8 m, ters azimutun uç noktayı kaydırdığı en büyük
+  mesafe iki dilde 7.53e-8 m, doğrudan uç nokta farkı JavaScript'te 1.00e-8 m,
+  Java'da 1.95e-8 m ölçüldü (`docs/GEODESIC_VALIDATION.md`). 1e-7 m sınırı bu
+  ölçülen değerlerin üstündedir ve yine de bir formül hatasını yakalar.
 - **Azimut ölçütü.** Azimut hatası derece olarak değil, jeodeziğin uç noktasını
   yana kaydırdığı mesafe olarak ölçülür: `|m12| × Δα` (m12 = indirgenmiş uzunluk,
   `GeodSolve -f` çıktısı). Bu ölçüt çok kısa hatlarda (derece cinsinden azimut
   anlamsızlaşır) ve antipoda yakın hatlarda (uç nokta azimuta duyarsızlaşır)
-  fiziksel olarak doğru ölçüdür. Tolerans mesafeyle aynıdır (0,1 mm).
+  fiziksel olarak doğru ölçüdür. Tolerans mesafeyle aynıdır (1e-7 m).
 - **Azimut boş bırakılan satırlar.** Birden fazla en kısa jeodezik varsa azimut
   tanımsızdır ve dosyada boştur: çakışan noktalar, kutup uçları, tam antipodlar ve
   en kısa yolu ekvatordan ayrılan iki ekvator noktası (yolun ekvatora göre aynı
   uzunlukta bir ayna görüntüsü vardır). Bu kural geometriden gelir; test edilen
-  kodun çıktısına bakılmadan uygulanır. Mesafe bu satırlarda da zorunludur.
+  kodun çıktısına bakılmadan uygulanır. Mesafe bu satırlarda da zorunludur. Bu
+  dosya kuralı `ambiguous` alanıyla aynı değildir: `ambiguous` yalnız
+  `lat1 + lat2 == 0` iken ve kutup çifti, tam antipod veya
+  `|lon12| - lonCut > 1e-9°` koşullarından biri sağlanınca `true` olur
+  (`f < 0` için yalnız ilk ikisi); benzersiz ama antipoda yakın bir yol
+  `ambiguous` değildir. Kesin tanım `packages/core-js/README.md` ve
+  `packages/core-java/README.md` içindedir.
+- **Uzunluk ve alan sütunları.** Hepsi satırın `toleranceMetres` değerinden
+  (1e-7 m) veya yuvarlamadan türetilir: `arcDegrees` için
+  `toleranceMetres / (a · 1°)`, `reducedLengthMetres` için `toleranceMetres`,
+  `geodesicScale12/21` için `toleranceMetres / a`. `areaSquareMetres` için
+  doğrudan problemde 0,25 m² (Dünya'daki en büyük |S12| = c²π ≈ 1,3e14 m²'nin
+  16 ulp'si); ters problemde `0,25 m² + c² · 1e-8 m / |m12|`. Ters çözücü alp1'i
+  ancak (uç nokta gürültüsü) / |m12| kadar belirler ve S12 yaklaşık
+  c² · Δalp1 kadar kayar; 1e-8 m ölçülen uç nokta gürültüsünün on katıdır. Bu
+  nedenle antipoda yakın hatlar (küçük |m12|) azimutları gibi daha geniş bir
+  alan toleransı alır. Ölçülen en büyük farklar: WGS 84 ters S12 5,25 m²
+  (`near-antipodal-0087`), çok elipsoitli ters 1495 m²
+  (`SPHERE-near-antipodal-094`, m12 = 30,9 m), doğrudan 0,047 m²; a12
+  ≤ 5,7e-14°, m12 ≤ 3,7e-9 m, M12/M21 ≤ 6,7e-16 (iki dil).
 
 ## Bilinçli politika farkları ve atlanan satırlar
 
