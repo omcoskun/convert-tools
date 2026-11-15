@@ -69,3 +69,36 @@ test("swap, clear and examples; only examples and fit requests move the map", ()
   assert.equal(example.fitRequest, cleared.fitRequest + 1);
   assert.equal(run(example, { type: "fit" }).fitRequest, example.fitRequest + 1);
 });
+
+test("a pasted pair fills the point it was pasted into; two pairs fill A and B", () => {
+  let state = run(empty(), { type: "arm", target: "end" }, { type: "paste", target: "end", points: [B], swapped: true });
+  assert.deepEqual(state.values, { startLatitude: "", startLongitude: "", endLatitude: B.latitude, endLongitude: B.longitude });
+  assert.equal(state.activeTarget, null, "a paste ends picking, as typing does");
+  assert.equal(state.fitRequest, 0, "a paste does not move the map");
+  assert.deepEqual(state.lastPaste, { targets: ["end"], swapped: true });
+  state = run(state, { type: "paste", target: "end", points: [A, B] });
+  assert.deepEqual(state.values, {
+    startLatitude: A.latitude,
+    startLongitude: A.longitude,
+    endLatitude: B.latitude,
+    endLongitude: B.longitude,
+  });
+  assert.deepEqual(state.lastPaste, { targets: ["start", "end"], swapped: false });
+  // The next change of the values forgets the paste; other actions keep it.
+  assert.deepEqual(run(state, { type: "fit" }).lastPaste, state.lastPaste);
+  assert.equal(run(state, { type: "edit", key: "startLatitude", value: "1" }).lastPaste, null);
+  assert.equal(run(state, { type: "swap" }).lastPaste, null);
+});
+
+test("a paste without a valid point or target changes nothing", () => {
+  const state = empty();
+  for (const action of [
+    { type: "paste", target: "start", points: [] },
+    { type: "paste", target: "start", points: [{ latitude: "95", longitude: "0" }] },
+    { type: "paste", target: "start", points: [{ latitude: 1, longitude: 2 }] },
+    { type: "paste", target: "middle", points: [A] },
+    { type: "paste", target: "start", points: [A, B, A] },
+  ]) {
+    assert.equal(run(state, action), state, JSON.stringify(action));
+  }
+});

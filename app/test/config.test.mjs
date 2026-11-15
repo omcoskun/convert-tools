@@ -84,6 +84,14 @@ test("distance examples measure within the configured sampling limits", () => {
   }
 });
 
+test("the comparison sphere has a plausible Earth radius in metres", () => {
+  const radius = config.distance.comparisonSphereRadiusMetres;
+  assert.equal(typeof radius, "number");
+  // Between the polar and equatorial semi-axes of WGS 84, both included
+  // (some web maps use the equatorial radius 6378137 m).
+  assert.ok(radius >= 6356752.314245 && radius <= 6378137, String(radius));
+});
+
 test("the basemap is one https vector style and nothing else", () => {
   assert.deepEqual(Object.keys(config.map), ["style"]);
   const url = new URL(config.map.style);

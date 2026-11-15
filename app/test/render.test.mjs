@@ -124,3 +124,45 @@ test("a core error is shown with its localized message and its code", () => {
   const position = renderTool("positions", { configuration: broken, language: "en" }).text;
   assert.ok(position.includes(`${lang.en.errors.INVALID_NUMBER} (INVALID_NUMBER)`), position);
 });
+
+test("coordinate fields say that a latitude, longitude pair can be pasted", () => {
+  const distance = renderTool("distance");
+  assert.ok(distance.text.includes(lang.tr.text.pasteHintPoints), "distance");
+  for (const letter of ["A", "B"]) {
+    const label = lang.tr.text.copyPoint.replace("{point}", letter);
+    assert.ok(distance.html.includes(`aria-label="${label.replace(/"/g, "&quot;")}"`), `copy ${letter}`);
+  }
+  assert.ok(renderTool("positions").text.includes(lang.tr.text.pasteHint), "positions");
+  const crs = renderTool("crs", { language: "en" });
+  // EPSG:4326: x is the longitude, y the latitude, and a pasted pair is read that way.
+  assert.ok(crs.text.includes(lang.en.text.pasteHint), "crs");
+  assert.ok(crs.text.includes(`X · ${lang.en.text.longitude}`) && crs.text.includes(`Y · ${lang.en.text.latitude}`));
+});
+
+test("the distance panel can be resized from its edge, with the keyboard too", () => {
+  const { html } = renderTool("distance");
+  assert.match(html, /role="separator"[^>]*aria-orientation="vertical"/);
+  assert.ok(html.includes(`aria-label="${lang.tr.text.resizePanelWidth}"`));
+  assert.match(html, /aria-orientation="vertical"[^>]*tabindex="0"/);
+});
+
+test("the distance details compare the ellipsoidal result with a sphere", () => {
+  const row = vector("geodesic-wgs84.csv", "ankara-istanbul");
+  // The radius is pinned here, so config.json may be tuned without this test.
+  const configuration = { ...config, distance: { ...config.distance, comparisonSphereRadiusMetres: 6371008.8 } };
+  const { text } = renderTool("distance", { configuration });
+  assert.ok(text.includes(lang.tr.text.sphericalComparison), text);
+  // Haversine with R = 6371008.8 m (IUGG mean radius) gives 349365.585 m,
+  // 726.119 m or 0.207 % less than the WGS 84 vector.
+  assert.ok(Math.abs(Number(row.distanceMetres) - 349365.585 - 726.119) < 0.001);
+  assert.ok(text.includes(`${lang.tr.text.sphereDistance} 349,366 km`), text);
+  assert.ok(text.includes("−726,1 m (%−0,207)"), text);
+  assert.ok(text.includes(lang.tr.text.sphereComparisonNote.replace("{radius}", "6.371.008,8")));
+  const english = renderTool("distance", { language: "en", configuration }).text;
+  assert.ok(english.includes("−726.1 m (−0.207 %)"), english);
+  // Without a usable radius there is simply no comparison.
+  const without = { ...config, distance: { ...config.distance, comparisonSphereRadiusMetres: undefined } };
+  const plain = renderTool("distance", { configuration: without }).text;
+  assert.ok(!plain.includes(lang.tr.text.sphericalComparison));
+  assert.ok(plain.includes(`${Number(row.distanceMetres).toFixed(3)} m`), "the measurement stands");
+});

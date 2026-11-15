@@ -54,6 +54,7 @@
   },
   "distance": {
     "path": { "maxSegmentMetres": 25000, "maxPoints": 2049 },
+    "comparisonSphereRadiusMetres": 6371008.8,
     "examples": [
       { "id": "ankara-istanbul", "startLatitude": "39.933365", "startLongitude": "32.859742", "endLatitude": "41.008238", "endLongitude": "28.978359" },
       { "id": "antimeridian", "startLatitude": "10", "startLongitude": "179.9", "endLatitude": "10", "endLongitude": "-179.9" },

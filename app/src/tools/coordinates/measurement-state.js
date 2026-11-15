@@ -15,6 +15,10 @@ export function createMeasurementState(values = EMPTY_POINTS) {
     // Incremented only by explicit requests (examples, Enter, the fit
     // button), so typing never moves the map.
     fitRequest: 0,
+    // The last paste of a coordinate pair while its values are still shown:
+    // { targets: ["start"] | ["end"] | ["start", "end"], swapped }. Any later
+    // change of the values clears it, so it is never announced twice.
+    lastPaste: null,
   };
 }
 
@@ -31,6 +35,14 @@ function withEndpoint(values, target, coordinate) {
 const idle = { activeTarget: null, sequence: false };
 
 export function measurementReducer(state, action) {
+  const next = reduce(state, action);
+  if (action.type !== "paste" && next.lastPaste != null && next.values !== state.values) {
+    return { ...next, lastPaste: null };
+  }
+  return next;
+}
+
+function reduce(state, action) {
   switch (action.type) {
     case "startPicking":
       return { ...state, activeTarget: "start", sequence: true };
@@ -56,6 +68,23 @@ export function measurementReducer(state, action) {
       return { ...state, values: withEndpoint(state.values, action.target, action.coordinate) };
     case "edit":
       return { ...state, ...idle, values: { ...state.values, [action.key]: action.value } };
+    case "paste": {
+      // One pair fills the point it was pasted into; two pairs fill A and B.
+      // Like typing, a paste does not move the map.
+      const { points } = action;
+      if (!Array.isArray(points) || points.length < 1 || points.length > 2 || !points.every(isCoordinate)) return state;
+      const both = points.length === 2;
+      if (!both && action.target !== "start" && action.target !== "end") return state;
+      const values = both
+        ? withEndpoint(withEndpoint(state.values, "start", points[0]), "end", points[1])
+        : withEndpoint(state.values, action.target, points[0]);
+      return {
+        ...state,
+        ...idle,
+        values,
+        lastPaste: { targets: both ? ["start", "end"] : [action.target], swapped: action.swapped === true },
+      };
+    }
     case "swap":
       return { ...state, values: swapEndpoints(state.values) };
     case "clear":

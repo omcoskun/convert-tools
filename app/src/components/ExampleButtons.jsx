@@ -12,13 +12,14 @@ export default function ExampleButtons({ items }) {
       flexWrap="wrap"
       alignItems="center"
       aria-label={text.examples}
-      sx={{ mt: 2 }}
+      sx={{ mt: 2.5 }}
     >
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.5, mr: 0.5 }}>
         {text.examples}
       </Typography>
+      {/* Pills, as in the distance tool. */}
       {items.map((item) => (
-        <Button key={item.key} size="small" variant="outlined" onClick={item.onClick}>
+        <Button key={item.key} size="small" variant="outlined" onClick={item.onClick} sx={{ borderRadius: 999, minHeight: 30, px: 1.5 }}>
           {item.label}
         </Button>
       ))}

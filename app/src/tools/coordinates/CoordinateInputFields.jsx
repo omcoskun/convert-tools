@@ -1,5 +1,6 @@
 import Field from "../../components/Field.jsx";
 import { useLanguage } from "../../context.js";
+import { parseCoordinatePaste, pastedText } from "../../lib/coordinate-paste.js";
 import { MenuItem, Stack } from "../../ui/index.js";
 
 const SINGLE_FIELD_PLACEHOLDERS = {
@@ -8,8 +9,20 @@ const SINGLE_FIELD_PLACEHOLDERS = {
   georef: "QJCK51585600",
 };
 
-export default function CoordinateInputFields({ format, values, setValue }) {
+/**
+ * onPairPaste(point, parsed) receives a "latitude, longitude" pair pasted
+ * into either decimal-degree field; other pastes go into the field as usual.
+ */
+export default function CoordinateInputFields({ format, values, setValue, onPairPaste }) {
   const { text } = useLanguage();
+
+  function handlePaste(event) {
+    const parsed = parseCoordinatePaste(pastedText(event));
+    // Two points are for the distance tool; here they stay a normal paste.
+    if (parsed == null || parsed.points.length !== 1 || onPairPaste == null) return;
+    event.preventDefault();
+    onPairPaste(parsed.points[0], parsed);
+  }
 
   if (format === "dd" || format === "dms" || format === "ddm") {
     const placeholders = {
@@ -18,6 +31,7 @@ export default function CoordinateInputFields({ format, values, setValue }) {
       ddm: [`39°56.0019'N`, `032°51.5845'E`],
     }[format];
     const decimal = format === "dd" ? "decimal" : "text";
+    const onPaste = format === "dd" ? handlePaste : undefined;
     return (
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
         <Field
@@ -25,6 +39,7 @@ export default function CoordinateInputFields({ format, values, setValue }) {
           label={text.latitude}
           value={values[`${format}Lat`]}
           onChange={(value) => setValue(`${format}Lat`, value)}
+          onPaste={onPaste}
           placeholder={placeholders[0]}
           inputMode={decimal}
         />
@@ -33,6 +48,7 @@ export default function CoordinateInputFields({ format, values, setValue }) {
           label={text.longitude}
           value={values[`${format}Lon`]}
           onChange={(value) => setValue(`${format}Lon`, value)}
+          onPaste={onPaste}
           placeholder={placeholders[1]}
           inputMode={decimal}
         />

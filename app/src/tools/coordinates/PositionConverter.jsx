@@ -5,7 +5,8 @@ import ExampleButtons from "../../components/ExampleButtons.jsx";
 import Field from "../../components/Field.jsx";
 import ResultCard from "../../components/ResultCard.jsx";
 import ToolPage from "../../components/ToolPage.jsx";
-import { useConfig, useLanguage } from "../../context.js";
+import PasteHint from "../../components/PasteHint.jsx";
+import { fill, useConfig, useLanguage } from "../../context.js";
 import { attempt } from "../../lib/attempt.js";
 import { Box, Button, MenuItem, Paper, Stack, Typography } from "../../ui/index.js";
 import CoordinateInputFields from "./CoordinateInputFields.jsx";
@@ -20,6 +21,8 @@ export default function PositionConverter() {
   // The parsed input; null while the form differs from the last conversion.
   const [read, setRead] = useState(() => attempt(() => readPoint(settings.initial.format, settings.initial.values)));
   const [stale, setStale] = useState(false);
+  // What the last pair paste filled in, until the form changes otherwise.
+  const [pasteNotice, setPasteNotice] = useState("");
 
   const result = useMemo(
     () => (read.ok ? attempt(() => coordinateResults(read.value, precision)) : read),
@@ -32,7 +35,17 @@ export default function PositionConverter() {
 
   function setValue(key, value) {
     setValues((current) => ({ ...current, [key]: value }));
+    setPasteNotice("");
     markStale();
+  }
+
+  // A pasted pair is a complete input, so it is converted right away.
+  function pastePair(point, parsed) {
+    const nextValues = { ...values, ddLat: point.latitude, ddLon: point.longitude };
+    setValues(nextValues);
+    convert("dd", nextValues);
+    const notice = fill(text.pastedCoordinate, point);
+    setPasteNotice(parsed.swapped ? `${notice} ${text.pastedSwapped}` : notice);
   }
 
   function convert(nextFormat, nextValues) {
@@ -49,97 +62,110 @@ export default function PositionConverter() {
     const nextValues = { ...values, ...example.values };
     setFormat(example.format);
     setValues(nextValues);
+    setPasteNotice("");
     convert(example.format, nextValues);
   }
 
   return (
     <ToolPage title={text.positionTitle} subtitle={text.positionSubtitle} footer={text.coordinateFooter}>
       <Paper sx={{ p: { xs: 2, sm: 3 } }}>
-      <Box component="form" onSubmit={handleSubmit} noValidate>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2 }}>
-          <Field
-            id="coordinate-format"
-            select
-            label={text.inputFormat}
-            value={format}
-            onChange={(next) => {
-              setFormat(next);
-              markStale();
-            }}
-          >
-            {INPUT_FORMATS.map((item) => (
-              <MenuItem key={item.id} value={item.id}>
-                {item.label}
-              </MenuItem>
-            ))}
-          </Field>
-          <Field
-            id="mgrs-precision"
-            select
-            label={text.precision}
-            value={precision}
-            onChange={(next) => setPrecision(Number(next))}
-          >
-            {settings.precisions.map((item) => (
-              <MenuItem key={item.digits} value={item.digits}>
-                {item.label}
-              </MenuItem>
-            ))}
-          </Field>
-        </Stack>
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2.5 }}>
+            <Field
+              id="coordinate-format"
+              select
+              label={text.inputFormat}
+              value={format}
+              onChange={(next) => {
+                setFormat(next);
+                setPasteNotice("");
+                markStale();
+              }}
+            >
+              {INPUT_FORMATS.map((item) => (
+                <MenuItem key={item.id} value={item.id}>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </Field>
+            <Field
+              id="mgrs-precision"
+              select
+              label={text.precision}
+              value={precision}
+              onChange={(next) => setPrecision(Number(next))}
+            >
+              {settings.precisions.map((item) => (
+                <MenuItem key={item.digits} value={item.digits}>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </Field>
+          </Stack>
 
-        <CoordinateInputFields format={format} values={values} setValue={setValue} />
+          <CoordinateInputFields format={format} values={values} setValue={setValue} onPairPaste={pastePair} />
+          {format === "dd" && <PasteHint hint={text.pasteHint} notice={pasteNotice} sx={{ mt: 1 }} />}
 
-        <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 2 }}>
-          <Button type="submit" variant="contained">
-            {text.convert}
-          </Button>
-          <Typography variant="body2" color="text.secondary">
-            {text.wgs84}
-          </Typography>
-        </Stack>
-      </Box>
-
-      {!stale && !result.ok && <ErrorMessage summary={text.coordinateInvalid} code={result.code} />}
-
-      {!stale && result.ok && (
-        <Box component="section" aria-labelledby="coordinate-output-title" sx={{ mt: 3 }}>
-          <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
-            <Typography id="coordinate-output-title" variant="h2">
-              {text.outputFormats}
-            </Typography>
-            <Typography id="coordinate-source-note" variant="body2" color="text.secondary">
-              {sourceNote(read.value, text)}
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 2.5 }}>
+            <Button type="submit" variant="contained">
+              {text.convert}
+            </Button>
+            <Typography variant="body2" color="text.secondary">
+              {text.wgs84}
             </Typography>
           </Stack>
-          <Box
-            aria-live="polite"
-            aria-describedby="coordinate-source-note"
-            sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}
-          >
-            {OUTPUT_FORMATS.map(({ key, label }) => (
-              <ResultCard key={key} label={label} value={result.value[key]}>
-                <Typography variant="caption" color="text.secondary">
-                  {resolutionLabel(key, result.value.resolution[key], text)}
-                </Typography>
-                {key === "gars" && (
-                  <Typography variant="caption" color="warning.main">
-                    {text.areaSource}
-                  </Typography>
-                )}
-              </ResultCard>
-            ))}
-          </Box>
         </Box>
-      )}
 
-      <ExampleButtons
-        items={settings.examples.map((example) => ({
-          key: example.id,
-          label: exampleLabels[example.id],
-          onClick: () => applyExample(example),
-        }))}
-      />
+        {!stale && !result.ok && <ErrorMessage summary={text.coordinateInvalid} code={result.code} />}
+
+        {!stale && result.ok && (
+          <Box
+            component="section"
+            aria-labelledby="coordinate-output-title"
+            sx={{ mt: 3, pt: 2.5, borderTop: 1, borderColor: "divider" }}
+          >
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              justifyContent="space-between"
+              alignItems={{ sm: "baseline" }}
+              spacing={{ xs: 0.5, sm: 2 }}
+              sx={{ mb: 1.5 }}
+            >
+              <Typography id="coordinate-output-title" variant="h2">
+                {text.outputFormats}
+              </Typography>
+              <Typography id="coordinate-source-note" variant="body2" color="text.secondary">
+                {sourceNote(read.value, text)}
+              </Typography>
+            </Stack>
+            <Box
+              aria-live="polite"
+              aria-describedby="coordinate-source-note"
+              sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))" } }}
+            >
+              {OUTPUT_FORMATS.map(({ key, label }) => (
+                <ResultCard key={key} label={label} value={result.value[key]}>
+                  <Typography variant="caption" color="text.secondary">
+                    {resolutionLabel(key, result.value.resolution[key], text)}
+                  </Typography>
+                  {key === "gars" && (
+                    <Typography variant="caption" color="warning.main">
+                      {text.areaSource}
+                    </Typography>
+                  )}
+                </ResultCard>
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        <ExampleButtons
+          items={settings.examples.map((example) => ({
+            key: example.id,
+            label: exampleLabels[example.id],
+            onClick: () => applyExample(example),
+          }))}
+        />
       </Paper>
     </ToolPage>
   );
