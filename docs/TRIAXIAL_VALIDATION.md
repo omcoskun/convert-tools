@@ -122,3 +122,34 @@ cevap en iyi eşleşen satıra göre değerlendirilir.
 |---|---:|---|---|
 | Ters mesafe, doğrudan konum, `\|Δα1\|·\|m12\|` | 1e-13 | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
 | m12, M12, M21 (mutlak) | 1e-11 | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
+
+## Satır bazında doğrulama kuralı
+
+`contracts/tools/validate-geod3test.mjs` her satırı veri setinin kendi değerlerine göre, sabit sınırlarla yargılar
+(birim b = 1):
+
+| Ölçü | Sınır |
+|---|---|
+| inv-distance: \|s12 − s12\*\| | 1e-13 |
+| inv-azimuth: \|Δα1\| · \|m12\*\| | 1e-13 |
+| dir-position: ileri çözümün ucunun (β2\*, ω2\*) noktasına Kartezyen uzaklığı | 1e-13 |
+| m12, M12, M21 | 1e-11 |
+
+Bir ölçüsü sınırı aşan ya da NaN olan satır başarısızdır. Tek istisna: ters çözüm başka bir azimut verir, ama uzunluk
+tutar, bildirdiği doğru 2. noktada biter (kapanış ≤ 1e-13) ve çözücü `ambiguous` bildirirse satır "alternatif"
+sayılır ve azimut ölçüsünden kalmaz. Kural `contracts/tools/lib/geod3-judge.mjs` içindedir; JavaScript ve Java
+satırlarını aynı kod yargılar (`--rows-out`, `--java-rows`), başarısız ölçüler `--outliers` dosyasına yazılır.
+
+`Geod3Solve` yalnızca bilgi amaçlı koşulur ve hiçbir kararı değiştirmez. GeographicLib 2.7'nin `Geod3Solve -i` aracı
+Geod3Test'in 500.000 satırının 102'sinde `ERROR: Bad inputs Geodesic3::findroot` yazıp 1 koduyla çıkar, 756 satırda
+da veri setinden 1e-9'dan fazla farklı (en çok 6,85 b) bir uzunluk verir (ölçüm: 15 Kasım 2026). Bu yüzden eski
+"sınır = 2 × referans en büyüğü" kuralı kaldırıldı.
+
+Hold-out verisi olmadan araçları denemek için sentetik dosya:
+
+    node contracts/tools/make-geod3-synthetic.mjs 2000 7 /tmp/g3s.txt
+    node contracts/tools/validate-geod3test.mjs /tmp/g3s.txt --synthetic \
+      --reference "$(command -v Geod3Solve)" --rows-out /tmp/g3s-js.tsv --outliers /tmp/g3s-outliers.tsv
+
+Sentetik dosyada doğru kabul edilen değer `Geod3Solve`'un ters çözümüdür. Kütüphanenin daha kısa bulduğu satır
+referansın eksiğidir; daha uzun bulduğu satır kütüphane hatasıdır.
