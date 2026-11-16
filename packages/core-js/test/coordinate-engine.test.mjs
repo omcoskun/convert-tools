@@ -573,3 +573,11 @@ test("GEOREF dakika sınırının hemen altındaki noktayı kendi hücresine yaz
   assert.equal(encodeGeoref("32.016666666666666", "39.016666666666666", 2), "QJCK0101");
   assert.equal(encodeGeoref("-32.016666666667668", "-39.016666666667668", 2), "KDNF5858");
 });
+
+test("DMS and DDM with no fraction digits pad to two integer digits", () => {
+  assert.equal(formatDms(33.44, "latitude", 0), "33°26'24\"N");
+  assert.equal(formatDms(33.4, "latitude", 0), "33°24'00\"N");
+  assert.equal(formatDms(33.44, "latitude", 2), "33°26'24.00\"N");
+  assert.equal(formatDdm(33.05, "latitude", 0), "33°03'N");
+  assert.equal(formatDdm(33.05, "latitude", 1), "33°03.0'N");
+});
