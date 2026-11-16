@@ -107,6 +107,12 @@ function validateDigits(digits) {
   }
 }
 
+// Two integer digits, plus the point and the fraction when there is one
+// ("24" with no digits, "24.00" with two), as in the Java DmsFormat.
+function fractionWidth(digits) {
+  return digits === 0 ? 2 : 3 + digits;
+}
+
 /**
  * @param {number} value degrees
  * @param {"latitude" | "longitude"} axis
@@ -128,7 +134,7 @@ export function formatDms(value, axis, secondDigits = 5) {
       : value < 0
         ? "W"
         : "E";
-  return `${String(degrees).padStart(degreeWidth, "0")}°${String(minutes).padStart(2, "0")}'${fixed(seconds, secondDigits).padStart(3 + secondDigits, "0")}"${hemisphere}`;
+  return `${String(degrees).padStart(degreeWidth, "0")}°${String(minutes).padStart(2, "0")}'${fixed(seconds, secondDigits).padStart(fractionWidth(secondDigits), "0")}"${hemisphere}`;
 }
 
 /**
@@ -153,7 +159,7 @@ export function formatDdm(value, axis, minuteDigits = 7) {
       : value < 0
         ? "W"
         : "E";
-  return `${String(degrees).padStart(degreeWidth, "0")}°${fixed(minutes, minuteDigits).padStart(3 + minuteDigits, "0")}'${hemisphere}`;
+  return `${String(degrees).padStart(degreeWidth, "0")}°${fixed(minutes, minuteDigits).padStart(fractionWidth(minuteDigits), "0")}'${hemisphere}`;
 }
 
 export function parseCoordinatePair(latitude, longitude) {
