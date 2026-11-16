@@ -90,7 +90,10 @@ CrsTransformation restored = CrsTransformer.transform(
 
 Desteklenen sistemler EPSG:4326, EPSG:3857, WGS 84 UTM kuzey/güney zonları ve
 WGS 84 UPS kuzey/güneydir. API sırası her zaman X/Y'dir; EPSG:4326 için X
-boylam, Y enlemdir.
+boylam, Y enlemdir. UTM alanı ızgarayla tanımlıdır: ileri dönüşüm zon
+ızgarasının (0…1 000 000 m doğu, 0…10 000 000 m kuzey) dışına düşen noktayı,
+ters dönüşüm 80°G–84°K dışındaki ızgara noktasını reddeder. MGRS çözmede
+enlem denetimi yapılmaz.
 
 ## İki harita noktası arasındaki mesafe
 

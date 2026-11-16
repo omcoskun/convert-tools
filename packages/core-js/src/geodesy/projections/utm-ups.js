@@ -30,7 +30,8 @@ import { ConvertToolsError } from "../../errors.js";
 const UTM_FALSE_EASTING = 500000;
 const UTM_FALSE_NORTHING = 10000000;
 const UPS_FALSE_ORIGIN = 2000000;
-const UTM_MAXIMUM_LONGITUDE_OFFSET = 6;
+const UTM_LATITUDE_SLACK = 1e-9; // degrees
+const UTM_GRID_SLACK = 1e-6; // metres
 
 const n = WGS84_DERIVED.n;
 
@@ -205,39 +206,63 @@ export function centralMeridian(zone) {
 }
 
 /**
- * UTM forward projection in the standard zone or a requested zone.
+ * True when a projected point lies on the 1 000 km × 10 000 km UTM grid
+ * (with a micrometre of slack). Written as a single conjunction so that NaN
+ * and the infinities are rejected.
+ * @param {number} easting metres
+ * @param {number} northing metres
+ * @returns {boolean}
+ */
+function isInsideUtmGrid(easting, northing) {
+  return (
+    easting >= -UTM_GRID_SLACK &&
+    easting <= 1000000 + UTM_GRID_SLACK &&
+    northing >= -UTM_GRID_SLACK &&
+    northing <= 10000000 + UTM_GRID_SLACK
+  );
+}
+
+/**
+ * UTM forward projection in the standard zone or a requested zone. The zone
+ * is accepted when the projected point falls on its grid, as in GeographicLib;
+ * there is no separate limit on the longitude distance to the central meridian.
  * @param {number} latitude degrees, −80 … 84
  * @param {number} longitude degrees
- * @param {number} [requestedZone] 1–60; the point must lie within 6° of its
- *   central meridian
+ * @param {number} [requestedZone] 1–60
  * @param {boolean} [requestedNorth] hemisphere of the false northing; defaults
  *   to latitude ≥ 0. The equator may be written in either hemisphere.
  * @returns {{zone: number, north: boolean, easting: number, northing: number}}
  */
 export function utmForward(latitude, longitude, requestedZone, requestedNorth) {
   validatePoint(latitude, longitude);
-  if (latitude < -80 || latitude > 84) {
+  if (latitude < -80 - UTM_LATITUDE_SLACK || latitude > 84 + UTM_LATITUDE_SLACK) {
     throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "UTM is defined between 80°S and 84°N.");
   }
   const zone =
     requestedZone == null ? standardUtmZone(latitude, longitude) : requestedZone;
   if (zone === 0) throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "UTM is defined between 80°S and 84°N.");
   const north = requestedNorth == null ? latitude >= 0 : requestedNorth;
-  if ((north && latitude < 0) || (!north && latitude > 0)) {
+  if (
+    (north && latitude < -UTM_LATITUDE_SLACK) ||
+    (!north && latitude > UTM_LATITUDE_SLACK)
+  ) {
     throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "Latitude is in the other UTM hemisphere.");
   }
   const lon0 = centralMeridian(zone);
-  if (Math.abs(angDiff(lon0, longitude)) > UTM_MAXIMUM_LONGITUDE_OFFSET) {
-    throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "Longitude is too far from the selected UTM zone.");
-  }
   const { x, y } = transverseMercatorForward(lon0, WGS84.utmScale, latitude, longitude);
-  return {
-    zone,
-    north,
-    easting: x + UTM_FALSE_EASTING,
-    northing: y + (north ? 0 : UTM_FALSE_NORTHING),
-  };
+  const easting = x + UTM_FALSE_EASTING;
+  const northing = y + (north ? 0 : UTM_FALSE_NORTHING);
+  if (!isInsideUtmGrid(easting, northing)) {
+    throw new ConvertToolsError("OUTSIDE_UTM_DOMAIN", "Point projects outside the UTM grid of the selected zone.");
+  }
+  return { zone, north, easting, northing };
 }
+
+/**
+ * @typedef {object} UtmInverseOptions
+ * @property {boolean} [latitudeLimit=true] false skips the 80°S…84°N check on
+ *   the result, for MGRS squares that reach beyond the UTM latitude bands
+ */
 
 /**
  * UTM inverse projection.
@@ -245,18 +270,12 @@ export function utmForward(latitude, longitude, requestedZone, requestedNorth) {
  * @param {boolean} north hemisphere of the false northing
  * @param {number} easting metres, 0 … 1 000 000
  * @param {number} northing metres, 0 … 10 000 000
+ * @param {UtmInverseOptions} [options]
  * @returns {{latitude: number, longitude: number}}
  */
-export function utmInverse(zone, north, easting, northing) {
+export function utmInverse(zone, north, easting, northing, options = {}) {
   const lon0 = centralMeridian(zone);
-  if (
-    !Number.isFinite(easting) ||
-    !Number.isFinite(northing) ||
-    easting < 0 ||
-    easting > 1000000 ||
-    northing < 0 ||
-    northing > 10000000
-  ) {
+  if (!isInsideUtmGrid(easting, northing)) {
     throw new ConvertToolsError("GRID_COORDINATE_OUT_OF_RANGE", "UTM easting or northing is outside the supported range.");
   }
   const point = transverseMercatorInverse(
@@ -265,6 +284,13 @@ export function utmInverse(zone, north, easting, northing) {
     easting - UTM_FALSE_EASTING,
     northing - (north ? 0 : UTM_FALSE_NORTHING),
   );
+  if (
+    options.latitudeLimit !== false &&
+    (point.latitude < -80 - UTM_LATITUDE_SLACK ||
+      point.latitude > 84 + UTM_LATITUDE_SLACK)
+  ) {
+    throw new ConvertToolsError("GRID_COORDINATE_OUT_OF_RANGE", "UTM grid point is outside 80°S to 84°N.");
+  }
   return validatePoint(point.latitude, point.longitude);
 }
 
@@ -353,10 +379,11 @@ export function utmUpsForward(latitude, longitude) {
  * @param {boolean} north
  * @param {number} easting
  * @param {number} northing
+ * @param {UtmInverseOptions} [options] passed on to {@link utmInverse}
  * @returns {{latitude: number, longitude: number}}
  */
-export function utmUpsInverse(zone, north, easting, northing) {
+export function utmUpsInverse(zone, north, easting, northing, options = {}) {
   return zone === 0
     ? upsInverse(north, easting, northing)
-    : utmInverse(zone, north, easting, northing);
+    : utmInverse(zone, north, easting, northing, options);
 }

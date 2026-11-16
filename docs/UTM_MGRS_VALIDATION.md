@@ -93,3 +93,34 @@ node contracts/tools/generate-vectors.mjs          # vektörleri yeniden üretir
 cd packages/core-js && node --test test/           # 62 test, 62 geçti
 sh packages/core-java/scripts/test.sh              # javac + 3 Java test sınıfı, hepsi geçti
 ```
+
+## UTM alanı (ızgara tanımlı)
+
+UTM artık iki yönde de aynı alanla tanımlıdır: alan merkez meridyenden 6°
+değil, seçilen zonun ızgarasıdır (GeographicLib ile aynı).
+
+| Yön | Kural | Hata |
+|---|---|---|
+| İleri | Enlem −80°…84° dışında (1e-9° pay); nokta zon ızgarasının dışına düşerse: doğu 0…1 000 000 m, kuzey 0…10 000 000 m (1e-6 m pay) | `OUTSIDE_UTM_DOMAIN` |
+| Ters | Izgara dışında (aynı 1e-6 m pay) | `GRID_COORDINATE_OUT_OF_RANGE` |
+| Ters | Sonuç enlemi −80°…84° dışında (1e-9° pay) | `GRID_COORDINATE_OUT_OF_RANGE`, "UTM grid point is outside 80°S to 84°N." |
+| MGRS çözme | Enlem sınırı denetlenmez (`latitudeLimit: false`); bant denetimini MGRS'in kendi kuralı yapar | — |
+
+Paylar: `UTM_LATITUDE_SLACK = 1e-9` (°) ve `UTM_GRID_SLACK = 1e-6` (m).
+İleri dönüşümdeki yarıküre denetimi de aynı 1e-9° payı kullanır. Izgara
+denetimi tek bir yardımcıda (tüm koşulların birleşimi) yazılmıştır; böylece
+NaN ve sonsuz değerler de reddedilir.
+
+Notlar:
+
+- GEOTRANS, MGRS basamaklarını kesmeden önce 0,499 mm ekler; bu kütüphane
+  GeographicLib gibi tam olarak keser.
+- Tek haneli zon (`4QFJ…`) girdide kabul edilir; çıktıda zon her zaman iki
+  hanelidir.
+- Zon 31 kuzeyde `(20°K, 2°B)`: eski ileri dönüşüm doğu −23 538,687 m
+  üretiyor, ters dönüşüm bunu reddediyordu. Artık ileri dönüşüm de
+  `OUTSIDE_UTM_DOMAIN` verir; iki yön de reddeder.
+- Zon 31 kuzeyde doğu 1000 m, kuzey 8 900 000 m: eski ters dönüşüm boylam
+  −21,6° veriyor, ileri dönüşüm 6° kuralıyla reddediyordu. Artık ileri
+  dönüşüm kabul eder ve ızgara noktasını 1e-6 m içinde geri verir.
+

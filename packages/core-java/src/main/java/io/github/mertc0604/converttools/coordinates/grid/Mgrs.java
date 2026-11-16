@@ -318,7 +318,8 @@ public final class Mgrs {
                 utm ? zone : 0,
                 north,
                 easting,
-                northing
+                northing,
+                false
         );
         long cellMetres = 1;
         for (int k = precision; k < 5; k++) {

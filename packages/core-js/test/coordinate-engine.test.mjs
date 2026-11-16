@@ -581,3 +581,128 @@ test("DMS and DDM with no fraction digits pad to two integer digits", () => {
   assert.equal(formatDdm(33.05, "latitude", 0), "33°03'N");
   assert.equal(formatDdm(33.05, "latitude", 1), "33°03.0'N");
 });
+
+const errorCodeIs = (code) => (error) => error.code === code;
+
+test("utm forward output is always accepted by the inverse", () => {
+  const hemispheres = [
+    { target: "EPSG:32631", minimumLatitude: 0, maximumLatitude: 84 },
+    { target: "EPSG:32731", minimumLatitude: -80, maximumLatitude: 0 },
+  ];
+  for (const { target, minimumLatitude, maximumLatitude } of hemispheres) {
+    for (
+      let latitude = minimumLatitude;
+      latitude <= maximumLatitude + 1e-12;
+      latitude += 0.5
+    ) {
+      for (let longitude = -9; longitude <= 15 + 1e-12; longitude += 0.25) {
+        let grid;
+        try {
+          grid = transformCrs("EPSG:4326", target, longitude, latitude);
+        } catch (error) {
+          assert.equal(
+            error.code,
+            "OUTSIDE_UTM_DOMAIN",
+            `${target} ${latitude} ${longitude}: ${error.code ?? error.message}`,
+          );
+          continue;
+        }
+        const back = transformCrs(target, "EPSG:4326", grid.x, grid.y);
+        closeTo(
+          back.y,
+          latitude,
+          1e-9,
+          `${target} latitude ${latitude} ${longitude}`,
+        );
+        assert.ok(
+          longitudeDifference(back.x, longitude) <= 1e-9,
+          `${target} longitude ${latitude} ${longitude}: ${back.x}`,
+        );
+      }
+    }
+  }
+});
+
+test("utm inverse output is always accepted by the forward", () => {
+  for (const target of ["EPSG:32631", "EPSG:32731"]) {
+    for (let easting = 0; easting <= 1000000 + 1e-9; easting += 25000) {
+      for (let northing = 0; northing <= 10000000 + 1e-9; northing += 250000) {
+        let point;
+        try {
+          point = transformCrs(target, "EPSG:4326", easting, northing);
+        } catch (error) {
+          assert.equal(
+            error.code,
+            "GRID_COORDINATE_OUT_OF_RANGE",
+            `${target} ${easting} ${northing}: ${error.code ?? error.message}`,
+          );
+          continue;
+        }
+        const grid = transformCrs("EPSG:4326", target, point.x, point.y);
+        closeTo(
+          grid.x,
+          easting,
+          1e-6,
+          `${target} easting ${easting} ${northing}`,
+        );
+        closeTo(
+          grid.y,
+          northing,
+          1e-6,
+          `${target} northing ${easting} ${northing}`,
+        );
+      }
+    }
+  }
+});
+
+test("utm forward rejects a point that projects to a negative easting", () => {
+  assert.throws(
+    () => transformCrs("EPSG:4326", "EPSG:32631", -2, 20),
+    errorCodeIs("OUTSIDE_UTM_DOMAIN"),
+  );
+});
+
+test("utm forward accepts a high-latitude point beyond 6 degrees when the easting is in range", () => {
+  const geographic = transformCrs("EPSG:32631", "EPSG:4326", 1000, 8900000);
+  const grid = transformCrs(
+    "EPSG:4326",
+    "EPSG:32631",
+    geographic.x,
+    geographic.y,
+  );
+  assert.ok(Math.abs(grid.x - 1000) < 1e-6, `easting ${grid.x}`);
+  assert.ok(Math.abs(grid.y - 8900000) < 1e-6, `northing ${grid.y}`);
+});
+
+test("utm boundary values round-trip", () => {
+  const grids = [
+    ["EPSG:32631", 0, 0],
+    ["EPSG:32631", 1000000, 0],
+    ["EPSG:32731", 500000, 10000000],
+  ];
+  for (const [target, easting, northing] of grids) {
+    const point = transformCrs(target, "EPSG:4326", easting, northing);
+    const grid = transformCrs("EPSG:4326", target, point.x, point.y);
+    closeTo(grid.x, easting, 1e-6, `${target} easting ${easting}`);
+    closeTo(grid.y, northing, 1e-6, `${target} northing ${northing}`);
+  }
+  const points = [
+    ["EPSG:32631", 3, 84],
+    ["EPSG:32731", 3, -80],
+  ];
+  for (const [target, longitude, latitude] of points) {
+    const grid = transformCrs("EPSG:4326", target, longitude, latitude);
+    const point = transformCrs(target, "EPSG:4326", grid.x, grid.y);
+    closeTo(point.y, latitude, 1e-9, `${target} latitude ${latitude}`);
+    closeTo(point.x, longitude, 1e-9, `${target} longitude ${longitude}`);
+  }
+});
+
+test("mgrs squares beyond the old limits still decode", () => {
+  const square = decodeMgrs("32VJN", false);
+  closeTo(square.longitude, 1.766714, 1e-7, "32VJN longitude");
+  closeTo(square.latitude, 60.2390819, 1e-7, "32VJN latitude");
+  const high = decodeMgrs(encodeMgrs(83.99, 15, 0), true);
+  assert.ok(high.latitude > 83.9, `high MGRS latitude ${high.latitude}`);
+});

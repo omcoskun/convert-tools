@@ -144,6 +144,11 @@ Ters problem en kısa geodeziği döndürür; `triaxialToCartesian` ve
 - Boylam +180° standart zonda zon 1'e, GARS'ta bant `001`'e düşer
   (GeographicLib ile aynı).
 - EPSG:327xx'te ekvator 10 000 000 m northing ile yazılır.
+- UTM alanı ızgarayla tanımlıdır: ileri dönüşüm, projeksiyonu zonun
+  0…1 000 000 m doğu ve 0…10 000 000 m kuzey aralığına düşmeyen noktayı
+  reddeder (merkez meridyene 6° kuralı yoktur); ters dönüşüm 80°G–84°K
+  dışındaki ızgara noktalarını reddeder. MGRS çözmede enlem denetimi
+  yapılmaz.
 - UPS ters dönüşümü 60° enlem çemberi içindeki grid koordinatlarını kabul
   eder.
 - Üç bileşenli güney DMS girdisinde `S` öncesinde `"` veya `″` saniye işareti

@@ -7,6 +7,18 @@ için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
 
 ### Kırıcı değişiklikler
 
+**UTM alanı**
+
+- İleri UTM dönüşümü artık merkez meridyene 6° kuralı yerine zon ızgarasını
+  kullanır: doğu 0…1 000 000 m veya kuzey 0…10 000 000 m aralığının dışına
+  düşen nokta `OUTSIDE_UTM_DOMAIN` ile reddedilir (1e-6 m pay). Yüksek
+  enlemlerde 6°'den uzak ama ızgarada kalan noktalar artık kabul edilir;
+  ızgara dışına taşan noktalar artık ileri dönüşümde de reddedilir.
+- Ters UTM dönüşümü 80°G–84°K dışındaki ızgara noktalarını
+  `GRID_COORDINATE_OUT_OF_RANGE` ile reddeder (1e-9° pay). MGRS çözme bu
+  denetimi atlar (`latitudeLimit: false`), çünkü 100 km kareler 84°K'nin
+  ötesine uzanır.
+
 **Geodezik çözücü**
 
 - Ters ve doğrudan geodezik problemler artık Vincenty yerine Karney'nin

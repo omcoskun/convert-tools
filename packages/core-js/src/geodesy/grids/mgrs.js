@@ -214,7 +214,9 @@ export function decodeMgrs(value, center = true) {
   }
   const easting = (TILE * x) / unit;
   const northing = (TILE * y) / unit;
-  const point = utmUpsInverse(utm ? zone : 0, north, easting, northing);
+  const point = utmUpsInverse(utm ? zone : 0, north, easting, northing, {
+    latitudeLimit: false,
+  });
   return {
     ...point,
     zone: utm ? zone : 0,

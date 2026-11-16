@@ -23,7 +23,8 @@ public final class UtmUps {
     private static final double UTM_FALSE_EASTING = 500000;
     private static final double UTM_FALSE_NORTHING = 10000000;
     private static final double UPS_FALSE_ORIGIN = 2000000;
-    private static final double UTM_MAXIMUM_LONGITUDE_OFFSET = 6;
+    private static final double UTM_LATITUDE_SLACK = 1e-9; // degrees
+    private static final double UTM_GRID_SLACK = 1e-6; // metres
     private static final double UPS_LIMIT_LATITUDE = 60;
 
     private static final double N = Wgs84.THIRD_FLATTENING;
@@ -87,6 +88,18 @@ public final class UtmUps {
 
     private static boolean isNegative(double value) {
         return Double.doubleToRawLongBits(value) < 0;
+    }
+
+    /**
+     * True when a projected point lies on the 1 000 km × 10 000 km UTM grid
+     * (with a micrometre of slack). A single conjunction so that NaN and the
+     * infinities are rejected.
+     */
+    private static boolean isInsideUtmGrid(double easting, double northing) {
+        return easting >= -UTM_GRID_SLACK
+                && easting <= 1000000 + UTM_GRID_SLACK
+                && northing >= -UTM_GRID_SLACK
+                && northing <= 10000000 + UTM_GRID_SLACK;
     }
 
     /** Transverse Mercator forward; returns {x, y} without false origin. */
@@ -231,8 +244,9 @@ public final class UtmUps {
     }
 
     /**
-     * UTM forward projection in a requested zone; the point must lie within
-     * 6° of the zone's central meridian and between 80°S and 84°N.
+     * UTM forward projection in a requested zone; the point must be between
+     * 80°S and 84°N and project onto the zone's grid (no separate limit on
+     * the longitude distance to the central meridian).
      */
     public static GridCoordinate utmForward(
             double latitude,
@@ -253,32 +267,30 @@ public final class UtmUps {
             boolean north
     ) {
         new CoordinatePoint(latitude, longitude);
-        if (latitude < -80 || latitude > 84) {
+        if (latitude < -80 - UTM_LATITUDE_SLACK
+                || latitude > 84 + UTM_LATITUDE_SLACK) {
             throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
                     "UTM is defined between 80°S and 84°N."
             );
         }
-        if ((north && latitude < 0) || (!north && latitude > 0)) {
+        if ((north && latitude < -UTM_LATITUDE_SLACK)
+                || (!north && latitude > UTM_LATITUDE_SLACK)) {
             throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
                     "Latitude is in the other UTM hemisphere."
             );
         }
         double lon0 = centralMeridian(zone);
-        if (Math.abs(Angles.angDiff(lon0, longitude))
-                > UTM_MAXIMUM_LONGITUDE_OFFSET) {
-            throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
-                    "Longitude is too far from the selected UTM zone."
-            );
-        }
         double[] xy = transverseMercatorForward(
                 lon0, Wgs84.UTM_SCALE, latitude, longitude
         );
-        return new GridCoordinate(
-                zone,
-                north,
-                xy[0] + UTM_FALSE_EASTING,
-                xy[1] + (north ? 0 : UTM_FALSE_NORTHING)
-        );
+        double easting = xy[0] + UTM_FALSE_EASTING;
+        double northing = xy[1] + (north ? 0 : UTM_FALSE_NORTHING);
+        if (!isInsideUtmGrid(easting, northing)) {
+            throw new ConvertToolsException(ErrorCode.OUTSIDE_UTM_DOMAIN,
+                    "Point projects outside the UTM grid of the selected zone."
+            );
+        }
+        return new GridCoordinate(zone, north, easting, northing);
     }
 
     public static CoordinatePoint utmInverse(
@@ -287,13 +299,23 @@ public final class UtmUps {
             double easting,
             double northing
     ) {
+        return utmInverse(zone, north, easting, northing, true);
+    }
+
+    /**
+     * UTM inverse projection. With {@code latitudeLimit} false the 80°S…84°N
+     * check on the result is skipped, for MGRS squares that reach beyond the
+     * UTM latitude bands.
+     */
+    public static CoordinatePoint utmInverse(
+            int zone,
+            boolean north,
+            double easting,
+            double northing,
+            boolean latitudeLimit
+    ) {
         double lon0 = centralMeridian(zone);
-        if (!Double.isFinite(easting)
-                || !Double.isFinite(northing)
-                || easting < 0
-                || easting > 1000000
-                || northing < 0
-                || northing > 10000000) {
+        if (!isInsideUtmGrid(easting, northing)) {
             throw new ConvertToolsException(ErrorCode.GRID_COORDINATE_OUT_OF_RANGE,
                     "UTM easting or northing is outside the supported range."
             );
@@ -304,6 +326,13 @@ public final class UtmUps {
                 easting - UTM_FALSE_EASTING,
                 northing - (north ? 0 : UTM_FALSE_NORTHING)
         );
+        if (latitudeLimit
+                && (point[0] < -80 - UTM_LATITUDE_SLACK
+                || point[0] > 84 + UTM_LATITUDE_SLACK)) {
+            throw new ConvertToolsException(ErrorCode.GRID_COORDINATE_OUT_OF_RANGE,
+                    "UTM grid point is outside 80°S to 84°N."
+            );
+        }
         return new CoordinatePoint(point[0], point[1]);
     }
 
@@ -381,6 +410,20 @@ public final class UtmUps {
             double easting,
             double northing
     ) {
+        return inverse(zone, north, easting, northing, true);
+    }
+
+    /**
+     * Inverse of {@link #forward(double, double)}. With {@code latitudeLimit}
+     * false the 80°S…84°N check of the UTM inverse is skipped.
+     */
+    public static CoordinatePoint inverse(
+            int zone,
+            boolean north,
+            double easting,
+            double northing,
+            boolean latitudeLimit
+    ) {
         if (zone < 0 || zone > 60) {
             throw new ConvertToolsException(ErrorCode.INVALID_ZONE,
                     "Zone must be between 0 and 60."
@@ -388,7 +431,7 @@ public final class UtmUps {
         }
         return zone == 0
                 ? upsInverse(north, easting, northing)
-                : utmInverse(zone, north, easting, northing);
+                : utmInverse(zone, north, easting, northing, latitudeLimit);
     }
 
     private static void validateUtmZone(int zone) {

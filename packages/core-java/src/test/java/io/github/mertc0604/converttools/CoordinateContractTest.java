@@ -52,6 +52,7 @@ public final class CoordinateContractTest {
         testGeodesicAdapter();
         testValidation();
         testGeographicLibBoundaryCases();
+        testUtmDomain();
         System.out.println("Java coordinate contract tests passed.");
     }
 
@@ -690,6 +691,179 @@ public final class CoordinateContractTest {
                 back.x() == 27 && Math.abs(back.y()) == 0,
                 "southern UTM CRS equator inverse"
         );
+    }
+
+    /** Same UTM grid-domain cases as the JavaScript coordinate-engine tests. */
+    private static void testUtmDomain() {
+        // Every forward result is accepted by the inverse.
+        String[] targets = {"EPSG:32631", "EPSG:32731"};
+        double[] minimumLatitudes = {0, -80};
+        int[] latitudeSteps = {168, 160};
+        for (int hemisphere = 0; hemisphere < targets.length; hemisphere++) {
+            String target = targets[hemisphere];
+            for (int i = 0; i <= latitudeSteps[hemisphere]; i++) {
+                double latitude = minimumLatitudes[hemisphere] + i * 0.5;
+                for (int j = 0; j <= 96; j++) {
+                    double longitude = -9 + j * 0.25;
+                    CrsTransformation grid;
+                    try {
+                        grid = CrsTransformer.transform(
+                                "EPSG:4326", target, longitude, latitude
+                        );
+                    } catch (ConvertToolsException error) {
+                        require(
+                                error.code() == ErrorCode.OUTSIDE_UTM_DOMAIN,
+                                target + " " + latitude + " " + longitude
+                                        + ": " + error.code()
+                        );
+                        continue;
+                    }
+                    CrsTransformation back = CrsTransformer.transform(
+                            target, "EPSG:4326", grid.x(), grid.y()
+                    );
+                    closeTo(
+                            back.y(),
+                            latitude,
+                            1e-9,
+                            target + " latitude " + latitude + " " + longitude
+                    );
+                    closeLongitude(
+                            back.x(),
+                            longitude,
+                            1e-9,
+                            target + " longitude " + latitude + " " + longitude
+                    );
+                }
+            }
+        }
+
+        // Every inverse result is accepted by the forward.
+        for (String target : targets) {
+            for (int e = 0; e <= 40; e++) {
+                double easting = e * 25000;
+                for (int n = 0; n <= 40; n++) {
+                    double northing = n * 250000;
+                    CrsTransformation point;
+                    try {
+                        point = CrsTransformer.transform(
+                                target, "EPSG:4326", easting, northing
+                        );
+                    } catch (ConvertToolsException error) {
+                        require(
+                                error.code() == ErrorCode.GRID_COORDINATE_OUT_OF_RANGE,
+                                target + " " + easting + " " + northing
+                                        + ": " + error.code()
+                        );
+                        continue;
+                    }
+                    CrsTransformation grid = CrsTransformer.transform(
+                            "EPSG:4326", target, point.x(), point.y()
+                    );
+                    closeTo(
+                            grid.x(),
+                            easting,
+                            1e-6,
+                            target + " easting " + easting + " " + northing
+                    );
+                    closeTo(
+                            grid.y(),
+                            northing,
+                            1e-6,
+                            target + " northing " + easting + " " + northing
+                    );
+                }
+            }
+        }
+
+        // A point that projects to a negative easting is rejected.
+        expectErrorCode(
+                () -> CrsTransformer.transform(
+                        "EPSG:4326", "EPSG:32631", -2, 20
+                ),
+                ErrorCode.OUTSIDE_UTM_DOMAIN,
+                "Negative UTM easting was accepted"
+        );
+
+        // A high-latitude point beyond 6° is accepted when the easting is in
+        // range.
+        CrsTransformation geographic = CrsTransformer.transform(
+                "EPSG:32631", "EPSG:4326", 1000, 8900000
+        );
+        CrsTransformation highLatitude = CrsTransformer.transform(
+                "EPSG:4326", "EPSG:32631", geographic.x(), geographic.y()
+        );
+        closeTo(highLatitude.x(), 1000, 1e-6, "high-latitude easting");
+        closeTo(highLatitude.y(), 8900000, 1e-6, "high-latitude northing");
+
+        // Boundary values round-trip in both directions.
+        String[] gridTargets = {"EPSG:32631", "EPSG:32631", "EPSG:32731"};
+        double[] eastings = {0, 1000000, 500000};
+        double[] northings = {0, 0, 10000000};
+        for (int index = 0; index < gridTargets.length; index++) {
+            CrsTransformation point = CrsTransformer.transform(
+                    gridTargets[index], "EPSG:4326",
+                    eastings[index], northings[index]
+            );
+            CrsTransformation grid = CrsTransformer.transform(
+                    "EPSG:4326", gridTargets[index], point.x(), point.y()
+            );
+            closeTo(
+                    grid.x(), eastings[index], 1e-6,
+                    gridTargets[index] + " boundary easting"
+            );
+            closeTo(
+                    grid.y(), northings[index], 1e-6,
+                    gridTargets[index] + " boundary northing"
+            );
+        }
+        String[] pointTargets = {"EPSG:32631", "EPSG:32731"};
+        double[] longitudes = {3, 3};
+        double[] latitudes = {84, -80};
+        for (int index = 0; index < pointTargets.length; index++) {
+            CrsTransformation grid = CrsTransformer.transform(
+                    "EPSG:4326", pointTargets[index],
+                    longitudes[index], latitudes[index]
+            );
+            CrsTransformation point = CrsTransformer.transform(
+                    pointTargets[index], "EPSG:4326", grid.x(), grid.y()
+            );
+            closeTo(
+                    point.y(), latitudes[index], 1e-9,
+                    pointTargets[index] + " boundary latitude"
+            );
+            closeTo(
+                    point.x(), longitudes[index], 1e-9,
+                    pointTargets[index] + " boundary longitude"
+            );
+        }
+
+        // MGRS squares beyond the old limits still decode.
+        GridCell square = Mgrs.decode("32VJN", false);
+        closeTo(square.point().longitude(), 1.766714, 1e-7, "32VJN longitude");
+        closeTo(square.point().latitude(), 60.2390819, 1e-7, "32VJN latitude");
+        GridCell high = Mgrs.decode(Mgrs.encode(83.99, 15, 0));
+        require(
+                high.point().latitude() > 83.9,
+                "high MGRS latitude " + high.point().latitude()
+        );
+    }
+
+    private static void expectErrorCode(
+            Runnable operation,
+            ErrorCode code,
+            String message
+    ) {
+        try {
+            operation.run();
+        } catch (ConvertToolsException error) {
+            if (error.code() != code) {
+                throw new AssertionError(
+                        message + ": unexpected code " + error.code()
+                );
+            }
+            return;
+        }
+        throw new AssertionError(message);
     }
 
     private static void expectFailureMessage(
