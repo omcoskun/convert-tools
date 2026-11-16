@@ -1,14 +1,16 @@
-// Pure helpers between the distance tool and MapLibre. Nothing here needs
-// WebGL or a DOM, so the display limits, route geometry and basemap style
-// rules are unit tested (test/map-adapter.test.mjs).
+// Pure helpers between the workspace tools and MapLibre. Nothing here needs
+// WebGL or a DOM, so the display limits, line geometry, fit padding and
+// basemap style rules are unit tested (test/map-adapter.test.mjs). What a
+// tool draws is described by a scene (scene.js).
 
 // Web Mercator cannot show latitudes beyond ±85.0511°. Points there are drawn
 // on the display edge; the coordinates used for the calculation never change.
 export const MERCATOR_LATITUDE_LIMIT = 85.0511287798066;
 
-// Same as COLORS.a and COLORS.b in theme.js (kept here so this module has no
-// dependency on the component library).
-export const ROUTE_COLORS = Object.freeze({ start: "#2450e0", end: "#e2492c" });
+// Same as COLORS.a, COLORS.b and COLORS.ink in theme.js (kept here so this
+// module has no dependency on the component library). A line with a
+// gradient runs from a to b; other lines are ink.
+export const LINE_COLORS = Object.freeze({ a: "#2450e0", b: "#e2492c", ink: "#16191c" });
 
 /** West-south and east-north corners of the "whole world" view. */
 export const WORLD_BOUNDS = Object.freeze([
@@ -27,6 +29,28 @@ export function wrapLongitude(longitude) {
 export function displayLatitude(latitude) {
   return Math.max(-MERCATOR_LATITUDE_LIMIT, Math.min(MERCATOR_LATITUDE_LIMIT, latitude));
 }
+
+/**
+ * The view constraint of the workspace map (MapLibre's transformConstrain).
+ * MapLibre's own keeps the Mercator edge at the top or bottom of the
+ * viewport, where the glass top bar would hide a pin drawn on it; here the
+ * centre may go up to the edge, so a fit can bring such pins into the free
+ * part of the map. Longitude is free (world copies); zoom stays in range.
+ * @param {{ lng: number, lat: number }} center
+ * @param {number} zoom
+ * @param {{ minZoom: number, maxZoom: number }} range
+ * @returns {{ longitude: number, latitude: number, zoom: number }}
+ */
+export function constrainView(center, zoom, { minZoom, maxZoom }) {
+  return { longitude: center.lng, latitude: displayLatitude(center.lat), zoom: Math.min(maxZoom, Math.max(minZoom, zoom)) };
+}
+
+/**
+ * A map pin's element in px (MapStage draws it): the head with the label at
+ * the top, a needle down to the tip dot, whose centre is the coordinate,
+ * `dot / 2` above the element's bottom edge.
+ */
+export const PIN_SHAPE = Object.freeze({ width: 30, height: 50, head: 26, dot: 10 });
 
 /** True for a point the Web Mercator map can only show on its edge. */
 export function isBeyondDisplay(point) {
@@ -56,42 +80,11 @@ export function unwrapPath(points) {
   return coordinates;
 }
 
-const EMPTY_COLLECTION = Object.freeze({ type: "FeatureCollection", features: Object.freeze([]) });
-
-export function routeFeatureCollection(points) {
-  const coordinates = unwrapPath(points);
-  if (coordinates.length < 2) return EMPTY_COLLECTION;
-  return {
-    type: "FeatureCollection",
-    features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } }],
-  };
-}
-
-/** [[west, south], [east, north]] in the same unwrapped space as the route, or null. */
-export function routeBounds(points) {
-  const coordinates = unwrapPath(points);
-  if (coordinates.length === 0) return null;
-  let west = Infinity;
-  let south = Infinity;
-  let east = -Infinity;
-  let north = -Infinity;
-  for (const [longitude, latitude] of coordinates) {
-    west = Math.min(west, longitude);
-    east = Math.max(east, longitude);
-    south = Math.min(south, latitude);
-    north = Math.max(north, latitude);
-  }
-  return [
-    [west, south],
-    [east, north],
-  ];
-}
-
 export function isSinglePoint(bounds) {
   return bounds[1][0] - bounds[0][0] < 1e-9 && bounds[1][1] - bounds[0][1] < 1e-9;
 }
 
-/** Middle of the drawn route (sampled vertices are equally spaced along it). */
+/** Middle of a drawn line, where its tag sits (sampled vertices are equally spaced along it). */
 export function routeMidpoint(points) {
   const coordinates = unwrapPath(points);
   if (coordinates.length < 2) return null;
@@ -130,8 +123,49 @@ export function coordinateFromLngLat({ lng, lat }, decimals) {
   };
 }
 
-export function markerPosition(point) {
-  return [point.longitude, displayLatitude(point.latitude)];
+// A fit leaves at least this much of the map for the scene, however large
+// the widgets are on a small window.
+const MIN_FIT_SPAN = 64;
+
+function shrinkPair(start, end, span) {
+  const room = span - MIN_FIT_SPAN;
+  if (start + end <= room) return [start, end];
+  const scale = Math.max(0, room) / (start + end);
+  return [Math.floor(start * scale), Math.floor(end * scale)];
+}
+
+// A widget floats over the map when it lies inside it; the phone sheet
+// reaches below the map and only overlaps its lower edge.
+const showsOver = (widget, stage) =>
+  widget != null &&
+  widget.width > 0 &&
+  widget.height > 0 &&
+  widget.top >= stage.top &&
+  widget.bottom <= stage.bottom &&
+  widget.left >= stage.left &&
+  widget.right <= stage.right;
+
+/**
+ * Padding for fitting a scene into the part of the map the floating widgets
+ * leave free (spec 6.2): left = input widget width + 32 px (the widget sits
+ * 16 px from the edge), bottom = result widget height + 32 px (it sits
+ * 20 px above the bottom). A widget without a size (hidden) or not inside
+ * the map (the phone sheet below it) leaves the base padding. Paddings that
+ * would leave less than 64 px of map shrink in proportion.
+ * @typedef {{ left: number, top: number, right: number, bottom: number, width: number, height: number }} Rect
+ *   a client rect (DOMRect)
+ * @param {Rect} stage the map
+ * @param {{ input?: Rect | null, result?: Rect | null }} widgets the input and result widgets
+ * @param {{ top: number, right: number, bottom: number, left: number }} base padding in px without widgets
+ * @returns {{ top: number, right: number, bottom: number, left: number }}
+ */
+export function fitPadding(stage, { input, result }, base) {
+  let { top, right, bottom, left } = base;
+  if (showsOver(input, stage)) left = Math.max(left, Math.round(input.right - stage.left + 16));
+  if (showsOver(result, stage)) bottom = Math.max(bottom, Math.round(stage.bottom - result.top + 12));
+  [left, right] = shrinkPair(left, right, stage.width);
+  [top, bottom] = shrinkPair(top, bottom, stage.height);
+  return { top, right, bottom, left };
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +174,7 @@ export function markerPosition(point) {
 
 // Positron is light and label-rich. These overrides give water, vegetation and
 // major roads clearer contrast while keeping the basemap quieter than the
-// cobalt/vermilion measurement. Unknown layer ids are ignored, so another
+// cobalt/vermilion lines. Unknown layer ids are ignored, so another
 // (self-hosted) style loads unchanged.
 const PAINT_OVERRIDES = {
   background: { "background-color": "#f3f1eb" },
@@ -187,6 +221,32 @@ export function isLocalizedLabelLayer(layer) {
  * shaded relief is ever requested), the house colours and labels in the
  * interface language.
  */
+// A missing property compares as false: MapLibre does that too, but logs a
+// warning for every feature ("Expected value to be of type number, but found
+// null"). Comparing a stand-in that fails the test keeps the result and the
+// console quiet.
+const COMPARISON_STAND_IN = { "<": 1e9, "<=": 1e9, ">": -1e9, ">=": -1e9 };
+
+/**
+ * A filter expression with every ["get", key] that a number comparison reads
+ * wrapped in a coalesce whose stand-in fails the comparison.
+ * @param {unknown} expression
+ * @returns {unknown}
+ */
+export function guardFilter(expression) {
+  if (!Array.isArray(expression)) return expression;
+  const [operator, ...operands] = expression;
+  const standIn = COMPARISON_STAND_IN[operator];
+  return [
+    operator,
+    ...operands.map((operand) =>
+      standIn !== undefined && Array.isArray(operand) && operand[0] === "get" && operand.length === 2 && typeof operand[1] === "string"
+        ? ["coalesce", operand, standIn]
+        : guardFilter(operand),
+    ),
+  ];
+}
+
 export function tuneBasemapStyle(style, language) {
   if (!style || !Array.isArray(style.layers)) return style;
   const sources = Object.fromEntries(
@@ -197,6 +257,7 @@ export function tuneBasemapStyle(style, language) {
     .map((layer) => {
       const paint = PAINT_OVERRIDES[layer.id];
       let next = paint ? { ...layer, paint: { ...layer.paint, ...paint } } : layer;
+      if (Array.isArray(next.filter)) next = { ...next, filter: guardFilter(next.filter) };
       if (isLocalizedLabelLayer(next)) {
         next = { ...next, layout: { ...next.layout, "text-field": localizedNameExpression(language) } };
       }
@@ -207,7 +268,7 @@ export function tuneBasemapStyle(style, language) {
 
 // ---------------------------------------------------------------------------
 // Offline fallback: shown when the remote basemap cannot be loaded. It makes
-// no requests, so measuring and picking keep working.
+// no requests, so the tools and picking keep working.
 // ---------------------------------------------------------------------------
 
 function graticule(step) {

@@ -1,5 +1,6 @@
-// Small stroke icons, decorative: the button or link around them carries the
-// accessible name. Tool icons use the tool ids of App.jsx.
+// Small stroke icons on a 24 px grid, decorative: the button or link around
+// them carries the accessible name. Tool icons are named in the tool
+// registry (src/tools/index.js).
 const PATHS = {
   length: (
     <>
@@ -20,7 +21,7 @@ const PATHS = {
       <path d="M3 12h18M5 6.5h14M5 17.5h14" />
     </>
   ),
-  distance: (
+  measure: (
     <>
       <circle cx="5.5" cy="17.5" r="2" />
       <circle cx="18.5" cy="6.5" r="2" />
@@ -52,12 +53,6 @@ const PATHS = {
   ),
   expand: <path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5" />,
   collapse: <path d="M4 9h5V4m6 0v5h5M9 20v-5H4m11 5v-5h5" />,
-  panel: (
-    <>
-      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-      <path d="M9.5 4.5v15" />
-    </>
-  ),
   swap: <path d="M7 7h12m0 0-3.5-3.5M19 7l-3.5 3.5M17 17H5m0 0 3.5-3.5M5 17l3.5 3.5" />,
   clear: <path d="M6 6l12 12M18 6 6 18" />,
   alert: (
@@ -66,6 +61,19 @@ const PATHS = {
       <path d="M12 10v4.5m0 2.6v.1" />
     </>
   ),
+  error: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5m0 3.4v.1" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5m0-9v.1" />
+    </>
+  ),
+  chevron: <path d="m6 9.5 6 6 6-6" />,
   copy: (
     <>
       <rect x="8.5" y="8.5" width="11" height="11" rx="2" />
@@ -73,9 +81,26 @@ const PATHS = {
     </>
   ),
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  reference: (
+    <>
+      <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z" />
+      <path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7.5h6M9 11h4" />
+    </>
+  ),
+  triaxial: (
+    <>
+      <ellipse cx="12" cy="12" rx="9" ry="6" />
+      <path d="M3 12c2.5 2.2 15.5 2.2 18 0" strokeDasharray="2 2" />
+      <path d="M12 6v12" />
+    </>
+  ),
   refresh: <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" />,
 };
 
+/**
+ * @param {{ name: string, size?: number, strokeWidth?: number }} props
+ *   name is a key of PATHS; size is the box in px (default 20).
+ */
 export default function Icon({ name, size = 20, strokeWidth = 1.7 }) {
   return (
     <svg

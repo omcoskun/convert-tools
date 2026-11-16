@@ -5,8 +5,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { convertLength, coordinateResults, transformCrs } from "@convert-tools/core";
 import { validateRuntime } from "../src/runtime.js";
-import { measure } from "../src/tools/coordinates/distance.js";
-import { INPUT_FORMATS, readPoint } from "../src/tools/coordinates/positions.js";
+import { readPointText } from "../src/lib/point-text.js";
+import { checkModel, modelOptions, runDirect, runInverse, runRoute } from "../src/tools/measure/measure.js";
+import { INPUT_FORMATS, readPoint } from "../src/tools/positions/positions.js";
 import { readJson } from "./support/files.mjs";
 
 const config = readJson("public/config.json");
@@ -16,11 +17,14 @@ test("config.json and lang.json pass the start-up validation", () => {
   assert.doesNotThrow(() => validateRuntime(config, lang));
 });
 
-test("length examples convert at both precisions", () => {
-  const { precision, examplePrecision, examples } = config.length;
+test("length precisions are 24 by default and at most 60; examples convert at both precisions", () => {
+  const { defaultPrecision, maxPrecision, examplePrecision, examples } = config.length;
+  assert.equal(defaultPrecision, 24);
+  assert.equal(maxPrecision, 60);
+  assert.ok(examplePrecision >= 0 && examplePrecision <= maxPrecision);
   assert.ok(examples.length > 0);
   for (const example of examples) {
-    for (const digits of [precision, examplePrecision]) {
+    for (const digits of [defaultPrecision, examplePrecision]) {
       const result = convertLength(example.value, example.from, example.to, digits);
       assert.equal(typeof result.value, "string", `${example.value} ${example.from} -> ${example.to}`);
     }
@@ -73,19 +77,53 @@ test("CRS initial request and examples transform", () => {
   }
 });
 
-test("distance examples measure within the configured sampling limits", () => {
-  const { path: pathOptions, examples } = config.distance;
+test("measure examples run in their mode within the configured sampling limits", () => {
+  const { path: pathOptions, examples, route } = config.measure;
+  const modes = new Set();
   for (const example of examples) {
-    const result = measure(example, pathOptions);
-    assert.ok(result.path.points.length >= 2, example.id);
-    assert.ok(result.path.points.length <= pathOptions.maxPoints, example.id);
-    // At most three decimals (millimetres); the core drops trailing zeros.
-    assert.match(result.metres, /^\d+(\.\d{1,3})?$/, example.id);
+    modes.add(example.mode);
+    const points = example.points.map((text) => {
+      const reading = readPointText(text);
+      assert.equal(reading.status, "valid", `${example.id}: ${text}`);
+      return { latitude: reading.latitude, longitude: reading.longitude };
+    });
+    let result;
+    if (example.mode === "inverse") {
+      assert.equal(points.length, 2, example.id);
+      result = runInverse(points, {}, pathOptions);
+      // At most three decimals (millimetres); the core drops trailing zeros.
+      assert.match(result.value.lengths.metre, /^\d+(\.\d{1,3})?$/, example.id);
+    } else if (example.mode === "direct") {
+      assert.equal(points.length, 1, example.id);
+      const { azimuth, distance, unit } = example;
+      result = runDirect({ start: points[0], azimuth, distance, unit }, {}, pathOptions);
+    } else {
+      assert.equal(example.mode, "route", example.id);
+      assert.ok(points.length >= 2 && points.length <= route.maxPoints, example.id);
+      result = runRoute(points, {}, pathOptions);
+    }
+    assert.equal(result.ok, true, example.id);
+    for (const line of result.value.lines) {
+      assert.ok(line.points.length >= 2 && line.points.length <= pathOptions.maxPoints, example.id);
+    }
   }
+  assert.deepEqual([...modes].sort(), ["direct", "inverse", "route"], "every mode has an example");
+});
+
+test("the measure models are WGS 84, GRS 80, the sphere and a custom one; the route cap is 50", () => {
+  const { models, route } = config.measure;
+  assert.deepEqual(
+    models.map((model) => model.id),
+    ["wgs84", "grs80", "sphere", "custom"],
+  );
+  for (const model of models.filter(({ id }) => id !== "custom")) {
+    assert.deepEqual(checkModel(modelOptions(model)), { ok: true }, model.id);
+  }
+  assert.equal(route.maxPoints, 50);
 });
 
 test("the comparison sphere has a plausible Earth radius in metres", () => {
-  const radius = config.distance.comparisonSphereRadiusMetres;
+  const radius = config.measure.comparisonSphereRadiusMetres;
   assert.equal(typeof radius, "number");
   // Between the polar and equatorial semi-axes of WGS 84, both included
   // (some web maps use the equatorial radius 6378137 m).

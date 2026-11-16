@@ -4,8 +4,19 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { coordinateResults } from "@convert-tools/core";
-import { compactNumber, readPoint, resolutionLabel, sourceNote } from "../src/tools/coordinates/positions.js";
+import * as core from "@convert-tools/core";
+import {
+  compactNumber,
+  formatOutputs,
+  handoffPoint,
+  positionSnippet,
+  readPoint,
+  readPointWithOptions,
+  readPosition,
+  valuesFrom,
+  resolutionLabel,
+  sourceNote,
+} from "../src/tools/positions/positions.js";
 import { readJson, vector } from "./support/files.mjs";
 
 const { text } = readJson("public/lang.json").tr;
@@ -80,7 +91,7 @@ test("readPoint passes core errors through and rejects an unknown format", () =>
 });
 
 test("Ankara outputs match GeoConvert and the contract vectors", () => {
-  const results = coordinateResults(readPoint("dd", ANKARA), 5);
+  const results = core.coordinateResults(readPoint("dd", ANKARA), 5);
   // echo "39.933365 32.859742" | GeoConvert -m -p 0
   assert.equal(results.mgrs.replace(/ /g, ""), "36SVK8801520370");
   assert.equal(results.mgrs, "36 S VK 88015 20370");
@@ -121,7 +132,7 @@ test("resolutionLabel shows each output's step in its own unit", () => {
 });
 
 test("resolutionLabel reads the resolution metadata of coordinateResults", () => {
-  const { resolution } = coordinateResults(readPoint("dd", ANKARA), 5);
+  const { resolution } = core.coordinateResults(readPoint("dd", ANKARA), 5);
   const labels = Object.fromEntries(
     Object.entries(resolution).map(([key, value]) => [key, resolutionLabel(key, value, text)]),
   );
@@ -141,4 +152,86 @@ test("sourceNote says whether outputs describe the point or the cell centre", ()
   assert.equal(sourceNote({ sourceKind: "cell", sourceCellMetres: 1 }, text), `${text.cellSource} 1 m`);
   assert.equal(sourceNote({ sourceKind: "area", sourceCellDegrees: 5 / 60 }, text), `${text.cellSource} 5′`);
   assert.equal(sourceNote({ sourceKind: "cell", sourceCellDegrees: 0.01 / 60 }, text), `${text.cellSource} 0.01′`);
+});
+
+test("formatOutputs applies the GEOREF precision and the DMS and DDM digits", () => {
+  const ankara = readPoint("dd", ANKARA);
+  const outputs = formatOutputs(ankara, { mgrsPrecision: 5, georefPrecision: 2, dmsDigits: 0, ddmDigits: 7 });
+  assert.equal(outputs.georef, core.encodeGeoref(32.859742, 39.933365, 2));
+  assert.equal(outputs.dms.split("  ")[0], core.formatDms(39.933365, "latitude", 0));
+  assert.equal(outputs.dms.split("  ")[1], core.formatDms(32.859742, "longitude", 0));
+  // The rest is coordinateResults at its own digits.
+  const base = core.coordinateResults(ankara, 5);
+  for (const key of ["dd", "ddm", "mgrs", "utmUps", "gars"]) assert.equal(outputs[key], base[key], key);
+  // Resolution follows the digits: 1″ steps (±0.5″), 1′ GEOREF cells.
+  assert.equal(resolutionLabel("dms", outputs.resolution.dms, text), "±0.5″ çıktı yuvarlaması");
+  assert.equal(resolutionLabel("georef", outputs.resolution.georef, text), "1′ hücre");
+  const coarse = formatOutputs(ankara, { mgrsPrecision: 2, georefPrecision: 0, dmsDigits: 5, ddmDigits: 1 });
+  assert.equal(coarse.mgrs, core.coordinateResults(ankara, 2).mgrs);
+  assert.equal(coarse.georef, core.encodeGeoref(32.859742, 39.933365, 0));
+  assert.equal(resolutionLabel("georef", coarse.resolution.georef, text), "60′ hücre");
+  assert.equal(coarse.ddm.split("  ")[0], core.formatDdm(39.933365, "latitude", 1));
+  assert.equal(resolutionLabel("ddm", coarse.resolution.ddm, text), "±0.05′ çıktı yuvarlaması");
+});
+
+test("readPointWithOptions reads an MGRS square at its centre or its south-west corner", () => {
+  // decodeMgrs("36SVK8820", false) and (…, true): the 1 km square's corner and centre.
+  const corner = readPointWithOptions("mgrs", { mgrs: "36SVK8820" }, { mgrsCorner: true });
+  assert.equal(corner.latitude, 39.93002351597026);
+  assert.equal(corner.sourceCellMetres, 1000);
+  assert.equal(corner.sourceCorner, true);
+  const centre = readPointWithOptions("mgrs", { mgrs: "36SVK8820" }, { mgrsCorner: false });
+  assert.equal(centre.latitude, 39.934535397531235);
+  assert.equal(sourceNote(corner, text), `${text.cornerSource} 1000 m`);
+  // Other formats ignore the option.
+  assertPoint(readPointWithOptions("dd", ANKARA, { mgrsCorner: true }), 39.933365, 32.859742, "dd");
+});
+
+test("readPosition says what a half-typed, empty or invalid input means and never throws", () => {
+  assert.equal(readPosition("dd", { dd: "" }).status, "empty");
+  assert.equal(readPosition("dd", { dd: "39.9" }).status, "incomplete");
+  assert.equal(readPosition("dd", { dd: "91, 10" }).status, "invalid");
+  const valid = readPosition("dd", { dd: "39.933365, 32.859742" });
+  assert.equal(valid.status, "valid");
+  assertPoint(valid.source, 39.933365, 32.859742, "dd text");
+  assert.equal(readPosition("mgrs", { mgrs: "  " }).status, "empty");
+  assert.deepEqual(readPosition("mgrs", { mgrs: "36S VK 88015 2037" }), { status: "error", code: "INVALID_MGRS" });
+  assert.equal(readPosition("utm", { zone: "36", hemisphere: "N", easting: "", northing: "" }).status, "empty");
+});
+
+test("positionSnippet writes the core calls that produced the outputs, and they run", () => {
+  const options = { mgrsPrecision: 5, georefPrecision: 4, dmsDigits: 5, ddmDigits: 7, mgrsCorner: false };
+  const dd = positionSnippet("dd", { dd: "39.933365, 32.859742" }, options);
+  assert.equal(dd, 'const point = fromDecimalDegrees("39.933365", "32.859742");\ncoordinateResults(point, 5);');
+  const corner = positionSnippet("mgrs", { mgrs: "36SVK8820" }, { ...options, mgrsCorner: true, georefPrecision: 2, dmsDigits: 0 });
+  assert.match(corner, /^const point = decodeMgrs\("36SVK8820", false\);/);
+  assert.ok(corner.includes("encodeGeoref(point.longitude, point.latitude, 2);"), corner);
+  assert.ok(corner.includes('formatDms(point.latitude, "latitude", 0);'), corner);
+  for (const snippet of [dd, corner]) {
+    assert.doesNotThrow(() => new Function(...Object.keys(core), snippet)(...Object.values(core)), snippet);
+  }
+});
+
+test("handoffPoint passes typed DD text through and full degrees otherwise", () => {
+  assert.deepEqual(handoffPoint("dd", { dd: "39.933365, 32.859742" }, readPoint("dd", ANKARA)), {
+    latitude: "39.933365",
+    longitude: "32.859742",
+  });
+  const mgrs = readPoint("mgrs", { mgrs: "36S VK 88015 20370" });
+  assert.deepEqual(handoffPoint("mgrs", {}, mgrs), { latitude: String(mgrs.latitude), longitude: String(mgrs.longitude) });
+});
+
+test("valuesFrom fills the fields of the format switched to from the current position", () => {
+  const ankara = readPoint("dd", ANKARA);
+  const outputs = formatOutputs(ankara);
+  const point = { latitude: "39.933365", longitude: "32.859742" };
+  for (const format of ["dd", "dms", "ddm", "mgrs", "utm", "gars", "georef"]) {
+    const read = readPosition(format, valuesFrom(format, outputs, {}, point));
+    assert.equal(read.status, "valid", format);
+    // Within the format's own cell: GARS is 5′, the others are much finer.
+    const tolerance = format === "gars" ? 0.05 : 1e-4;
+    assert.ok(Math.abs(read.source.latitude - 39.933365) < tolerance, `${format} ${read.source.latitude}`);
+  }
+  const ups = valuesFrom("utm", formatOutputs({ latitude: 85, longitude: 0 }), {}, point);
+  assert.deepEqual([ups.zone, ups.hemisphere, ups.easting], ["0", "N", "2000000.000"]);
 });

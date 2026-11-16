@@ -2,6 +2,7 @@
 // that reads it, the core's units and the error-code contract.
 
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 import { getCategory } from "@convert-tools/core";
 import { LANG_GROUPS } from "../src/runtime.js";
@@ -13,11 +14,15 @@ const errorCodes = readJson("../contracts/error-codes.json").codes.map((entry) =
 
 const sorted = (values) => [...values].sort();
 
-// Text keys read as text[labelKey], where labelKey comes from a table in the
-// named file. Each key must appear there as a string literal.
-const DYNAMIC_TEXT_KEYS = {
-  "App.jsx": ["units", "positionFormats", "crs", "distance"],
-};
+// Text keys read as text[labelKey]: the reader is the file that does the
+// reading, the table the file where each key appears as a string literal.
+const DYNAMIC_TEXT_KEYS = [
+  {
+    reader: path.join("shell", "TopBar.jsx"),
+    table: path.join("tools", "index.js"),
+    keys: ["navMeasure", "navPositions", "navCrs", "navLength", "navTriaxial", "navReference"],
+  },
+];
 
 test("lang.json has exactly the languages of config.json and the four groups", () => {
   assert.deepEqual(sorted(Object.keys(lang)), sorted(config.languages));
@@ -56,15 +61,20 @@ test("the text group holds exactly the keys the sources read", () => {
   const used = new Set();
   const dynamicFiles = [];
   for (const { name, text } of sourceFiles()) {
-    // text.key, but not "text.secondary" (an MUI palette path in a string).
-    for (const match of text.matchAll(/(?<![\w"'`$])text\.([A-Za-z_]\w*)/g)) used.add(match[1]);
+    // text.key, but not "text.secondary" (an MUI palette path in a string)
+    // nor a file name such as point-text.js.
+    for (const match of text.matchAll(/(?<![\w"'`$-])text\.([A-Za-z_]\w*)/g)) used.add(match[1]);
     if (/\btext\[/.test(text)) dynamicFiles.push(name);
   }
-  assert.deepEqual(sorted(dynamicFiles), sorted(Object.keys(DYNAMIC_TEXT_KEYS)), "files that read text[...]");
+  assert.deepEqual(
+    sorted(dynamicFiles),
+    sorted(DYNAMIC_TEXT_KEYS.map(({ reader }) => reader)),
+    "files that read text[...]",
+  );
   const sources = new Map(sourceFiles().map(({ name, text }) => [name, text]));
-  for (const [file, keys] of Object.entries(DYNAMIC_TEXT_KEYS)) {
+  for (const { table, keys } of DYNAMIC_TEXT_KEYS) {
     for (const key of keys) {
-      assert.ok(sources.get(file).includes(`"${key}"`), `${file} names text key ${key}`);
+      assert.ok(sources.get(table).includes(`"${key}"`), `${table} names text key ${key}`);
       used.add(key);
     }
   }
@@ -96,7 +106,12 @@ test("every unit of the core's length category has a label in every language", (
 });
 
 test("every example id in config.json has a label, and every label an example", () => {
-  const ids = [...config.position.examples, ...config.crs.examples, ...config.distance.examples].map(
+  const ids = [
+    ...config.position.examples,
+    ...config.crs.examples,
+    ...config.measure.examples,
+    ...config.triaxial.examples,
+  ].map(
     (example) => example.id,
   );
   assert.equal(new Set(ids).size, ids.length, "example ids are unique");

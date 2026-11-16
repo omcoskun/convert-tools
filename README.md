@@ -146,15 +146,65 @@ Ayrıntılar: [`packages/core-java/README.md`](packages/core-java/README.md).
 
 ## Tanıtım arayüzü (`app/`)
 
-- `npm run dev` ile `http://localhost:3008/` adresinde açılır. Uzunluk,
-  konum biçimleri, CRS/EPSG ve mesafe araçlarını gösterir.
+`npm run dev` ile `http://localhost:3008/` adresinde açılır. Üst çubukta altı
+araç vardır; her biri kendi adresiyle açılır:
+
+| Araç | Adres | Ne gösterir |
+|---|---|---|
+| Ölçüm | `#measure` | İki nokta (ters problem), azimut + mesafe (düz problem) ve rota; WGS 84, GRS 80, küre veya özel (prolate dahil) model; bütün birimler ve jeodezik büyüklükler |
+| Konum | `#positions` | DD, DMS, DDM, MGRS, UTM/UPS, GARS ve GEOREF arasında çeviri; çıktı hassasiyetleri ve MGRS karesinin köşesi veya merkezi |
+| CRS | `#crs` | Desteklenen EPSG sistemleri arasında koordinat dönüşümü |
+| Uzunluk | `#length` | Kesin kesirli oranlarla birim çevirisi, 0–60 ondalık hassasiyet, kesin kesir ve bütün birimler |
+| Üç eksenli | `#triaxial` | Üç eksenli elipsoitte ters ve düz jeodezik problem, kartezyen dönüşümler |
+| Referans | `#reference` | Doğruluk, WGS 84 sabitleri, desteklenen CRS'ler, birim tanımları ve hata kodları |
+
+- **Çalışma alanı.** Ölçüm, Konum ve CRS tek bir haritanın üzerinde çalışır.
+  Harita üst çubuğun altındaki bütün pencereyi kaplar. Girdiler sol üstteki
+  girdi panelinde, sonuç alt ortadaki sonuç şeridinde durur. Panel
+  daraltılabilir. "Ayrıntılar" düğmesi şeridin üstünde bir çekmece açar:
+  bütün birimler, ek büyüklükler, model ve kütüphane çağrısı oradadır. Sağdaki
+  denetimler yakınlaştırır, sonuca sığdırır, tüm dünyayı gösterir ve haritayı
+  büyütür. Büyütülmüş haritada paneller gizlenir. Telefonda (760 px'in altı)
+  panel ve şerit ekranın altındaki bir sayfaya taşınır. Sayfanın tepesinde
+  ana değeri gösteren koyu bir şerit vardır ve sayfa tutamaçla büyütülüp
+  küçültülür.
+- **Sayfa araçları.** Uzunluk, Üç eksenli ve Referans haritasız, ortalanmış
+  birer sütundur ve sayfa kaydırılır. Çalışma alanı bu sırada gizli olarak
+  açık kalır; geri dönüldüğünde harita aynı görünümdedir.
+- **Araç durumu.** Araçlar arasında geçerken her araç girdilerini ve
+  seçimlerini korur. Bu durum yalnız sayfa açıkken tutulur, kaydedilmez.
+- **Araçlar arası aktarım.** Konum'daki nokta Ölçüm'e A veya B olarak ya da
+  CRS'ye gönderilebilir; CRS'deki nokta Konum'a gönderilebilir.
+- **Kütüphane çağrısı.** Her araç, sonucu üreten `@convert-tools/core`
+  çağrısını kopyalanabilir biçimde gösterir.
+- **Haritadan seçim ve yapıştırma.** Ölçüm'de A ve B haritadan seçilebilir ve
+  sürüklenebilir; rotaya haritadan nokta eklenebilir. Konum ve CRS'de haritaya
+  tıklamak noktayı seçer. Seçilen nokta ekran çözünürlüğüne (5–8 ondalık)
+  yuvarlanıp forma yazılır. "41.0082, 28.9784" gibi bir çift, ya da DMS
+  yazımı, nokta alanına yapıştırılabilir. Enlem ve boylam yer değiştirmişse
+  düzeltilir ve bir notla bildirilir.
+- **Sayılar.** Gösterilen değerler dile göre gruplanır (Türkçe `6.378.137` ve
+  `0,3048`, İngilizce `6,378,137` ve `0.3048`). Kopyalanan değer her zaman
+  düz yazılır: nokta ondalık ayırıcıdır ve basamak gruplaması yoktur.
+  Koordinat çiftlerinde virgül iki değeri ayırdığı için çift her dilde ondalık
+  noktayla yazılır.
+- **Adresler.** `#<araç>` açık aracı belirtir. Adres bir araç belirtmiyorsa
+  ilk açılışta Ölçüm açılır, sonradan değişirse açık araç olduğu gibi kalır.
+  Eski `#distance` adresi Ölçüm'ü açar ve `#measure` olarak yeniden yazılır.
+  `#reference/<bölüm>` Referans'ı o bölümde açar (`accuracy`, `wgs84`, `crs`,
+  `units`, `errors`).
+
+Değişmeyen kurallar:
+
 - Bütün değerler `@convert-tools/core` kök girişinden gelir. Arayüzde hesap
   formülü yoktur; `app/test/boundaries.test.mjs` ve ESLint bunu denetler.
-- `app/public/config.json` başlangıç değerlerini ve örnekleri,
+- `app/public/config.json` başlangıç değerlerini, örnekleri ve ön ayarları,
   `app/public/lang.json` Türkçe ve İngilizce metinleri ve hata kodlarının
-  yerelleştirilmiş açıklamalarını tutar. İkisi açılışta okunur; yayımlanmış bir
-  derlemede yeniden derlemeden değiştirilebilir. `app/test/lang.test.mjs` ve
-  `config.test.mjs` anahtarların kodla ve çekirdekle uyumunu denetler.
+  yerelleştirilmiş açıklamalarını tutar. İkisi açılışta okunur ve
+  doğrulanır. Yayımlanmış bir derlemede yeniden derlemeden değiştirilebilirler.
+  `app/test/lang.test.mjs` ve `config.test.mjs` anahtarların kodla ve
+  çekirdekle uyumunu denetler. `render.test.mjs` her aracı iki dilde de
+  çizer.
 - `IWC` derleme değişkeni (`hap` veya `hwf`) webpack `DefinePlugin` ile
   `process.env.IWC` olarak gömülür ve `<html data-iwc>` olarak yazılır. İki
   değer arasındaki davranış farkı henüz tanımlı değildir; arayüz bu değere göre
@@ -173,12 +223,11 @@ Ayrıntılar: [`packages/core-java/README.md`](packages/core-java/README.md).
   Firefox 68 ve Safari 14'te çalışır (BigInt).
 - Üretim derlemesi göreli URL kullanır (GitHub Pages alt yolunda da çalışır)
   ve Content-Security-Policy meta etiketi taşır.
-- Mesafe haritası MapLibre GL JS 6 ile çizilen bir Web Mercator vektör
-  haritasıdır. Çekirdeğin örneklediği geodezik hattı gösterir; harita bir
-  görseldir, ölçümü her zaman çekirdek yapar. A ve B haritadan seçilebilir ve
-  sürüklenebilir; seçilen nokta ekran çözünürlüğüne (5–8 ondalık) yuvarlanıp
-  forma yazılır. ±85,05°'nin ötesindeki noktalar haritanın kenarına çizilir,
-  formdaki değer değişmez. Antimeridyeni geçen hat tek parça çizilir.
+- Harita, MapLibre GL JS 6 ile çizilen bir Web Mercator vektör haritasıdır.
+  Çekirdeğin örneklediği jeodezik hattı ve noktaları gösterir. Harita yalnız
+  bir görseldir; ölçümü her zaman çekirdek yapar. ±85,05°'nin ötesindeki
+  noktalar haritanın kenarına çizilir ve formdaki değer değişmez.
+  Antimeridyeni geçen hat tek parça çizilir.
 - Altlık OpenFreeMap "positron" stilidir (`config.json` → `map.style`). Uydu
   görüntüsü ve gölgeli rölyef yoktur: `src/map/map-adapter.js` stildeki bütün
   raster kaynakları atar. Atıflar haritanın sağ altında görünür. Altlık
@@ -187,16 +236,18 @@ Ayrıntılar: [`packages/core-java/README.md`](packages/core-java/README.md).
   OpenFreeMap ücretsizdir ama hizmet garantisi (SLA) vermez; gerekirse aynı
   stil kendi sunucunuzda barındırılabilir.
 - CSP `connect-src` derleme sırasında `map.style` adresinin kaynağına açılır.
-  Bu yüzden altlık sunucusunu değiştirmek (diğer ayarların aksine) yeniden
+  Bu yüzden altlık sunucusunu değiştirmek, diğer ayarların aksine, yeniden
   derleme ister.
-- MapLibre yalnız mesafe aracı açıldığında ayrı bir parça olarak yüklenir
-  (`src/map/maplibre.js`; araç düğmesinin üzerine gelince önceden çekilir).
-  Stil dosyası ve web worker `node_modules/maplibre-gl/dist`'ten olduğu gibi
-  `vendor/` klasörüne kopyalanır. `app/loaders/blank-import-meta-url.cjs`,
-  webpack'in kütüphanedeki `import.meta.url` ifadesine derleme makinesinin
-  dosya yolunu gömmesini engeller.
+- MapLibre ayrı bir parça olarak, yalnız bir çalışma alanı aracı açıldığında
+  yüklenir (`src/map/maplibre.js`). Araç bağlantısının üzerine gelinince ya da
+  bağlantıya odaklanılınca önceden çekilir. Stil dosyası ve web worker
+  `node_modules/maplibre-gl/dist`'ten olduğu gibi `vendor/` klasörüne
+  kopyalanır. `app/loaders/blank-import-meta-url.cjs`, webpack'in
+  kütüphanedeki `import.meta.url` ifadesine derleme makinesinin dosya yolunu
+  gömmesini engeller.
 - Harita WebGL2 ve modül web worker'ı ister (MapLibre 6). Bunlar olmayan
-  tarayıcıda harita yerine bir açıklama çıkar; form ve ölçüm yine çalışır.
+  tarayıcıda harita yerine bir açıklama çıkar; formlar ve sonuçlar yine
+  çalışır.
 
 ## Güvenlik
 
