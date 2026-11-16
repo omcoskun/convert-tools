@@ -2,12 +2,14 @@
   "defaultLanguage": "tr",
   "languages": ["tr", "en"],
   "length": {
-    "precision": 24,
+    "defaultPrecision": 24,
+    "maxPrecision": 60,
     "examplePrecision": 10,
     "examples": [
       { "value": "1", "from": "nautical-mile", "to": "metre" },
       { "value": "1", "from": "foot", "to": "metre" },
-      { "value": "1", "from": "mile", "to": "kilometre" }
+      { "value": "1", "from": "mile", "to": "kilometre" },
+      { "value": "1", "from": "foot", "to": "mile" }
     ]
   },
   "position": {
@@ -52,14 +54,50 @@
       { "id": "wgs84-to-ups-north", "source": "EPSG:4326", "target": "EPSG:5041", "x": "0", "y": "85" }
     ]
   },
-  "distance": {
+  "measure": {
     "path": { "maxSegmentMetres": 25000, "maxPoints": 2049 },
     "comparisonSphereRadiusMetres": 6371008.8,
+    "models": [
+      { "id": "wgs84" },
+      { "id": "grs80", "a": 6378137, "inverseFlattening": 298.257222101 },
+      { "id": "sphere", "a": 6371008.8, "inverseFlattening": 0 },
+      { "id": "custom" }
+    ],
+    "route": { "maxPoints": 50 },
     "examples": [
-      { "id": "ankara-istanbul", "startLatitude": "39.933365", "startLongitude": "32.859742", "endLatitude": "41.008238", "endLongitude": "28.978359" },
-      { "id": "antimeridian", "startLatitude": "10", "startLongitude": "179.9", "endLatitude": "10", "endLongitude": "-179.9" },
-      { "id": "near-pole", "startLatitude": "89.9", "startLongitude": "0", "endLatitude": "89.9", "endLongitude": "90" },
-      { "id": "equator-north-pole", "startLatitude": "0", "startLongitude": "0", "endLatitude": "90", "endLongitude": "0" }
+      { "id": "ankara-istanbul", "mode": "inverse", "points": ["39.933365, 32.859742", "41.008238, 28.978359"] },
+      { "id": "antimeridian", "mode": "inverse", "points": ["10, 179.9", "10, -179.9"] },
+      { "id": "near-pole", "mode": "inverse", "points": ["89.9, 0", "89.9, 90"] },
+      { "id": "equator-north-pole", "mode": "inverse", "points": ["0, 0", "90, 0"] },
+      { "id": "ankara-east-30000-km", "mode": "direct", "points": ["39.933365, 32.859742"], "azimuth": "90", "distance": "30000", "unit": "kilometre" },
+      { "id": "istanbul-500-nm", "mode": "direct", "points": ["41.008238, 28.978359"], "azimuth": "225", "distance": "500", "unit": "nautical-mile" },
+      { "id": "ankara-istanbul-izmir", "mode": "route", "points": ["39.933365, 32.859742", "41.008238, 28.978359", "38.4237, 27.1428"] },
+      { "id": "tokyo-honolulu-san-francisco", "mode": "route", "points": ["35.6762, 139.6503", "21.3069, -157.8583", "37.7749, -122.4194"] }
+    ]
+  },
+  "triaxial": {
+    "presets": [
+      { "id": "earth", "a": 6378172, "b": 6378102, "c": 6356752 },
+      { "id": "cayley", "a": 1.4142135623730951, "b": 1, "c": 0.7071067811865476 },
+      { "id": "mild", "a": 1.2, "b": 1.1, "c": 1 },
+      { "id": "oblate", "a": 6378137, "b": 6378137, "c": 6356752.314245 },
+      { "id": "prolate", "a": 1, "b": 0.8, "c": 0.8 }
+    ],
+    "examples": [
+      { "id": "triaxial-earth-inverse", "mode": "inverse", "preset": "earth", "beta1": "40", "omega1": "30", "beta2": "41", "omega2": "29" },
+      { "id": "triaxial-earth-direct", "mode": "direct", "preset": "earth", "beta1": "40", "omega1": "30", "azimuth": "45", "distance": "100000" },
+      { "id": "triaxial-cayley-umbilic", "mode": "inverse", "preset": "cayley", "beta1": "-90", "omega1": "0", "beta2": "90", "omega2": "0" },
+      { "id": "triaxial-earth-cartesian", "mode": "cartesian", "preset": "earth", "beta": "40", "omega": "30" }
+    ]
+  },
+  "reference": {
+    "accuracy": [
+      { "id": "utm-ups", "reference": "GeoConvert 2.7", "difference": "4,8 nm" },
+      { "id": "mgrs", "reference": "GeoConvert 2.7", "difference": "0 / 3,2 nm" },
+      { "id": "epsg-grids", "reference": "GeoConvert, PolarStereographic", "difference": "3,3 nm" },
+      { "id": "web-mercator", "reference": "tanım formülü (Python)", "difference": "15 nm" },
+      { "id": "geodesic", "reference": "GeodSolve 2.7", "difference": "11,2 nm / 10,0 nm" },
+      { "id": "gars-georef", "reference": "GeographicLib", "difference": "0 / 1,4e-14°" }
     ]
   },
   "map": {

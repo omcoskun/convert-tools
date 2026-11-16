@@ -5,7 +5,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime, validateRuntime } from "../src/runtime.js";
 
-const CONFIG = { defaultLanguage: "tr", languages: ["tr", "en"] };
+const CONFIG = {
+  defaultLanguage: "tr",
+  languages: ["tr", "en"],
+  triaxial: { presets: [{ id: "earth", a: 3, b: 2, c: 1 }], examples: [{ id: "e", mode: "inverse", preset: "earth" }] },
+  reference: { accuracy: [{ id: "geodesic", reference: "GeodSolve", difference: "1 nm" }] },
+};
 const group = (value) => ({ a: value, b: value });
 const LANG = {
   tr: { text: group("tr"), units: group("tr"), examples: group("tr"), errors: group("tr") },
@@ -66,6 +71,15 @@ test("validateRuntime rejects the other broken shapes", () => {
     [CONFIG, "x", "lang.json is not an object."],
     [{ ...CONFIG, languages: [] }, LANG, "config.json: languages must be a non-empty array."],
     [{ ...CONFIG, defaultLanguage: "de" }, LANG, 'config.json: defaultLanguage "de" is not in languages.'],
+    [{ ...CONFIG, triaxial: undefined }, LANG, "config.json: triaxial.presets must be a non-empty array."],
+    [{ ...CONFIG, triaxial: { ...CONFIG.triaxial, presets: [{ id: "x", a: 1, b: "2", c: 1 }] } }, LANG, "config.json: triaxial.presets[0] needs an id and numbers a, b, c."],
+    [
+      { ...CONFIG, triaxial: { ...CONFIG.triaxial, examples: [{ id: "e", mode: "inverse", preset: "nope" }] } },
+      LANG,
+      "config.json: triaxial.examples[0] needs an id, a mode (inverse, direct, cartesian) and a preset id.",
+    ],
+    [{ ...CONFIG, reference: {} }, LANG, "config.json: reference.accuracy must be an array."],
+    [{ ...CONFIG, reference: { accuracy: [{ id: "x", reference: "", difference: "1" }] } }, LANG, "config.json: reference.accuracy[0] needs the texts id, reference and difference."],
   ];
   for (const [config, lang, message] of cases) {
     assert.throws(() => validateRuntime(config, lang), { message });

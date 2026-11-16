@@ -118,10 +118,12 @@ function decimalPair(first, second) {
   let latitude;
   let longitude;
   let swapped = false;
+  let longitudeFirst = false;
   if (a.axis != null || b.axis != null) {
     if (a.axis != null && b.axis != null && a.axis === b.axis) return null;
     const firstIsLatitude = a.axis === "latitude" || b.axis === "longitude";
     [latitude, longitude] = firstIsLatitude ? [a.value, b.value] : [b.value, a.value];
+    longitudeFirst = !firstIsLatitude;
   } else if (inRange(a.value, 90) && inRange(b.value, 180)) {
     [latitude, longitude] = [a.value, b.value];
   } else {
@@ -129,9 +131,10 @@ function decimalPair(first, second) {
     // only longitude, latitude. That order is taken and reported as swapped.
     [latitude, longitude] = [b.value, a.value];
     swapped = true;
+    longitudeFirst = true;
   }
   if (!inRange(latitude, 90) || !inRange(longitude, 180)) return null;
-  return { latitude, longitude, swapped };
+  return { latitude, longitude, swapped, longitudeFirst };
 }
 
 /** Decimal degrees of a core result as plain text without trailing zeros. */
@@ -182,14 +185,15 @@ function dmsPair(line) {
   const firstAxis = axisOf(first);
   const secondAxis = axisOf(second);
   if (firstAxis != null && firstAxis === secondAxis) return null;
-  const ordered = firstAxis === "longitude" || secondAxis === "latitude" ? [second, first] : [first, second];
-  const attempts = [{ parts: ordered, swapped: false }];
+  const lettersReversed = firstAxis === "longitude" || secondAxis === "latitude";
+  const ordered = lettersReversed ? [second, first] : [first, second];
+  const attempts = [{ parts: ordered, swapped: false, longitudeFirst: lettersReversed }];
   // Unlettered angles may only be valid the other way round, as with decimals.
-  if (firstAxis == null && secondAxis == null) attempts.push({ parts: [second, first], swapped: true });
-  for (const { parts: [latitude, longitude], swapped } of attempts) {
+  if (firstAxis == null && secondAxis == null) attempts.push({ parts: [second, first], swapped: true, longitudeFirst: true });
+  for (const { parts: [latitude, longitude], swapped, longitudeFirst } of attempts) {
     try {
       const point = fromDms(latitude, longitude);
-      return { latitude: degreesText(point.latitude), longitude: degreesText(point.longitude), swapped };
+      return { latitude: degreesText(point.latitude), longitude: degreesText(point.longitude), swapped, longitudeFirst };
     } catch {
       // Not a valid angle pair in this order; try the next or give up.
     }
@@ -254,6 +258,30 @@ export function parseCoordinatePaste(input) {
     swapped: pairs.some((pair) => pair.swapped),
     format: pairs.some((pair) => pair.format === "dms") ? "dms" : "decimal",
   };
+}
+
+/**
+ * The one latitude/longitude pair a line of typed text holds, and how it was
+ * written. The same notations as parseCoordinatePaste, on a single line.
+ * @param {string} input
+ * @returns {null | {
+ *   latitude: string,
+ *   longitude: string,
+ *   longitudeFirst: boolean,
+ *   guessed: boolean,
+ * }} null when the line is not exactly one pair. longitudeFirst: the text
+ *   gives the longitude first (hemisphere letters say so, or the order was
+ *   guessed); guessed: there are no hemisphere letters and the numbers are
+ *   only valid as longitude, latitude.
+ */
+export function readCoordinatePair(input) {
+  if (typeof input !== "string") return null;
+  const source = unwrap(normalizeSigns(input).trim());
+  if (source === "" || source.length > 200 || /[\r\n]/.test(source)) return null;
+  const pairs = linePairs(source);
+  if (pairs == null || pairs.length !== 1) return null;
+  const [{ latitude, longitude, swapped, longitudeFirst }] = pairs;
+  return { latitude, longitude, longitudeFirst, guessed: swapped };
 }
 
 /**

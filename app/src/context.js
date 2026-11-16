@@ -4,8 +4,10 @@ import { createContext, useContext } from "react";
 export const ConfigContext = createContext(null);
 
 /**
- * The active language: { language, text, units, examples, errors } where the
- * last four are the groups of public/lang.json for that language.
+ * The active language: { language, languageNames, text, units, examples,
+ * errors } where the last four are the groups of public/lang.json for that
+ * language and languageNames maps every language code to its own name
+ * ({ tr: "Türkçe", en: "English" }) for the language switch.
  */
 export const LanguageContext = createContext(null);
 
