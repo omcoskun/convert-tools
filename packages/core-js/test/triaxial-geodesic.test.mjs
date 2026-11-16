@@ -10,6 +10,8 @@ import {
   inverseTriaxialGeodesic,
   triaxialToCartesian,
 } from "../src/index.js";
+import { angle, createTriaxialModel } from "../src/geodesy/triaxial/ellipsoid3.js";
+import { solveTriaxialInverse } from "../src/geodesy/triaxial/geodesic3.js";
 
 const VECTOR_DIR = new URL("../../../contracts/test-vectors/", import.meta.url);
 const CAYLEY = { a: Math.SQRT2, b: 1, c: Math.SQRT1_2 };
@@ -54,6 +56,28 @@ test("triaxial inverse matches Geod3Solve (contracts/test-vectors/triaxial-inver
     assert.ok(headingDifference(result.initialAzimuthDegrees, row.expected_alp1) * m12 <= tolerance, `${row.id}: alp1`);
     assert.ok(headingDifference(result.finalAzimuthDegrees, row.expected_alp2) * m12 <= tolerance, `${row.id}: alp2`);
   }
+});
+
+test("inverse finds the shortest geodesic in near-conjugate cases", () => {
+  const rows = readVectors("triaxial-shortest.csv");
+  for (const row of rows) {
+    const options = { ellipsoid: { a: Number(row.a), b: Number(row.b), c: Number(row.c) } };
+    const result = inverseTriaxialGeodesic({ beta: row.bet1, omega: row.omg1 }, { beta: row.bet2, omega: row.omg2 }, options);
+    assert.ok(result.distance - Number(row.expected_s12) <= 1e-13, `${row.id}: distance ${result.distance}`);
+  }
+});
+
+test("inverse still solves coincident points and exact antipodes", () => {
+  const options = { ellipsoid: CAYLEY };
+  const same = inverseTriaxialGeodesic({ beta: 30, omega: 40 }, { beta: 30, omega: 40 }, options);
+  assert.equal(same.distance, 0);
+  const result = inverseTriaxialGeodesic({ beta: 30, omega: 40 }, { beta: -30, omega: -140 }, options);
+  const oracle = solveTriaxialInverse(createTriaxialModel(CAYLEY), angle(30), angle(40), angle(-30), angle(-140), {
+    rays: 1440,
+    refineRays: 0,
+  });
+  assert.ok(oracle !== null);
+  assert.ok(Math.abs(result.distance - oracle.s12) <= 1e-13, `distance ${result.distance} ${oracle.s12}`);
 });
 
 test("triaxial direct matches Geod3Solve (contracts/test-vectors/triaxial-direct.csv)", () => {

@@ -82,6 +82,12 @@
       "source": "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)"
     },
     {
+      "name": "triaxial-shortest.csv",
+      "rows": 10,
+      "sha256": "bc7303596902ba87dc9036e7399013635b119f97ea29573de1f3c1fcb75ce7d3",
+      "source": "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)"
+    },
+    {
       "name": "utm-ups-forward.csv",
       "rows": 5806,
       "sha256": "75e1a4733ded020c694877e0f1cc21f8ee352b14598f944f078154c485976599",

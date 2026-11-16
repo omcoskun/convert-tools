@@ -943,6 +943,45 @@ function triaxialVectors() {
   });
 }
 
+// Pairs where the coarse 2-degree fan kept a longer geodesic than the fine
+// oracle (contracts/tools/find-triaxial-misses.mjs, seed 1). The refinement
+// around every coarse seed must find the shortest line. Geod3Solve supplies
+// the same columns as triaxial-inverse.csv, with the 1e-13 distance tolerance
+// the refinement is held to.
+const TRIAXIAL_SHORTEST = [
+  [-90, -173.41075549833477, 90, 19.639984499663115],
+  [90, -52.09602098912001, -90, 162.9167571477592],
+  [90, 101.7672086879611, -90, -26.43615882843733],
+  [90, 166.10869794152677, -90, 42.44840710423887],
+  [-90, -51.417040480300784, 90, 163.16091142594814],
+  [87, 40, -87, -74],
+  [90, 52.00402549467981, -90, 162.93108106590807],
+  [85, 116, -85, -133],
+  [-80, 119, 80, -131],
+  [88, -15, -88, 175],
+];
+
+function triaxialShortestVectors() {
+  const ellipsoid = TRIAXIAL_ELLIPSOIDS.find((entry) => entry.id === "CAYLEY");
+  const axes = [ellipsoid.a, ellipsoid.b, ellipsoid.c].map(String);
+  const pairs = TRIAXIAL_SHORTEST.map(([bet1, omg1, bet2, omg2]) => ({
+    bet1: dec(bet1, 12),
+    omg1: dec(omg1, 12),
+    bet2: dec(bet2, 12),
+    omg2: dec(omg2, 12),
+  }));
+  const inverse = runTool(GEOD3SOLVE, ["-i", "-t", ...axes, "-p", "15"], pairs.map((p) => `${p.bet1} ${p.omg1} ${p.bet2} ${p.omg2}`));
+  const rows = pairs.map((pair, index) => {
+    const [alp1, alp2, s12] = inverse[index].split(/\s+/);
+    if (!(Number(s12) > 0)) throw new Error(`Geod3Solve inverse CAYLEY-shortest-${index}: ${inverse[index]}`);
+    return [`CAYLEY-shortest-${String(index).padStart(2, "0")}`, ellipsoid.id, ...axes, pair.bet1, pair.omg1, pair.bet2, pair.omg2, alp1, alp2, s12, "1e-13"];
+  });
+  manifest.files.push({
+    ...writeCsv("triaxial-shortest.csv", [...TRIAXIAL_HEADER, "bet2", "omg2", "expected_alp1", "expected_alp2", "expected_s12", "tolerance"], rows),
+    source: "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)",
+  });
+}
+
 // ------------------------------------------------------------------ run
 
 const forwardRows = utmUpsForward();
@@ -957,6 +996,7 @@ geodtestSample();
 garsVectors();
 georefVectors();
 triaxialVectors();
+triaxialShortestVectors();
 
 manifest.skipped = skipped;
 manifest.files.sort((a, b) => a.name.localeCompare(b.name));

@@ -30,6 +30,9 @@ const STEP_TOLERANCE = 2e-15;
 const MAX_SPLIT = 12;
 // Rays in the azimuth fan of the inverse problem.
 const RAYS = 180;
+// Fine intervals per coarse ray spacing in the refinement fan; 0 disables
+// the refinement.
+const REFINE_RAYS = 16;
 const NEWTON_ITERATIONS = 40;
 
 /** The ellipsoid scaled to b = 1, with the shape constants of `model`. */
@@ -219,10 +222,21 @@ function traceRay(u, y0, P2, sMax) {
  * Angles are [sin, cos] pairs. A fan of lines leaves point 1; each local
  * minimum (over the azimuth) of the distance by which a line misses point 2
  * starts a Newton iteration on (alp1, s); the shortest converged line wins.
+ * `tuning` is internal (the conformance tools use it to compare the search
+ * with a finer one) and is not part of the public API: `tuning.rays` is the
+ * number of coarse rays and `tuning.refineRays` the number of fine intervals
+ * per coarse ray spacing in the refinement fan.
+ * @param {object} model
+ * @param {number[]} bet1
+ * @param {number[]} omg1
+ * @param {number[]} bet2
+ * @param {number[]} omg2
+ * @param {{ rays?: number, refineRays?: number }} [tuning]
  * @returns {{ s12: number, alp1: number[], alp2: number[], m12: number,
- *   M12: number, M21: number }}
+ *   M12: number, M21: number } | null}
  */
-export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2) {
+export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2, tuning = {}) {
+  const { rays = RAYS, refineRays = REFINE_RAYS } = tuning;
   const u = unitModel(model);
   const P1 = ellipToCart(u, bet1, omg1);
   const P2 = ellipToCart(u, bet2, omg2);
@@ -233,12 +247,12 @@ export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2) {
   // headings in [-90, 90) cover every direction once.
   const umbilic = u.umbilical && bet1[1] === 0 && omg1[0] === 0;
   const span = umbilic ? 180 : 360;
-  const spacing = span / RAYS;
+  const spacing = span / rays;
   const sMax = Math.PI * u.a;
-  const rays = [];
-  for (let j = 0; j < RAYS; j += 1) {
+  const fan = [];
+  for (let j = 0; j < rays; j += 1) {
     const alpha = -span / 2 + j * spacing;
-    rays.push({ alpha, events: traceRay(u, initialState(u, bet1, omg1, angle(alpha)), P2, sMax) });
+    fan.push({ alpha, events: traceRay(u, initialState(u, bet1, omg1, angle(alpha)), P2, sMax) });
   }
   const nearest = (events, s) => {
     let best = null;
@@ -246,21 +260,54 @@ export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2) {
     return best;
   };
   const starts = [];
-  for (let j = 0; j < RAYS; j += 1) {
-    const left = rays[(j + RAYS - 1) % RAYS].events;
-    const right = rays[(j + 1) % RAYS].events;
-    for (const event of rays[j].events) {
+  for (let j = 0; j < rays; j += 1) {
+    const left = fan[(j + rays - 1) % rays].events;
+    const right = fan[(j + 1) % rays].events;
+    for (const event of fan[j].events) {
       const l = nearest(left, event.s);
       const r = nearest(right, event.s);
       if ((l === null || event.miss <= l.miss) && (r === null || event.miss <= r.miss)) {
-        starts.push({ alpha: rays[j].alpha, s: event.s });
+        starts.push({ alpha: fan[j].alpha, s: event.s, step: spacing });
       }
     }
   }
   let best = null;
   for (const start of starts) {
-    const solution = newton(u, bet1, omg1, P2, start.alpha, start.s, spacing);
+    const solution = newton(u, bet1, omg1, P2, start.alpha, start.s, start.step);
     if (solution && (best === null || solution.s < best.s)) best = solution;
+  }
+  if (refineRays > 0) {
+    // Two local minima of the miss can sit closer together than one coarse
+    // ray spacing, and the missed one can lie up to two coarse cells from the
+    // seed when the coarser line sits exactly on a ray (symmetric pairs do).
+    // Refine every coarse seed with a fine fan over the seed's cell and its
+    // neighbours and start Newton from the fine minima as well; a fine seed
+    // limits the Newton update to the fine spacing.
+    const fineSpacing = (2 * spacing) / refineRays;
+    const fineStarts = [];
+    for (const start of starts) {
+      const fine = [];
+      for (let k = 0; k <= 2 * refineRays; k += 1) {
+        const alpha = start.alpha - 2 * spacing + k * fineSpacing;
+        fine.push(traceRay(u, initialState(u, bet1, omg1, angle(alpha)), P2, sMax));
+      }
+      for (let k = 1; k < 2 * refineRays; k += 1) {
+        const left = fine[k - 1];
+        const right = fine[k + 1];
+        const alpha = start.alpha - 2 * spacing + k * fineSpacing;
+        for (const event of fine[k]) {
+          const l = nearest(left, event.s);
+          const r = nearest(right, event.s);
+          if ((l === null || event.miss <= l.miss) && (r === null || event.miss <= r.miss)) {
+            fineStarts.push({ alpha, s: event.s });
+          }
+        }
+      }
+    }
+    for (const start of fineStarts) {
+      const solution = newton(u, bet1, omg1, P2, start.alpha, start.s, fineSpacing);
+      if (solution && (best === null || solution.s < best.s)) best = solution;
+    }
   }
   if (best === null) return null;
   const alp2 = directionToHeading(u, bet2, omg2, best.end.V);

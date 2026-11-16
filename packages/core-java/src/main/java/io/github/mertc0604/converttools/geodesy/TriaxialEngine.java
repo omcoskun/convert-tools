@@ -47,6 +47,7 @@ final class TriaxialEngine {
     private static final double STEP_TOLERANCE = 2e-15;
     private static final int MAX_SPLIT = 12;
     private static final int RAYS = 180;
+    private static final int REFINE_RAYS = 16;
     private static final int NEWTON_ITERATIONS = 40;
 
     /** Semiaxes with the shape constants of Ellipsoid3::Ellipsoid3(a, b, c). */
@@ -490,6 +491,42 @@ final class TriaxialEngine {
             Solution solution = newton(u, bet1, omg1, P2, start.alpha(), start.s(), spacing);
             if (solution != null && (best == null || solution.s() < best.s())) {
                 best = solution;
+            }
+        }
+        if (REFINE_RAYS > 0) {
+            // Two local minima of the miss can sit closer together than one
+            // coarse ray spacing, and the missed one can lie up to two coarse
+            // cells from the seed when the coarser line sits exactly on a ray
+            // (symmetric pairs do). Refine every coarse seed with a fine fan
+            // over the seed's cell and its neighbours and start Newton from the
+            // fine minima as well; a fine seed limits the Newton update to the
+            // fine spacing.
+            double fineSpacing = 2 * spacing / REFINE_RAYS;
+            List<Start> fineStarts = new ArrayList<>();
+            for (Start start : starts) {
+                List<List<Event>> fine = new ArrayList<>();
+                for (int k = 0; k <= 2 * REFINE_RAYS; k++) {
+                    double alpha = start.alpha() - 2 * spacing + k * fineSpacing;
+                    fine.add(traceRay(u, initialState(u, bet1, omg1, angle(alpha)), P2, sMax));
+                }
+                for (int k = 1; k < 2 * REFINE_RAYS; k++) {
+                    List<Event> left = fine.get(k - 1);
+                    List<Event> right = fine.get(k + 1);
+                    double alpha = start.alpha() - 2 * spacing + k * fineSpacing;
+                    for (Event event : fine.get(k)) {
+                        Event l = nearest(left, event.s());
+                        Event r = nearest(right, event.s());
+                        if ((l == null || event.miss() <= l.miss()) && (r == null || event.miss() <= r.miss())) {
+                            fineStarts.add(new Start(alpha, event.s()));
+                        }
+                    }
+                }
+            }
+            for (Start start : fineStarts) {
+                Solution solution = newton(u, bet1, omg1, P2, start.alpha(), start.s(), fineSpacing);
+                if (solution != null && (best == null || solution.s() < best.s())) {
+                    best = solution;
+                }
             }
         }
         if (best == null) {

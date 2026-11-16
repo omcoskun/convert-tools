@@ -37,6 +37,8 @@ public final class TriaxialGeodesicTest {
     public static void main(String[] args) throws IOException {
         Path vectors = Path.of(args.length > 0 ? args[0] : "contracts/test-vectors");
         inverseVectors(vectors);
+        shortestVectors(vectors);
+        coincidentAndAntipodes();
         directVectors(vectors);
         symmetryAndClosure();
         finiteDifferences();
@@ -119,6 +121,29 @@ public final class TriaxialGeodesicTest {
                     row.get("id") + ": alp2");
         }
         System.out.printf(Locale.ROOT, "triaxial-inverse.csv distance: max %.3e b over %d rows%n", worst, rows.size());
+    }
+
+    private static void shortestVectors(Path dir) throws IOException {
+        List<Map<String, String>> rows = read(dir, "triaxial-shortest.csv");
+        check(rows.size() >= 3, "triaxial-shortest.csv rows " + rows.size());
+        for (Map<String, String> row : rows) {
+            Axes axes = new Axes(num(row, "a"), num(row, "b"), num(row, "c"));
+            TriaxialGeodesic.InverseResult result = TriaxialGeodesic.inverse(
+                    new Point(num(row, "bet1"), num(row, "omg1")), new Point(num(row, "bet2"), num(row, "omg2")), axes);
+            check(result.distance() - num(row, "expected_s12") <= 1e-13,
+                    row.get("id") + ": distance " + result.distance());
+        }
+    }
+
+    private static void coincidentAndAntipodes() {
+        TriaxialGeodesic.InverseResult same = TriaxialGeodesic.inverse(new Point(30, 40), new Point(30, 40), CAYLEY);
+        check(same.distance() == 0, "coincident distance " + same.distance());
+        TriaxialGeodesic.InverseResult result = TriaxialGeodesic.inverse(
+                new Point(30, 40), new Point(-30, -140), CAYLEY);
+        TriaxialGeodesic.DirectResult end = TriaxialGeodesic.direct(
+                new Point(30, 40), result.initialAzimuthDegrees(), result.distance(), CAYLEY);
+        check(distance(TriaxialGeodesic.toCartesian(new Point(end.beta(), end.omega()), CAYLEY),
+                TriaxialGeodesic.toCartesian(new Point(-30, -140), CAYLEY)) <= 1e-12, "antipode closure");
     }
 
     private static void directVectors(Path dir) throws IOException {
