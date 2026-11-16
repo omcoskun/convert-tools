@@ -241,9 +241,12 @@ java -cp "$OUT" io.github.mertc0604.converttools.GeodTestFullSet \
 
 Araç, JavaScript ölçüm betiğiyle aynı blok blok tabloyu (ters ve doğrudan
 problem) yazdırır. Üç eksenli `Geod3Test-v1.txt` için karşılığı
-`Geod3TestFullSet` sınıfıdır (aynı derleme, tüm çekirdeklerde paralel);
-yazdırdığı `MAX` satırlarını `contracts/tools/validate-geod3test.mjs
---java-output` değerlendirir.
+`Geod3TestFullSet` sınıfıdır (aynı derleme, tüm çekirdeklerde paralel).
+`Geod3TestFullSet <veri> <satırlar.tsv>` her satırın çıktısını
+(`row s12 alp1 alp2 ambiguous closure x y z m12 M12 M21`) dosyaya yazar ve
+hiçbir şeyi yargılamaz; satırları
+`contracts/tools/validate-geod3test.mjs --java-rows <satırlar.tsv>`
+JavaScript satırlarıyla aynı kodla yargılar.
 
 Üç eksenli elipsoitte geodezik `TriaxialGeodesic` sınıfındadır
 (`inverse`, `direct`, `toCartesian`, `fromCartesian`; kayıtlar `Axes`,

@@ -111,12 +111,14 @@ Tüm sayılar bu çalışmada çalıştırılan komutlardan; birim `b`.
 ## Hold-out sonuçları
 
 Geod3Test (DOI 10.5281/zenodo.12510796) bu geliştirme sırasında kullanılmadı.
-Tam küme `contracts/tools/validate-geod3test.mjs` (`--reference Geod3Solve`,
-`--java-output`) ve `Geod3TestFullSet` ile, örneklem `geod3test-sample.csv`
-hold-out testleriyle (`holdout.txt` = `enabled`) bağımsız test aşamasında
-ölçülür. Bloklar satırın uç noktalarından türetilir (umbilik, asal elips,
-yakın umbilik, genel); aynı nokta çifti birden çok kez listelenmişse ters
-cevap en iyi eşleşen satıra göre değerlendirilir.
+`Geod3TestFullSet <veri> <satırlar.tsv>` her satırın çıktısını
+(`row s12 alp1 alp2 ambiguous closure x y z m12 M12 M21`) dosyaya yazar ve
+hiçbir şeyi yargılamaz; satırları
+`contracts/tools/validate-geod3test.mjs --java-rows <satırlar.tsv>`
+JavaScript satırlarıyla aynı kodla yargılar. Bloklar satırın uç
+noktalarından türetilir (umbilik, asal elips, yakın umbilik, genel); aynı
+nokta çifti birden çok kez listelenmişse ters cevap en iyi eşleşen satıra
+göre değerlendirilir.
 
 | Ölçüt | Taban | JavaScript | Java |
 |---|---:|---|---|
