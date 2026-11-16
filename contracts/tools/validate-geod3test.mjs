@@ -48,13 +48,14 @@
 //
 // This tool is a manual audit; it is not part of CI and is not wired into the
 // npm scripts. The data set is not distributed with the repository.
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
+
+import { runReference as runSolver } from "./lib/reference-runner.mjs";
 
 const EXPECTED_MD5 = "495983cb4d8128d1543a22ebd26617d6";
 const EXPECTED_ROWS = 500000;
@@ -187,16 +188,21 @@ function judge(language, maxima, reference, informational = false) {
   return failures;
 }
 
+/**
+ * Runs Geod3Solve once over all rows. Rows it cannot solve (their indices are
+ * in `errorRows`) come back as arrays of NaN.
+ */
 function runReference(binary, args, input, count) {
-  const result = spawnSync(binary, ["-t", String(AXES.a), String(AXES.b), String(AXES.c), "-p", "16", ...args], {
+  const { lines, errorRows } = runSolver(
+    binary,
+    ["-t", String(AXES.a), String(AXES.b), String(AXES.c), "-p", "16", ...args],
     input,
-    maxBuffer: 1 << 30,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) throw new Error(`${binary} ${args.join(" ")} failed: ${result.stderr || result.error}`);
-  const lines = result.stdout.split("\n").slice(0, count);
-  if (lines.length !== count) throw new Error(`${binary}: ${lines.length} lines for ${count} rows`);
-  return lines.map((line) => line.trim().split(/\s+/).map(Number));
+    count,
+  );
+  const values = lines.map((line, index) =>
+    errorRows.has(index) ? [Number.NaN, Number.NaN, Number.NaN] : line.trim().split(/\s+/).map(Number),
+  );
+  return { values, errorRows };
 }
 
 async function solveAll(file, rows, workers) {
@@ -284,8 +290,11 @@ async function main() {
 
   let referenceMaxima = null;
   if (options.reference) {
-    const inverse = runReference(options.reference, ["-i"], rows.map((r) => `${r[0]} ${r[1]} ${r[3]} ${r[4]}`).join("\n") + "\n", rows.length);
-    const direct = runReference(options.reference, [], rows.map((r) => `${r[0]} ${r[1]} ${r[2]} ${r[6]}`).join("\n") + "\n", rows.length);
+    const inverseRun = runReference(options.reference, ["-i"], rows.map((r) => `${r[0]} ${r[1]} ${r[3]} ${r[4]}`).join("\n") + "\n", rows.length);
+    const directRun = runReference(options.reference, [], rows.map((r) => `${r[0]} ${r[1]} ${r[2]} ${r[6]}`).join("\n") + "\n", rows.length);
+    console.log(`reference ERROR rows: inverse ${inverseRun.errorRows.size}, direct ${directRun.errorRows.size}`);
+    const inverse = inverseRun.values;
+    const direct = directRun.values;
     const referenceOutputs = new Float64Array(rows.length * OUTPUTS).fill(Number.NaN);
     rows.forEach((_, i) => {
       const end = toCartesian(direct[i][0], direct[i][1]);

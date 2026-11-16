@@ -19,6 +19,7 @@
     "test:core": "npm test --workspace @convert-tools/core",
     "test:pack": "npm run test:pack --workspace @convert-tools/core",
     "test:java": "sh packages/core-java/scripts/test.sh",
+    "test:tools": "node --test \"contracts/tools/test/*.test.mjs\"",
     "vectors": "node contracts/tools/generate-vectors.mjs",
     "test": "npm run test:core && npm run test:app",
     "test:app": "npm test --workspace @convert-tools/app",

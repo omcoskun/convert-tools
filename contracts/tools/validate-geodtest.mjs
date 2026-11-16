@@ -40,12 +40,13 @@
 //
 // This tool is a manual audit; it is not part of CI and is not wired into the
 // npm scripts. The data set is not distributed with the repository.
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { runReference as runSolver } from "./lib/reference-runner.mjs";
 
 const EXPECTED_MD5 = "3461c4dc2500a8bad9394cd530b13dbe";
 const EXPECTED_ROWS = 500000;
@@ -246,13 +247,18 @@ function measure(rows, groups, inverseOf, directOf, counters) {
   return maxima;
 }
 
-/** Runs GeodSolve once over all rows; returns the parsed output lines. */
-function runReference(binary, args, input) {
-  const result = spawnSync(binary, args, { input, maxBuffer: 1 << 30, encoding: "utf8" });
-  if (result.status !== 0) {
-    throw new Error(`${binary} ${args.join(" ")} failed: ${result.stderr || result.error}`);
+/**
+ * Runs GeodSolve once over all rows; returns the parsed output lines.
+ * GeodSolve is expected to solve every row, so a row with an ERROR line is
+ * fatal here.
+ */
+function runReference(binary, args, input, rowCount) {
+  const { lines, errorRows } = runSolver(binary, args, input, rowCount);
+  if (errorRows.size > 0) {
+    throw new Error(
+      `${binary} ${args.join(" ")}: ERROR on ${errorRows.size} rows, first rows: ${[...errorRows].slice(0, 5).join(", ")}`,
+    );
   }
-  const lines = result.stdout.split("\n");
   return (i) => {
     const values = lines[i].trim().split(/\s+/).map(Number);
     if (values.length < 12 || values.some((v) => Number.isNaN(v))) throw new Error(`reference output: ${lines[i]}`);
@@ -434,11 +440,13 @@ if (options.reference) {
     options.reference,
     ["-i", "-f", "-p", "9"],
     lines.map((p) => `${p[0]} ${p[1]} ${p[3]} ${p[4]}`).join("\n") + "\n",
+    lines.length,
   );
   const directOutput = runReference(
     options.reference,
     ["-f", "-p", "9"],
     lines.map((p) => `${p[0]} ${p[1]} ${p[2]} ${p[6]}`).join("\n") + "\n",
+    lines.length,
   );
   const referenceCounters = { inverseErrors: 0, directErrors: 0, first: [] };
   referenceMaxima = measure(
