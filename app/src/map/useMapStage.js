@@ -151,7 +151,7 @@ function largestZoom(map, target, padding, [low, high], fits) {
  * The whole globe in the free part of the map, facing the longitude of the
  * scene's first fit target (or of the view, for an empty scene): the
  * largest zoom at which its radius takes at most 45 % of the free width or
- * height.
+ * height. In 2D: the flat world as tall as the map (see worldMinZoom).
  */
 function worldCamera(map, scene, padding, mode) {
   const [facing] = fitTargets(scene);
@@ -446,7 +446,6 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
   const fitSeenRef = useRef({ owner, fitRequest: scene.fitRequest });
   const modeRef = useRef("3d");
   const navigatedRef = useRef(false);
-  const worldOverviewRef = useRef(false);
   const syncViewRef = useRef(null);
   const [viewMode, setViewMode] = useState("3d");
   const [navigation, setNavigation] = useState({ canZoomIn: true, canZoomOut: true, bearing: 0 });
@@ -476,7 +475,6 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     const bounds = sceneBounds(latest.scene);
     if (!bounds) return;
     const padding = latest.getPadding();
-    worldOverviewRef.current = false;
     // One point keeps a closer zoom, if the map has one.
     const single = isSinglePoint(bounds);
     const maxZoom = single ? Math.max(map.getZoom(), 12) : 15;
@@ -491,7 +489,6 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
 
   const showWorld = useCallback(() => {
     navigatedRef.current = true;
-    worldOverviewRef.current = true;
     const map = mapRef.current;
     const latest = latestRef.current;
     if (map) map.flyTo({ ...worldCamera(map, latest.scene, latest.getPadding(), modeRef.current), duration: animation(700) });
@@ -499,7 +496,6 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
 
   const zoomBy = useCallback((delta) => {
     navigatedRef.current = true;
-    if (delta > 0) worldOverviewRef.current = false;
     const map = mapRef.current;
     if (map) map.easeTo({ zoom: map.getZoom() + delta, duration: animation(250) });
   }, []);
@@ -509,7 +505,6 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     if (!map || modeRef.current === mode) return;
     navigatedRef.current = true;
     map.stop();
-    worldOverviewRef.current = false;
     modeRef.current = mode;
     setViewMode(mode);
     map.setProjection({ type: mode === "3d" ? "globe" : "mercator" });
@@ -637,7 +632,10 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
             const mode = modeRef.current;
             const padding = latestRef.current.getPadding();
             const minZoom = worldMinZoom({ width: container.clientWidth, height: container.clientHeight, latitude: lngLat.lat, mode, padding });
-            const view = constrainView(lngLat, zoom, { ...ZOOM_RANGE, minZoom }, map ? map.getZoom() : zoom, mode);
+            // The flat map's edge stays out of view: the padding the camera
+            // centres in now (none until the first syncView).
+            const viewport = { height: container.clientHeight, padding: map ? map.getPadding() : undefined };
+            const view = constrainView(lngLat, zoom, { ...ZOOM_RANGE, minZoom }, map ? map.getZoom() : zoom, mode, viewport);
             return { center: new maplibregl.LngLat(view.longitude, view.latitude), zoom: view.zoom };
           },
           maxPitch: 60,
@@ -662,10 +660,6 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
         const centerPoint = map.project(map.getCenter());
         container.parentElement.style.setProperty("--map-center-x", `${centerPoint.x}px`);
         container.parentElement.style.setProperty("--map-center-y", `${centerPoint.y}px`);
-        // Only the explicit north-up world overview suppresses wrapped tiles.
-        // Free navigation and scene fits need them for date-line crossings.
-        const copies = modeRef.current === "3d" || !worldOverviewRef.current;
-        if (map.getRenderWorldCopies() !== copies) map.setRenderWorldCopies(copies);
         const floor = minimumZoom(map, map.getCenter().lat, latestRef.current.getPadding(), modeRef.current);
         const next = { canZoomIn: map.getZoom() < map.getMaxZoom() - 0.01, canZoomOut: map.getZoom() > floor + 0.01, bearing: Math.round(map.getBearing()) };
         setNavigation((current) => Object.keys(next).every((key) => next[key] === current[key]) ? current : next);
@@ -693,10 +687,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       // fitted again once the map has loaded, unless the user has moved it.
       let userMoved = false;
       map.on("movestart", (event) => {
-        if (event.originalEvent) {
-          userMoved = true;
-          worldOverviewRef.current = false;
-        }
+        if (event.originalEvent) userMoved = true;
       });
       map.once("load", () => {
         if (!userMoved && !navigatedRef.current && initialBounds) fitScene(false);

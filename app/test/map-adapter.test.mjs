@@ -257,3 +257,21 @@ test("2D clamps polar centers to the Mercator edge even at world zoom", () => {
   assert.equal(constrainView({ lng: 12, lat: 90 }, 0, range, 0, "2d").latitude, MERCATOR_LATITUDE_LIMIT);
   assert.equal(constrainView({ lng: 12, lat: -90 }, 16, range, 0, "2d").zoom, 16);
 });
+
+test("2D keeps the Mercator edge at the edge of the map, so nothing beyond it shows", () => {
+  const range = { minZoom: -2, maxZoom: 20 };
+  const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
+  // Zoom 2: the world is 2048 px tall; the centre is drawn 128 + 256 px below the top.
+  const viewport = { height: 768, padding: { top: 128, bottom: 128, left: 256, right: 0 } };
+  const north = constrainView({ lng: 400, lat: 90 }, 2, range, 2, "2d", viewport);
+  assert.equal(north.longitude, 400);
+  near(north.latitude, 74.01954331150228);
+  near(constrainView({ lng: 0, lat: -90 }, 2, range, 2, "2d", viewport).latitude, -74.01954331150228);
+  assert.deepEqual(constrainView({ lng: 28, lat: 41 }, 6, range, 6, "2d", viewport), { longitude: 28, latitude: 41, zoom: 6 });
+  // A world as tall as the map has one centre: 100 + (1024 - 400) / 2 px below its top.
+  const fitted = { height: 1024, padding: { top: 100, bottom: 300, left: 0, right: 0 } };
+  near(constrainView({ lng: 0, lat: 0 }, 1, range, 1, "2d", fitted).latitude, 33.13755119234614);
+  near(constrainView({ lng: 0, lat: 80 }, 1, range, 1, "2d", fitted).latitude, 33.13755119234614);
+  // A world shorter than the map (below the zoom floor) stays centred.
+  near(constrainView({ lng: 0, lat: 60 }, 0, range, 0, "2d", { height: 1024 }).latitude, 0);
+});

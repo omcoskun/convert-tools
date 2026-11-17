@@ -230,8 +230,10 @@ Değişmeyen kurallar:
   her ölçekte düz Web Mercator kullanır. Yıldızlı uzay arka planı yerel bir
   canvas üzerinde ekran çözünürlüğüne göre çizilir; sürekli animasyon veya
   ek görsel isteği yoktur. Kürenin kenarında atmosfer efekti bulunur.
-  Uzaklaşma sınırı ekranın panellerden kalan alanına ve enleme göre
-  hesaplanır; dünya bu alana sığdığında daha fazla uzaklaşılamaz. Çekirdeğin
+  3D'de uzaklaşma sınırı ekranın panellerden kalan alanına ve enleme göre
+  hesaplanır; küre bu alana sığdığında daha fazla uzaklaşılamaz. 2D'de düz
+  dünya en az harita yüksekliği kadar kalır ve kuzey/güney kenarı ekranın
+  dışında tutulur; uzay arka planı görünmez, dünya yanlara doğru tekrarlanır. Çekirdeğin
   örneklediği jeodezik hattı ve noktaları gösterir. Harita yalnız bir
   görseldir; ölçümü her zaman çekirdek yapar. Kutup yakınındaki noktalar ve
   kutbun üstünden geçen hatlar kürede gerçek yerlerinde çizilir (MapLibre'nin

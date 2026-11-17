@@ -3,6 +3,8 @@
 // basemap style rules are unit tested (test/map-adapter.test.mjs). What a
 // tool draws is described by a scene (scene.js).
 
+import { flatLatitude } from "./map-view.js";
+
 // The map is a globe (MapLibre's globe projection: a sphere up to zoom 11,
 // Web Mercator from zoom 12), as zoomed-out Google Maps and Mapbox maps are:
 // no copies of the world side by side, and the poles are on the map.
@@ -83,17 +85,25 @@ export const GLOBE_MAX_ZOOM = 11;
  * back to the edge. Zoomed in on the flat map the centre may go up to the
  * edge; MapLibre's own constraint would keep the edge at the top or bottom of
  * the viewport, where the glass top bar hides what is drawn near it.
+ * The flat (2D) map, given its viewport, keeps the Mercator edge at or beyond
+ * the top and bottom of the whole map (under the widgets too), so the space
+ * behind it never shows (flatLatitude).
  * Longitude is free; zoom stays in range.
  * @param {{ lng: number, lat: number }} center
  * @param {number} zoom the zoom asked for
  * @param {{ minZoom: number, maxZoom: number }} range
  * @param {number} [currentZoom] the map's zoom now (the zoom asked for if omitted)
  * @param {"2d" | "3d"} [mode] flat views always stop at the Mercator edge
+ * @param {{ height: number, padding?: { top?: number, bottom?: number } } | null} [viewport]
+ *   the map's height and camera padding in px, for the flat map
  * @returns {{ longitude: number, latitude: number, zoom: number }}
  */
-export function constrainView(center, zoom, { minZoom, maxZoom }, currentZoom = zoom, mode = "3d") {
+export function constrainView(center, zoom, { minZoom, maxZoom }, currentZoom = zoom, mode = "3d", viewport = null) {
   const ranged = Math.min(maxZoom, Math.max(minZoom, zoom));
-  if (mode === "2d") return { longitude: center.lng, latitude: displayLatitude(center.lat), zoom: ranged };
+  if (mode === "2d") {
+    const latitude = viewport ? flatLatitude(displayLatitude(center.lat), ranged, viewport) : displayLatitude(center.lat);
+    return { longitude: center.lng, latitude, zoom: ranged };
+  }
   const latitude = markerLatitude(center.lat);
   if (Math.abs(latitude) <= MERCATOR_LATITUDE_LIMIT || ranged <= GLOBE_MAX_ZOOM) {
     return { longitude: center.lng, latitude, zoom: ranged };
