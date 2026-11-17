@@ -764,6 +764,11 @@ final class GeodesicEngine {
      * Longitude of the cut locus for a point at the given latitude, using
      * Karney's A3 series. Used by the exact {@code ambiguous} rule.
      */
+    /** The authalic radius squared, c^2: S12 is c^2 times an angle plus a series. */
+    double authalicRadiusSquared() {
+        return c2;
+    }
+
     double lonCut(double latitudeDegrees) {
         double[] latSincos = sincosd(latitudeDegrees);
         double sbet = f1 * latSincos[0];

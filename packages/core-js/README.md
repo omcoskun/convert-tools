@@ -102,6 +102,7 @@ yedek çözücüler kaldırılmıştır; tek çözücü budur. Sonuç etiketleri
 | `directGeodesic().algorithm` | `"karney-direct"` |
 | `iterations` | ters: Newton/bisection döngüsünün yaptığı boylam değerlendirmesi (kapalı form yollarında 0); doğrudan: 0 |
 | `arcDegrees`, `reducedLengthMetres`, `geodesicScale12`, `geodesicScale21`, `areaSquareMetres` | ters ve doğrudan sonuçta a12 (°), m12 (m), M12, M21 ve S12 (m², geodezik ile ekvator arasındaki alan, GeographicLib tanımı); çakışık noktada ve sıfır mesafede 0, 0, 1, 1, 0; tam antipotta kuzey kutbu rotasının değerleri (a12 = 180, S12 = c²π). `sampleGeodesicPath` ve `measurePolyline` segmentleri aynı alanları taşır |
+| `bearingUncertaintyDegrees`, `areaUncertaintySquareMetres` | yalnız ters sonuçta (rota segmentleri dahil): azimutların ve S12'nin kesin değerden en fazla ne kadar uzak olabileceği, `max(1e-11°, 1e-7 m / \|m12\|)` (en çok 180°) ve `2 c² · rad(azimut belirsizliği) + 1e-14 c²`. Neredeyse antipodal noktalarda büyür; gösterimde anlamlı basamağı seçmek içindir. Azimut tanımsızken `null` |
 
 `ambiguous`, `lat1 + lat2 == 0` tam olarak sağlandığında ve şu koşullardan
 biri varsa `true` olur: iki nokta kutupsa, `|lon12|` tam olarak 180° ise veya

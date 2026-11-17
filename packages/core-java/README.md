@@ -127,6 +127,11 @@ Sonuç etiketleri sözleşmedir:
   `GeodesicResult`, `DirectResult` ve `GeodesicPath` bunları kaydın sonunda
   taşır. Çakışık noktada ve sıfır mesafede 0, 0, 1, 1, 0; tam antipotta kuzey
   kutbu rotasının değerleri (a12 = 180, S12 = c²π).
+- `bearingUncertaintyDegrees()` ve `areaUncertaintySquareMetres()` (yalnız
+  `GeodesicResult`): azimutların ve S12'nin kesin değerden en fazla ne kadar
+  uzak olabileceği, `max(1e-11°, 1e-7 m / |m12|)` (en çok 180°) ve
+  `2 c² · rad(azimut belirsizliği) + 1e-14 c²`. Neredeyse antipodal noktalarda
+  büyür; azimut tanımsızken `null`.
 
 `ambiguous` alanı kesin bir kuralla hesaplanır. `lat1 + lat2 == 0` tam olarak
 sağlanmalı ve aşağıdakilerden en az biri doğru olmalıdır:

@@ -130,6 +130,21 @@ if (SWITCH !== "enabled") {
     assert.equal(failures.length, 0, `${failures.length} checks failed:\n${failures.slice(0, 15).join("\n")}`);
   });
 
+  test("hold-out: the reported azimuth and area uncertainties hold on the GeodTest sample", () => {
+    const rows = readCsv(new URL("geodtest-sample.csv", DIRECTORY), undefined, "geodtest-sample.csv");
+    const turn = (x, y) => Math.abs(((((x - y) % 360) + 540) % 360) - 180);
+    const failures = [];
+    for (const row of rows) {
+      const inverse = inverseGeodesic({ latitude: Number(row.lat1), longitude: Number(row.lon1) }, { latitude: Number(row.lat2), longitude: Number(row.lon2) });
+      if (!inverse.azimuthDefined || inverse.ambiguous) continue; // another equally short route may be listed
+      const azimuth = Math.max(turn(inverse.initialBearingDegrees, Number(row.azi1)), turn(inverse.finalBearingDegrees, Number(row.azi2)));
+      if (!(azimuth <= inverse.bearingUncertaintyDegrees)) failures.push(`${row.id}: azimuth off by ${azimuth}° > ${inverse.bearingUncertaintyDegrees}°`);
+      const area = Math.abs(inverse.areaSquareMetres - Number(row.S12));
+      if (!(area <= inverse.areaUncertaintySquareMetres)) failures.push(`${row.id}: S12 off by ${area} m^2 > ${inverse.areaUncertaintySquareMetres} m^2`);
+    }
+    assert.equal(failures.length, 0, `${failures.length} checks failed:\n${failures.slice(0, 15).join("\n")}`);
+  });
+
   test("hold-out: Geod3Test sample present", () => {
     assert.ok(existsSync(new URL("geod3test-sample.csv", DIRECTORY)), "contracts/test-vectors/geod3test-sample.csv is missing");
   });

@@ -59,6 +59,7 @@ public final class ReferenceVectorTest {
         test.geodesicInverse();
         test.geodesicDirect();
         test.geodesicLengths();
+        test.geodesicUncertainty();
         test.geodesicSample();
         test.gars();
         test.georef();
@@ -354,6 +355,52 @@ public final class ReferenceVectorTest {
         lengthRows("geodesic-direct.csv", false, false);
         lengthRows("geodesic-ellipsoids.csv", true, true);
         lengthRows("geodesic-direct-ellipsoids.csv", false, true);
+    }
+
+    /**
+     * The azimuth and area uncertainties an inverse result reports hold on
+     * every row with a unique route: |azi - azi*| <= bearingUncertainty and
+     * |S12 - S12*| <= areaUncertainty (the mirror of
+     * packages/core-js/test/geodesic-uncertainty.test.mjs).
+     */
+    private void geodesicUncertainty() throws IOException {
+        for (String file : List.of("geodesic-wgs84.csv", "geodesic-ellipsoids.csv")) {
+            Check check = new Check(file + " uncertainty");
+            int checked = 0;
+            for (Map<String, String> row : read(file)) {
+                if (row.get("initialBearingDegrees").isEmpty()) {
+                    continue; // the route is not unique
+                }
+                String id = row.get("id");
+                GeodesicResult result = check.attempt(id, () -> Geodesic.inverse(
+                        new GeoPoint(number(row, "startLatitude"), number(row, "startLongitude")),
+                        new GeoPoint(number(row, "endLatitude"), number(row, "endLongitude")),
+                        ellipsoidOf(row)
+                ));
+                if (result == null || !result.azimuthDefined()) {
+                    continue;
+                }
+                checked++;
+                double azimuth = Math.max(
+                        angularDifference(result.initialBearingDegrees(), number(row, "initialBearingDegrees")),
+                        angularDifference(result.finalBearingDegrees(), number(row, "finalBearingDegrees")));
+                if (!(azimuth <= result.bearingUncertaintyDegrees())) {
+                    check.fail(id + ": azimuth off by " + azimuth + " deg > "
+                            + result.bearingUncertaintyDegrees());
+                }
+                if (!row.get("areaSquareMetres").isEmpty()) {
+                    double area = Math.abs(result.areaSquareMetres() - number(row, "areaSquareMetres"));
+                    if (!(area <= result.areaUncertaintySquareMetres())) {
+                        check.fail(id + ": S12 off by " + area + " m^2 > "
+                                + result.areaUncertaintySquareMetres());
+                    }
+                }
+            }
+            if (checked <= 1000) {
+                check.fail("only " + checked + " rows checked");
+            }
+            check.finish();
+        }
     }
 
     private void lengthRows(String file, boolean inverse, boolean checkBasics)

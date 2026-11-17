@@ -113,6 +113,15 @@
  *   equator: the counter-clockwise area of the quadrilateral (lat1, lon1),
  *   (0, lon1), (0, lon2), (lat2, lon2), as GeographicLib defines it. With
  *   exact antipodes all five describe the returned route over the north pole
+ * @property {number | null} bearingUncertaintyDegrees how far either azimuth
+ *   may be from the exact one: 1e-7 m / |m12| as an angle (the contract's
+ *   azimuth tolerance as an endpoint offset), at least 1e-11° and at most
+ *   180°. Large only for nearly antipodal points, where the azimuths depend
+ *   on the last bits of the input; null when the azimuth is undefined
+ * @property {number | null} areaUncertaintySquareMetres how far
+ *   areaSquareMetres may be from the exact value: 2 c^2 times
+ *   bearingUncertaintyDegrees in radians, plus 1e-14 c^2 of round-off (c the
+ *   authalic radius); null when the azimuth is undefined
  */
 
 /**

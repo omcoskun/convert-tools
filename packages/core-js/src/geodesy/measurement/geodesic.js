@@ -95,6 +95,32 @@ function validateIterationOptions(options) {
   }
 }
 
+// The contract's azimuth tolerance as an endpoint offset, |delta azi| *
+// |m12| (all 500000 GeodTest rows meet it; the largest is 7.53e-8 m).
+const AZIMUTH_ENDPOINT_TOLERANCE = 1e-7;
+// Round-off of a well-conditioned azimuth (GeodTest: at most 1.6e-12°).
+const BEARING_UNCERTAINTY_FLOOR = 1e-11;
+// Round-off of S12, as a fraction of c^2: a few units in the last place of
+// the area scale (0.41 m^2 on WGS 84).
+const AREA_ROUND_OFF = 1e-14;
+
+/**
+ * How far an inverse result's azimuths and area may be from the exact ones.
+ * Nearly antipodal (small |m12|), an endpoint offset e turns the azimuths by
+ * about e / |m12| (one way at point 1, the other at point 2) and so moves S12
+ * by about 2 c^2 e / |m12|. Never more than a half turn.
+ * @param {number} m12 reduced length in metres
+ * @param {number} c2 the ellipsoid's authalic radius squared
+ */
+function inverseUncertainties(m12, c2) {
+  const spread = (AZIMUTH_ENDPOINT_TOLERANCE / Math.abs(m12)) * (180 / Math.PI);
+  const bearing = Math.min(180, Math.max(BEARING_UNCERTAINTY_FLOOR, spread));
+  return {
+    bearingUncertaintyDegrees: bearing,
+    areaUncertaintySquareMetres: 2 * c2 * bearing * (Math.PI / 180) + AREA_ROUND_OFF * c2,
+  };
+}
+
 function coincident(start, end) {
   return (
     start.latitude === end.latitude &&
@@ -136,11 +162,14 @@ export function inverseGeodesic(startValue, endValue, options = {}) {
       geodesicScale12: 1,
       geodesicScale21: 1,
       areaSquareMetres: 0,
+      bearingUncertaintyDegrees: null,
+      areaUncertaintySquareMetres: null,
     });
   }
 
+  const model = geodesicModelFor(ellipsoid);
   const solution = solveInverse(
-    geodesicModelFor(ellipsoid),
+    model,
     start.latitude,
     start.longitude,
     end.latitude,
@@ -162,6 +191,7 @@ export function inverseGeodesic(startValue, endValue, options = {}) {
     geodesicScale12: solution.M12,
     geodesicScale21: solution.M21,
     areaSquareMetres: solution.S12,
+    ...inverseUncertainties(solution.m12, model.c2),
   });
 }
 

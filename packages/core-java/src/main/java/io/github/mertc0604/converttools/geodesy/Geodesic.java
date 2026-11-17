@@ -371,7 +371,9 @@ public final class Geodesic {
                     0,
                     1,
                     1,
-                    0
+                    0,
+                    null,
+                    null
             );
         }
 
@@ -418,8 +420,37 @@ public final class Geodesic {
                 reducedLength,
                 scale12,
                 scale21,
-                area
+                area,
+                bearingUncertainty(reducedLength),
+                areaUncertainty(reducedLength, engine.authalicRadiusSquared())
         );
+    }
+
+    // The contract's azimuth tolerance as an endpoint offset, |delta azi| *
+    // |m12| (all 500000 GeodTest rows meet it; the largest is 7.53e-8 m).
+    private static final double AZIMUTH_ENDPOINT_TOLERANCE = 1e-7;
+    // Round-off of a well-conditioned azimuth (GeodTest: at most 1.6e-12 deg).
+    private static final double BEARING_UNCERTAINTY_FLOOR = 1e-11;
+    // Round-off of S12, as a fraction of c^2 (0.41 m^2 on WGS 84).
+    private static final double AREA_ROUND_OFF = 1e-14;
+
+    /**
+     * How far the azimuths of an inverse result may be from the exact ones:
+     * nearly antipodal (small |m12|) an endpoint offset e turns them by about
+     * e / |m12|. Never more than a half turn.
+     */
+    private static double bearingUncertainty(double reducedLengthMetres) {
+        double spread = Math.toDegrees(AZIMUTH_ENDPOINT_TOLERANCE / Math.abs(reducedLengthMetres));
+        return Math.min(180, Math.max(BEARING_UNCERTAINTY_FLOOR, spread));
+    }
+
+    /**
+     * How far S12 may be from the exact value: the azimuths turn one way at
+     * point 1 and the other at point 2, moving S12 by about 2 c^2 times the
+     * bearing uncertainty in radians; plus round-off.
+     */
+    private static double areaUncertainty(double reducedLengthMetres, double c2) {
+        return 2 * c2 * Math.toRadians(bearingUncertainty(reducedLengthMetres)) + AREA_ROUND_OFF * c2;
     }
 
     private static DirectResult direct(

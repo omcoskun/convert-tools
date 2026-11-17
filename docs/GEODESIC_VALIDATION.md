@@ -351,6 +351,34 @@ oldu. Neden, V8/JVM ile Apple libm arasındaki son bit farklarının 1/|m12| ile
 büyümesidir. Bu, GeodTest antipodal bloğunda S12 eşiği (2 × GeodSolve
 maksimumu) için bir risktir; eşik değiştirilmedi.
 
+### Raporlanan belirsizlik (azimut ve S12)
+
+Bu kötü koşulluluk artık sonuçta raporlanır: her ters sonuç
+`bearingUncertaintyDegrees = min(180°, max(1e-11°, 1e-7 m / |m12|))` ve
+`areaUncertaintySquareMetres = 2 c² · rad(bearingUncertaintyDegrees) +
+1e-14 c²` taşır (azimut tanımsızken ikisi de `null`). 1e-7 m, sözleşmenin
+`|Δazi|·|m12|` toleransıdır. 17 Kasım 2026'da tam GeodTest setinde
+(JavaScript, belirsiz rota olan 3 satır hariç) ölçülen değerler sınırın
+altındadır:
+
+| Blok | en büyük `\|Δazi\|·\|m12\|` (m) | en büyük `\|ΔS12\|·\|m12\|/c²` (m) | `\|m12\|` > 100 km iken en büyük `\|ΔS12\|` (m²) |
+|---|---:|---:|---:|
+| random | 1,27e-8 | 7,38e-9 | 0,82 |
+| antipodal | 2,87e-9 | 5,49e-9 | 1,86 |
+| short | 2,67e-9 | 2,71e-13 | — |
+| one-pole | 1,27e-8 | 7,81e-9 | 0,27 |
+| opposite-poles | 1,53e-9 | 3,06e-9 | — |
+| meridional | 1,27e-8 | 7,19e-9 | 0,97 |
+| equatorial | 0 | 1,96e-12 | 6,4e-4 |
+| vertex-to-vertex | 9,1e-19 | 1,8e-18 | — |
+| near-vertex | 1,00e-8 | 2,00e-8 | — |
+
+Son sütun, sıradan hatlarda da S12'nin 0,1 m² basamağının anlamlı
+olmadığını gösterir (GeodSolve'un kendi farkları da bu düzeydedir); tanıtım
+uygulaması S12'yi bu yüzden belirsizliğiyle birlikte gösterir. Satır satır
+denetim `geodesic-wgs84.csv`, `geodesic-ellipsoids.csv` (her iki dilde) ve
+`geodtest-sample.csv` (hold-out) üzerinde testlerdedir.
+
 ## Kaynaklar
 
 - [Karney, "Algorithms for geodesics", J. Geodesy 87:43–55, 2013](https://doi.org/10.1007/s00190-012-0578-z)

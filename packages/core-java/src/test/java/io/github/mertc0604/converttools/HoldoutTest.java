@@ -106,6 +106,19 @@ public final class HoldoutTest {
             GeoPoint start = new GeoPoint(lat1, Double.parseDouble(v[2]));
             GeodesicResult inverse = Geodesic.inverse(start, new GeoPoint(lat2, Double.parseDouble(v[5])));
             DirectResult direct = Geodesic.direct(start, Double.parseDouble(v[3]), Double.parseDouble(v[7]));
+            if (inverse.azimuthDefined() && !inverse.ambiguous()) {
+                // The reported uncertainties hold (an ambiguous pair may list another route).
+                double azimuth = Math.max(
+                        Math.toDegrees(heading(inverse.initialBearingDegrees(), Double.parseDouble(v[3]))),
+                        Math.toDegrees(heading(inverse.finalBearingDegrees(), Double.parseDouble(v[6]))));
+                if (!(azimuth <= inverse.bearingUncertaintyDegrees())) {
+                    failures.add(id + ": azimuth off by " + azimuth + " deg > " + inverse.bearingUncertaintyDegrees());
+                }
+                double area = Math.abs(inverse.areaSquareMetres() - Double.parseDouble(v[10]));
+                if (!(area <= inverse.areaUncertaintySquareMetres())) {
+                    failures.add(id + ": S12 off by " + area + " m^2 > " + inverse.areaUncertaintySquareMetres());
+                }
+            }
             double polar = 1 / (A * Math.cos(Math.toRadians(lat1))) + 1 / (A * Math.cos(Math.toRadians(lat2)));
             double[] actual = {
                     inverse.arcDegrees(), inverse.reducedLengthMetres(), inverse.areaSquareMetres(),

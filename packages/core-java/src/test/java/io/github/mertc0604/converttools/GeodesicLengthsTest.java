@@ -34,6 +34,7 @@ public final class GeodesicLengthsTest {
         coincidentAndZeroDistance();
         pathAndPolyline();
         reducedLengthFiniteDifference();
+        uncertainties();
         System.out.println("Java geodesic length and area tests passed.");
     }
 
@@ -229,6 +230,46 @@ public final class GeodesicLengthsTest {
         }
         System.out.println(String.format(Locale.ROOT, "  m12 finite difference: max relative %.3e", worst));
         require(worst <= 1e-6, "m12 disagrees with the finite difference by " + worst);
+    }
+
+    /**
+     * bearingUncertaintyDegrees = min(180, max(1e-11, deg(1e-7 m / |m12|))) and
+     * areaUncertaintySquareMetres = 2 c^2 rad(bearingUncertainty) + 1e-14 c^2;
+     * both null without an azimuth (the mirror of geodesic-uncertainty.test.mjs).
+     */
+    private static void uncertainties() {
+        GeodesicResult ordinary = Geodesic.inverse(new GeoPoint(39.933365, 32.859742),
+                new GeoPoint(41.008238, 28.978359));
+        require(ordinary.bearingUncertaintyDegrees() > 1e-11
+                && ordinary.bearingUncertaintyDegrees() < 2e-11, "Ankara - Istanbul azimuth uncertainty "
+                + ordinary.bearingUncertaintyDegrees());
+        require(ordinary.areaUncertaintySquareMetres() > 23
+                && ordinary.areaUncertaintySquareMetres() < 24, "Ankara - Istanbul area uncertainty "
+                + ordinary.areaUncertaintySquareMetres());
+        GeodesicResult identity = Geodesic.inverse(new GeoPoint(10, 20), new GeoPoint(10, 20));
+        require(identity.bearingUncertaintyDegrees() == null
+                && identity.areaUncertaintySquareMetres() == null, "coincident points: no uncertainty");
+        GeodesicResult nearVertex = Geodesic.inverse(new GeoPoint(56.796245515064, 0),
+                new GeoPoint(-56.796245515064519948, 179.668926360912281556));
+        double expected = Math.max(1e-11, Math.toDegrees(1e-7 / Math.abs(nearVertex.reducedLengthMetres())));
+        require(Math.abs(nearVertex.reducedLengthMetres()) < 1
+                && Math.abs(nearVertex.bearingUncertaintyDegrees() - expected) <= 1e-12 * Math.max(1, expected)
+                && nearVertex.areaUncertaintySquareMetres() > 1, "near-vertex uncertainty "
+                + nearVertex.bearingUncertaintyDegrees());
+        GeodesicResult poles = Geodesic.inverse(new GeoPoint(90, 0), new GeoPoint(-90, 0));
+        require(poles.bearingUncertaintyDegrees() == 180
+                && Double.isFinite(poles.areaUncertaintySquareMetres()), "opposite poles: a half turn");
+        double c2 = authalicRadiusSquared(OBLATE_50);
+        GeodesicResult oblate = Geodesic.inverse(new GeoPoint(10, 0), new GeoPoint(20, 30), OBLATE_50);
+        require(Math.abs(oblate.areaUncertaintySquareMetres()
+                - (2 * c2 * Math.toRadians(oblate.bearingUncertaintyDegrees()) + 1e-14 * c2))
+                <= 1e-9 * oblate.areaUncertaintySquareMetres(), "area uncertainty uses the ellipsoid's c^2");
+        PolylineMeasurement polyline = Geodesic.measurePolyline(List.of(new GeoPoint(10, 0),
+                new GeoPoint(-10, 179), new GeoPoint(5, 5)));
+        for (GeodesicResult segment : polyline.segments()) {
+            require(segment.bearingUncertaintyDegrees() != null
+                    && segment.areaUncertaintySquareMetres() != null, "route segments report uncertainties");
+        }
     }
 
     private static void require(boolean condition, String message) {
