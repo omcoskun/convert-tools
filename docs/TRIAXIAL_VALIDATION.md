@@ -234,6 +234,9 @@ küreye rastgele çiftler.
 ## Hold-out sonuçları
 
 Geod3Test (DOI 10.5281/zenodo.12510796) bu geliştirme sırasında kullanılmadı.
+Test aşaması bittiği için `holdout.txt` artık `enabled`: 1000 satırlık
+`geod3test-sample.csv` her push'ta iki dilde denetlenir; tam set
+`.github/workflows/full-validation.yml` ile elle tetiklenerek çalışır.
 `Geod3TestFullSet <veri> <satırlar.tsv>` her satırın çıktısını
 (`row s12 alp1 alp2 ambiguous closure x y z m12 M12 M21`) dosyaya yazar ve
 hiçbir şeyi yargılamaz; satırları

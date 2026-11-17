@@ -1,0 +1,149 @@
+name: Full validation
+
+# The full GeodTest and Geod3Test sets (500 000 rows each) against both cores,
+# on demand (Actions > Full validation > Run workflow). The data sets are not
+# in the repository: they come from Zenodo and are checked by MD5 (the
+# validators check it again). GeographicLib 2.7 is built from its source
+# archive, pinned by SHA-256 (the one Homebrew's formula pins), so that
+# GeodSolve and Geod3Solve give the reference maxima the limits are set from
+# (docs/GEODESIC_VALIDATION.md, docs/TRIAXIAL_VALIDATION.md). The 1000-row
+# samples of both sets run on every push, in the hold-out tests of CI.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GEOGRAPHICLIB_URL: https://github.com/geographiclib/geographiclib/archive/refs/tags/r2.7.tar.gz
+  GEOGRAPHICLIB_SHA256: 5aaca14cd75f13aa2690273d76e88e8ddf4aeb267d6be2c3e0ba948deb9ceea5
+
+jobs:
+  geodtest:
+    name: GeodTest (JavaScript, Java, GeodSolve)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.2"
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: Download GeodTest
+        run: |
+          mkdir -p "$RUNNER_TEMP/data"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/data/GeodTest.dat" \
+            https://zenodo.org/api/records/32156/files/GeodTest.dat/content
+          echo "3461c4dc2500a8bad9394cd530b13dbe  $RUNNER_TEMP/data/GeodTest.dat" | md5sum --check
+
+      - name: Build GeographicLib 2.7
+        run: |
+          cd "$RUNNER_TEMP"
+          curl --fail --location --retry 3 --output geographiclib.tar.gz "$GEOGRAPHICLIB_URL"
+          echo "$GEOGRAPHICLIB_SHA256  geographiclib.tar.gz" | sha256sum --check
+          tar -xzf geographiclib.tar.gz
+          cmake -S geographiclib-r2.7 -B geographiclib-build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/geographiclib"
+          cmake --build geographiclib-build --parallel
+          cmake --install geographiclib-build
+          "$RUNNER_TEMP/geographiclib/bin/GeodSolve" --version
+
+      - name: Compile the Java core and its measurement classes
+        run: |
+          mkdir -p build/full-validation
+          find packages/core-java/src/main/java packages/core-java/src/test/java -name '*.java' -print0 \
+            | xargs -0 javac --release 17 -Xlint:all -Werror -d build/full-validation
+
+      - name: Java rows
+        run: |
+          java -cp build/full-validation io.github.mertc0604.converttools.GeodTestFullSet \
+            "$RUNNER_TEMP/data/GeodTest.dat" > "$RUNNER_TEMP/java-geodtest.txt"
+
+      - name: Judge (JavaScript and Java against the limits)
+        run: |
+          node contracts/tools/validate-geodtest.mjs "$RUNNER_TEMP/data/GeodTest.dat" \
+            --reference "$RUNNER_TEMP/geographiclib/bin/GeodSolve" \
+            --java-output "$RUNNER_TEMP/java-geodtest.txt"
+
+  geod3test:
+    name: Geod3Test (JavaScript, Java, Geod3Solve)
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.2"
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: Download Geod3Test
+        run: |
+          mkdir -p "$RUNNER_TEMP/data"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/data/Geod3Test-v1.txt" \
+            https://zenodo.org/api/records/12510796/files/Geod3Test-v1.txt/content
+          echo "495983cb4d8128d1543a22ebd26617d6  $RUNNER_TEMP/data/Geod3Test-v1.txt" | md5sum --check
+
+      - name: Build GeographicLib 2.7
+        run: |
+          cd "$RUNNER_TEMP"
+          curl --fail --location --retry 3 --output geographiclib.tar.gz "$GEOGRAPHICLIB_URL"
+          echo "$GEOGRAPHICLIB_SHA256  geographiclib.tar.gz" | sha256sum --check
+          tar -xzf geographiclib.tar.gz
+          cmake -S geographiclib-r2.7 -B geographiclib-build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/geographiclib"
+          cmake --build geographiclib-build --parallel
+          cmake --install geographiclib-build
+          "$RUNNER_TEMP/geographiclib/bin/Geod3Solve" --version
+
+      - name: Compile the Java core and its measurement classes
+        run: |
+          mkdir -p build/full-validation
+          find packages/core-java/src/main/java packages/core-java/src/test/java -name '*.java' -print0 \
+            | xargs -0 javac --release 17 -Xlint:all -Werror -d build/full-validation
+
+      - name: Java rows
+        run: |
+          java -cp build/full-validation io.github.mertc0604.converttools.Geod3TestFullSet \
+            "$RUNNER_TEMP/data/Geod3Test-v1.txt" "$RUNNER_TEMP/java-geod3test.tsv"
+
+      - name: Judge (JavaScript and Java against the limits)
+        run: |
+          node contracts/tools/validate-geod3test.mjs "$RUNNER_TEMP/data/Geod3Test-v1.txt" \
+            --reference "$RUNNER_TEMP/geographiclib/bin/Geod3Solve" \
+            --java-rows "$RUNNER_TEMP/java-geod3test.tsv" \
+            --outliers "$RUNNER_TEMP/geod3-outliers.tsv" \
+            --workers "$(nproc)"
+
+      - name: Keep the outliers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geod3-outliers
+          path: ${{ runner.temp }}/geod3-outliers.tsv
+          if-no-files-found: ignore

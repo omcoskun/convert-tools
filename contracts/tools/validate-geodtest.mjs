@@ -16,8 +16,12 @@
 //   inverse and direct m12 |m12 - m12*|                  floor 5e-8 m
 //   inverse and direct S12 |S12 - S12*|                  floor 0.05 m^2
 //   direct position (ground distance to lat2, lon2)      floor 5e-8 m
+//   inverse uncertainty ratio, the larger of             limit 1
+//     max(|delta azi1|, |delta azi2|) / bearingUncertaintyDegrees and
+//     |S12 - S12*| / areaUncertaintySquareMetres (rows with a unique route)
 // (* = the data set). A measure passes in a block if
 //   ours <= max(2 * reference-binary maximum in that block, floor).
+// GeodSolve reports no uncertainty, so the ratio's limit is its floor.
 // --reference runs GeodSolve (-i -f -p 9 and -f -p 9) on the same rows and
 // takes its maxima as the reference; without it the floor alone applies.
 // --java-output reads the "MAX <block> <measure> <value> <row>" lines that
@@ -38,8 +42,9 @@
 // that is not GeodTest.dat: it skips the MD5 and row-count checks and
 // divides every block size by 500 (200 random rows, 100 in each other block).
 //
-// This tool is a manual audit; it is not part of CI and is not wired into the
-// npm scripts. The data set is not distributed with the repository.
+// This tool is an audit run on demand: by hand, or by the workflow
+// .github/workflows/full-validation.yml (manual trigger), not on every push.
+// The data set is not distributed with the repository.
 import { createHash } from "node:crypto";
 import { createReadStream, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
@@ -62,6 +67,7 @@ const MEASURES = [
   ["directA12", 5e-13, "deg"],
   ["directM12", 5e-8, "m"],
   ["directS12", 0.05, "m^2"],
+  ["uncertaintyRatio", 1, ""],
 ];
 
 // GeodTest blocks, 0-based line indexes.
@@ -232,6 +238,12 @@ function measure(rows, groups, inverseOf, directOf, counters) {
       record(maxima, block, "inverseA12", Math.abs(inverse.a12 - ref(7)), i);
       record(maxima, block, "inverseM12", Math.abs(inverse.m12 - ref(8)), i);
       record(maxima, block, "inverseS12", Math.abs(inverse.S12 - ref(9)), i);
+      // The reported uncertainties hold (an ambiguous pair may list another route).
+      if (inverse.bearingUncertainty != null && !inverse.ambiguous) {
+        const azimuth = Math.max(angleDiff(inverse.azi1, ref(2)), angleDiff(inverse.azi2, ref(5)));
+        const area = Math.abs(inverse.S12 - ref(9));
+        record(maxima, block, "uncertaintyRatio", Math.max(azimuth / inverse.bearingUncertainty, area / inverse.areaUncertainty), i);
+      }
     }
     try {
       const direct = directOf(i);
@@ -413,6 +425,9 @@ const coreMaxima = measure(
       a12: result.arcDegrees,
       m12: result.reducedLengthMetres,
       S12: result.areaSquareMetres,
+      ambiguous: result.ambiguous,
+      bearingUncertainty: result.bearingUncertaintyDegrees,
+      areaUncertainty: result.areaUncertaintySquareMetres,
     };
   },
   (i) => {

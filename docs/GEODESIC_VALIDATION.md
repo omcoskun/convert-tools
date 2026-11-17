@@ -278,10 +278,20 @@ kendi üretilen girdilerde GeodSolve karşılaştırması, matematiksel özellik
 (küre kapalı formları, karşılıklılık, ters/doğrudan kapanış, tam antipodlar)
 ve sonlu farklardan gelir.
 
-Kapı `contracts/test-vectors/holdout.txt` dosyasıdır; içinde tek kelime
-`disabled` durur. `enabled` yapılmadıkça hold-out testleri çalışmaz ve
-"disabled" satırı yazar. Eşikler önceden sabitlendi ve değiştirilmez: bizim
-değerimiz ≤ max(2 × referans ikili dosyanın en büyük hatası, taban).
+Kapı `contracts/test-vectors/holdout.txt` dosyasıdır. Bağımsız test aşaması
+15–17 Kasım 2026'da bitti ve sonuçları aşağıdadır; o zamandan beri dosyada
+`enabled` durur, yani iki örneklem (`geodtest-sample.csv`,
+`geod3test-sample.csv`, 1000'er satır) her push'ta CI'da iki dilde denetlenir
+(`disabled` yazılırsa testler yalnız bir satır yazar). Artık hold-out değil,
+gerileme testidir. Tam setler (500.000'er satır) depoda yoktur;
+`.github/workflows/full-validation.yml` onları Zenodo'dan indirip MD5 ile
+denetler, GeographicLib 2.7'yi sabit SHA-256'lı kaynaktan derler ve iki
+doğrulayıcıyı `GeodSolve`/`Geod3Solve` referansıyla, Java çıktısıyla
+birlikte çalıştırır (Actions > Full validation > Run workflow). Eşikler
+önceden sabitlendi ve değiştirilmez: bizim değerimiz ≤ max(2 × referans
+ikili dosyanın en büyük hatası, taban). `validate-geodtest.mjs` ayrıca her
+satırda raporlanan belirsizliğin tuttuğunu denetler (`uncertaintyRatio` ≤ 1,
+yukarıdaki "Raporlanan belirsizlik").
 
 | Ölçüt | Taban | JavaScript | Java |
 |---|---:|---|---|

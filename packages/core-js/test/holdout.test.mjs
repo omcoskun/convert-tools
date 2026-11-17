@@ -1,8 +1,7 @@
-// Hold-out checks, gated by contracts/test-vectors/holdout.txt. While that
-// file says "disabled" (the state in the repository) these tests only print
-// one line saying so. They run only in the independent test phase, after the
-// owner switches the file to "enabled" (docs/GEODESIC_VALIDATION.md, section
-// "Hold-out"):
+// Hold-out checks, gated by contracts/test-vectors/holdout.txt. The
+// repository has said "enabled" since the independent test phase ended
+// (docs/GEODESIC_VALIDATION.md, section "Hold-out"), so they run on every
+// push; with "disabled" they only print one line saying so. They check:
 //   (a) arcDegrees, reducedLengthMetres and areaSquareMetres of the inverse
 //       and direct solvers against the a12, m12, S12 columns of
 //       geodtest-sample.csv, with the tolerances of the contract vectors

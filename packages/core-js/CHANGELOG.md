@@ -144,6 +144,14 @@ için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
   aşaması sabit adımlı Runge–Kutta ile izlenir, son aşama değişmeden
   Gragg–Bulirsch–Stoer ile. Yedi elipsoitte eski sonuçlarla fark en çok
   1,6e-14 b.
+- Hold-out açıldı (`contracts/test-vectors/holdout.txt` `enabled`):
+  `geodtest-sample.csv` ve `geod3test-sample.csv` her push'ta iki dilde
+  denetlenir, ters sonuçların raporladığı belirsizlik dahil. Tam GeodTest ve
+  Geod3Test setleri için elle tetiklenen `full-validation.yml` iş akışı
+  eklendi (Zenodo'dan MD5'li indirme, sabit SHA-256'lı GeographicLib 2.7
+  referansı, iki dil). `validate-geodtest.mjs` ve `GeodTestFullSet` yeni
+  `uncertaintyRatio` ölçüsüyle raporlanan belirsizliği her satırda denetler
+  (sınır 1).
 
 ## 3.0.0 — 2026-11-13
 

@@ -25,7 +25,8 @@ import java.util.Map;
  * {@code MAX <block> <measure> <value> <row> <count>}, where the measures are
  * those of {@code contracts/tools/validate-geodtest.mjs} (inverseDistance,
  * azimuthOffset, inverseA12, inverseM12, inverseS12, directPosition,
- * directA12, directM12, directS12) and {@code row} is the 0-based data row of
+ * directA12, directM12, directS12, uncertaintyRatio) and {@code row} is the
+ * 0-based data row of
  * the maximum. That script reads these lines with {@code --java-output} and
  * applies the fixed limits; this class judges nothing itself.
  *
@@ -39,7 +40,8 @@ import java.util.Map;
  * {@code java -cp <classes> io.github.mertc0604.converttools.GeodTestFullSet
  * /path/to/GeodTest.dat [--synthetic]}. {@code --synthetic} divides every
  * block size by 500, for testing on a small file in the data-set layout. This
- * class is a manual measurement tool; it is not part of
+ * class is a measurement tool run on demand (by hand, or by
+ * .github/workflows/full-validation.yml); it is not part of
  * {@code scripts/test.sh}.
  */
 public final class GeodTestFullSet {
@@ -71,7 +73,7 @@ public final class GeodTestFullSet {
     private static final String[] MEASURES = {
             "inverseDistance", "azimuthOffset", "inverseA12", "inverseM12",
             "inverseS12", "directPosition", "directA12", "directM12",
-            "directS12",
+            "directS12", "uncertaintyRatio",
     };
     private static int blockScale = 1;
 
@@ -226,6 +228,17 @@ public final class GeodTestFullSet {
                     record(maxima, name, "inverseS12", Math.abs(
                             inverse.areaSquareMetres()
                                     - Double.parseDouble(reference[9])), index);
+                    // The reported uncertainties hold (an ambiguous pair may
+                    // list another route).
+                    if (inverse.bearingUncertaintyDegrees() != null && !inverse.ambiguous()) {
+                        double azimuth = Math.max(
+                                angleDiff(inverse.initialBearingDegrees(), Double.parseDouble(reference[2])),
+                                angleDiff(inverse.finalBearingDegrees(), Double.parseDouble(reference[5])));
+                        double areaError = Math.abs(inverse.areaSquareMetres() - Double.parseDouble(reference[9]));
+                        record(maxima, name, "uncertaintyRatio", Math.max(
+                                azimuth / inverse.bearingUncertaintyDegrees(),
+                                areaError / inverse.areaUncertaintySquareMetres()), index);
+                    }
                     if (inverse.ambiguous() && firstAmbiguous.size() < 5) {
                         firstAmbiguous.add(index);
                     }

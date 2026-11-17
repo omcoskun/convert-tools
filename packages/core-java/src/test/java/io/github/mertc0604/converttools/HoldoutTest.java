@@ -19,7 +19,8 @@ import java.util.Map;
  * Hold-out checks, gated by {@code holdout.txt} in the test-vector directory
  * (the first argument). The Java mirror of
  * packages/core-js/test/holdout.test.mjs, with the same rules and limits.
- * While the file says {@code disabled} (the state in the repository) this
+ * The repository has said {@code enabled} since the independent test phase
+ * ended (docs/GEODESIC_VALIDATION.md, "Hold-out"); with {@code disabled} this
  * class prints one line and checks nothing else. With {@code enabled}:
  * (a) a12, m12 and S12 of the inverse and direct solvers against the
  * {@code geodtest-sample.csv} columns: a12 1e-7 m / (a * 1 degree), m12

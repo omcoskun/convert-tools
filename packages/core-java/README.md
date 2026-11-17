@@ -231,12 +231,15 @@ Betik kaynakları `javac --release 17 -Xlint:all -Werror` ile derler ve
 `ErrorContractTest`, `GeodesicLengthsTest`, `TriaxialGeodesicTest` ve
 `HoldoutTest` sınıflarını
 `contracts/` dosyalarına karşı çalıştırır. `HoldoutTest`,
-`contracts/test-vectors/holdout.txt` `disabled` iken yalnız bir satır yazar.
+`contracts/test-vectors/holdout.txt` `enabled` olduğundan (depodaki durum)
+GeodTest ve Geod3Test örneklemlerini denetler; `disabled` iken yalnız bir
+satır yazar.
 `ReferenceVectorTest` ayrıca `contracts/test-vectors/geodtest-sample.csv`
 dosyasını 1e-7 m toleransla doğrular.
 
 Karney'in tam `GeodTest.dat` seti (500.000 satır) isteğe bağlı bir ölçüm
-aracıyla, CI'ya eklenmeden çalıştırılabilir:
+aracıyla çalıştırılabilir; GitHub'da `.github/workflows/full-validation.yml`
+(elle tetiklenir) aynısını yapar:
 
 ```bash
 OUT=$(mktemp -d)

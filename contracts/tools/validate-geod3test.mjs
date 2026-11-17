@@ -55,8 +55,9 @@
 // Geod3Test-v1.txt (see make-geod3-synthetic.mjs): it skips the MD5 and
 // row-count checks.
 //
-// This tool is a manual audit; it is not part of CI. The data set is not
-// distributed with the repository.
+// This tool is an audit run on demand: by hand, or by the workflow
+// .github/workflows/full-validation.yml (manual trigger), not on every push.
+// The data set is not distributed with the repository.
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
