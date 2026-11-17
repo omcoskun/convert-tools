@@ -11,7 +11,6 @@ import { fill, useConfig, useLanguage } from "../../context.js";
 import { attempt } from "../../lib/attempt.js";
 import { fixedPair, plainNumber } from "../../lib/number-text.js";
 import { readNumberText, readPointText } from "../../lib/point-text.js";
-import { isBeyondDisplay } from "../../map/map-adapter.js";
 import { useHandoffReceiver } from "../../shell/handoff.js";
 import InputWidget from "../../shell/InputWidget.jsx";
 import ResultHud from "../../shell/ResultHud.jsx";
@@ -173,7 +172,6 @@ export default function MeasureTool() {
 
   // ---- The input widget --------------------------------------------------
   const modeLabels = { inverse: text.modeInverse, direct: text.modeDirect, route: text.modeRoute };
-  const pointName = (index) => (mode === "route" ? String(index + 1) : LETTERS[index]);
 
   let pasteNotice = "";
   if (lastPaste) {
@@ -287,13 +285,6 @@ export default function MeasureTool() {
   else hint = text.readoutEmpty;
   const canStartPicking = target == null && rows.some((row) => row.trim() === "");
 
-  // Points the Web Mercator map can only draw on its edge.
-  const polar = readings
-    .flatMap((reading, index) =>
-      reading.status === "valid" && isBeyondDisplay({ latitude: Number(reading.latitude) }) ? [pointName(index)] : [],
-    )
-    .concat(value?.direct && isBeyondDisplay(value.direct) ? ["B"] : [])
-    .join(", ");
   const ambiguous =
     (mode === "inverse" && value?.inverse.ambiguous) || (mode === "route" && value?.polyline.segments.some((segment) => segment.ambiguous));
   const runSummary = { inverse: text.distanceInvalid, direct: text.directInvalid, route: text.distanceInvalid }[mode];
@@ -303,11 +294,6 @@ export default function MeasureTool() {
     ambiguous && (
       <Notice key="ambiguous" tone="warn">
         {mode === "route" ? text.ambiguousRoute : text.ambiguousPath}
-      </Notice>
-    ),
-    polar && (
-      <Notice key="polar" tone="info">
-        {fill(text.mapPolarNote, { points: polar })}
       </Notice>
     ),
   ].filter(Boolean);

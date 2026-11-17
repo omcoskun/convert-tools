@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { sampleGeodesicPath } from "@convert-tools/core";
 import {
+  LINE_WIDTHS,
+  MAP_PROJECTION,
   MERCATOR_LATITUDE_LIMIT,
   constrainView,
   coordinateFromLngLat,
@@ -17,21 +19,33 @@ import {
   formatPickedCoordinate,
   gradientColor,
   guardFilter,
-  isBeyondDisplay,
+  lineWidthAt,
+  markerLatitude,
   routeMidpoint,
+  screenRuns,
   tuneBasemapStyle,
   unwrapPath,
   wrapLongitude,
 } from "../src/map/map-adapter.js";
-import { pinDisplay, sceneBounds, sceneFeatures } from "../src/map/scene.js";
+import { sceneBounds, sceneFeatures } from "../src/map/scene.js";
 
-test("polar points are drawn on the Web Mercator edge; their values are untouched", () => {
-  const pole = { latitude: 89.9, longitude: 90 };
-  assert.equal(isBeyondDisplay(pole), true);
-  assert.equal(isBeyondDisplay({ latitude: 85, longitude: 0 }), false);
-  assert.deepEqual(pinDisplay(pole), { longitude: 90, latitude: MERCATOR_LATITUDE_LIMIT, clamped: true, edge: "north" });
+test("the map is a globe that turns flat (Web Mercator) when zoomed in", () => {
+  // MapLibre's globe preset: a sphere up to zoom 11, Web Mercator from 12.
+  // Zoomed out there are no copies of the world, so A, B and the tag of a
+  // line never end up on different copies, and the poles are on the map.
+  assert.deepEqual(MAP_PROJECTION, { type: "globe" });
+  assert.ok(Object.isFrozen(MAP_PROJECTION));
+});
+
+test("pins and tags sit on their real latitude; only the exact pole is moved in by a hair", () => {
+  // Web Mercator (zoom 12 and more) has no y for ±90°; 1e-6° is 11 cm.
+  assert.equal(markerLatitude(89.9), 89.9);
+  assert.equal(markerLatitude(-85.2), -85.2);
+  assert.equal(markerLatitude(90), 89.999999);
+  assert.equal(markerLatitude(-90), -89.999999);
+  // Bounds for a fit still stop at the Mercator edge.
   assert.equal(displayLatitude(-90), -MERCATOR_LATITUDE_LIMIT);
-  assert.equal(pole.latitude, 89.9);
+  assert.equal(displayLatitude(84), 84);
 });
 
 test("a route across the antimeridian stays one short line", () => {
@@ -48,25 +62,63 @@ test("a route across the antimeridian stays one short line", () => {
   assert.ok(Math.abs(routeMidpoint(path.points)[0] - 180) < 1e-6);
 });
 
-test("the tag of a line whose middle is beyond the edge sits on the middle of that stretch", () => {
-  // The owner's screenshot: the tag sat on the clamped corner where the line
-  // reached the edge, next to A. The middle of this line is near the pole,
-  // so the tag goes to the middle of the dashed stretch on the edge, where
-  // the line passes closest to the pole (about 205° east).
+test("the tag sits on the middle of the line, also where that is near a pole", () => {
+  // The owner's route passes 89.54°N; its middle (by length) is at 85.7°N,
+  // beyond the Mercator edge, which the globe shows where it is.
   const path = sampleGeodesicPath(
     { latitude: "36.36341", longitude: "115.56606" },
     { latitude: "44.902554", longitude: "-65.212542" },
   );
   const [longitude, latitude] = routeMidpoint(path.points);
-  assert.equal(latitude, MERCATOR_LATITUDE_LIMIT);
-  assert.ok(Math.abs(longitude - 205.2) < 2, `longitude ${longitude}`);
-  // A line whose middle is on the map keeps its middle vertex.
-  const [, shownLatitude] = routeMidpoint([
-    { latitude: 89, longitude: 0 },
-    { latitude: 80, longitude: 10 },
-    { latitude: 70, longitude: 20 },
+  assert.ok(Math.abs(latitude - 85.7313) < 1e-3, `latitude ${latitude}`);
+  assert.ok(Math.abs(longitude - 121.2497) < 1e-3, `longitude ${longitude}`);
+  // An even number of points: halfway between the two middle ones.
+  assert.deepEqual(
+    routeMidpoint([
+      { latitude: 89, longitude: 0 },
+      { latitude: 80, longitude: 10 },
+      { latitude: 70, longitude: 20 },
+      { latitude: 60, longitude: 30 },
+    ]),
+    [15, 75],
+  );
+});
+
+test("lines are 3 to 5 px wide on a 6 to 10 px casing, growing from zoom 1 to 12", () => {
+  assert.deepEqual(LINE_WIDTHS, { line: [3, 5], casing: [6, 10] });
+  assert.equal(lineWidthAt(0, LINE_WIDTHS.line), 3);
+  assert.equal(lineWidthAt(1, LINE_WIDTHS.line), 3);
+  assert.equal(lineWidthAt(6.5, LINE_WIDTHS.casing), 8);
+  assert.equal(lineWidthAt(12, LINE_WIDTHS.line), 5);
+  assert.equal(lineWidthAt(18, LINE_WIDTHS.casing), 10);
+});
+
+test("a stretch over a pole is drawn on screen in runs of the vertices on the visible side of the globe", () => {
+  // MapLibre's GeoJSON tiles stop at ±85.05°, so the stretch beyond is drawn
+  // over the map from screen points: the copy of it nearest the centre,
+  // broken where it passes behind the globe.
+  const coordinates = [
+    [350, 86],
+    [355, 88],
+    [360, 89],
+    [365, 88],
+  ];
+  const project = ([longitude, latitude]) => [longitude * 2, -latitude];
+  const visible = ([longitude]) => longitude !== -5;
+  assert.deepEqual(screenRuns(coordinates, { centerLongitude: -10, project, visible }), [
+    [
+      [0, -89],
+      [10, -88],
+    ],
   ]);
-  assert.equal(shownLatitude, 80);
+  // Near the centre already: not moved; all visible: one run.
+  assert.deepEqual(screenRuns(coordinates.slice(0, 2), { centerLongitude: 300, project, visible: () => true }), [
+    [
+      [700, -86],
+      [710, -88],
+    ],
+  ]);
+  assert.deepEqual(screenRuns([], { centerLongitude: 0, project, visible }), []);
 });
 
 test("the line colour runs from A's to B's colour", () => {
@@ -164,6 +216,7 @@ test("the basemap keeps no raster source, so no imagery is ever requested", () =
   assert.deepEqual(tuned.layers[2].layout["text-field"][1], ["get", "name:tr"]);
   assert.deepEqual(tuneBasemapStyle(style, "en").layers[2].layout["text-field"][1], ["get", "name:en"]);
   assert.equal(style.layers.length, 4, "the input style is not changed");
+  assert.deepEqual(tuned.projection, MAP_PROJECTION, "the basemap is drawn on the globe");
 });
 
 test("the offline fallback style makes no requests", () => {
@@ -171,6 +224,7 @@ test("the offline fallback style makes no requests", () => {
   assert.equal(style.version, 8);
   assert.doesNotMatch(JSON.stringify(style), /https?:/);
   assert.ok(Object.values(style.sources).every((source) => source.type === "geojson"));
+  assert.deepEqual(style.projection, MAP_PROJECTION);
 });
 
 test("number comparisons in basemap filters read a missing property as failing, without a warning", () => {

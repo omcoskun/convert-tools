@@ -3,14 +3,39 @@
 // basemap style rules are unit tested (test/map-adapter.test.mjs). What a
 // tool draws is described by a scene (scene.js).
 
-// Web Mercator cannot show latitudes beyond ±85.0511°. Points there are drawn
-// on the display edge; the coordinates used for the calculation never change.
+// The map is a globe (MapLibre's globe projection: a sphere up to zoom 11,
+// Web Mercator from zoom 12), as zoomed-out Google Maps and Mapbox maps are:
+// no copies of the world side by side, and the poles are on the map.
+export const MAP_PROJECTION = Object.freeze({ type: "globe" });
+
+// Web Mercator ends at ±85.0511°, and so do MapLibre's GeoJSON tiles at every
+// zoom, on the globe too: a line's stretch beyond is drawn over the map from
+// screen points (screenRuns), and fits stop at the edge.
 export const MERCATOR_LATITUDE_LIMIT = 85.0511287798066;
 
 // Same as COLORS.a, COLORS.b and COLORS.ink in theme.js (kept here so this
 // module has no dependency on the component library). A line with a
 // gradient runs from a to b; other lines are ink.
 export const LINE_COLORS = Object.freeze({ a: "#2450e0", b: "#e2492c", ink: "#16191c" });
+
+/**
+ * Widths in px of the lines and their white casing, growing linearly from
+ * LINE_WIDTH_ZOOMS[0] to [1] (MapLibre's line-width and the stretches drawn
+ * over the pole alike).
+ */
+export const LINE_WIDTHS = Object.freeze({ line: Object.freeze([3, 5]), casing: Object.freeze([6, 10]) });
+export const LINE_WIDTH_ZOOMS = Object.freeze([1, 12]);
+
+/**
+ * A width of LINE_WIDTHS at a zoom, as MapLibre's linear interpolate gives it.
+ * @param {number} zoom
+ * @param {readonly [number, number]} widths [at LINE_WIDTH_ZOOMS[0], at [1]]
+ */
+export function lineWidthAt(zoom, [low, high]) {
+  const [from, to] = LINE_WIDTH_ZOOMS;
+  const t = Math.min(1, Math.max(0, (zoom - from) / (to - from)));
+  return low + (high - low) * t;
+}
 
 /**
  * The colour of a gradient line at `t` (0 at A, 1 at B): LINE_COLORS.a and
@@ -26,11 +51,8 @@ export function gradientColor(t) {
   return `rgb(${mixed.join(", ")})`;
 }
 
-/** West-south and east-north corners of the "whole world" view. */
-export const WORLD_BOUNDS = Object.freeze([
-  [-170, -58],
-  [170, 78],
-]);
+/** Latitude the "whole world" view looks at: the globe, tilted a little to the inhabited north. */
+export const WORLD_VIEW_LATITUDE = 20;
 
 /** Longitude in [-180, 180]; 180 stays 180. */
 export function wrapLongitude(longitude) {
@@ -40,6 +62,7 @@ export function wrapLongitude(longitude) {
   return wrapped === -180 && longitude > 0 ? 180 : wrapped;
 }
 
+/** Latitude for fitting a view: Web Mercator bounds stop at ±85.0511°. */
 export function displayLatitude(latitude) {
   return Math.max(-MERCATOR_LATITUDE_LIMIT, Math.min(MERCATOR_LATITUDE_LIMIT, latitude));
 }
@@ -47,9 +70,10 @@ export function displayLatitude(latitude) {
 /**
  * The view constraint of the workspace map (MapLibre's transformConstrain).
  * MapLibre's own keeps the Mercator edge at the top or bottom of the
- * viewport, where the glass top bar would hide a pin drawn on it; here the
- * centre may go up to the edge, so a fit can bring such pins into the free
- * part of the map. Longitude is free (world copies); zoom stays in range.
+ * viewport (zoomed in), where the glass top bar would hide what is drawn
+ * near it; here the centre may go up to the edge, as far as MapLibre's
+ * camera goes, on the globe too. Longitude is free (world copies); zoom
+ * stays in range.
  * @param {{ lng: number, lat: number }} center
  * @param {number} zoom
  * @param {{ minZoom: number, maxZoom: number }} range
@@ -66,39 +90,50 @@ export function constrainView(center, zoom, { minZoom, maxZoom }) {
  */
 export const PIN_SHAPE = Object.freeze({ width: 30, height: 50, head: 26, dot: 10 });
 
-/** True for a point the Web Mercator map can only show on its edge. */
-export function isBeyondDisplay(point) {
-  return point != null && Math.abs(point.latitude) > MERCATOR_LATITUDE_LIMIT;
+// A pin or tag on ±90° exactly has no Web Mercator y (zoom 12 and more).
+const MARKER_LATITUDE_LIMIT = 89.999999;
+
+/** Latitude a pin or tag is drawn at: its own, the exact poles moved in by 11 cm. */
+export function markerLatitude(latitude) {
+  return Math.max(-MARKER_LATITUDE_LIMIT, Math.min(MARKER_LATITUDE_LIMIT, latitude));
 }
 
 /**
- * Map coordinates of sampled geodesic vertices with continuous longitudes
+ * [longitude, latitude] of each point with continuous longitudes
  * (consecutive steps never jump by more than 180°), so MapLibre draws an
  * antimeridian crossing as one short line instead of one across the world.
- * Latitudes are clamped for display only.
  * @param {{ latitude: number, longitude: number }[] | null} points
  * @returns {[number, number][]}
  */
-export function unwrapPath(points) {
+function unwrapLongitudes(points) {
   const coordinates = [];
-  let previous = null;
   for (const point of points ?? []) {
     let longitude = point.longitude;
-    if (previous !== null) {
-      while (longitude - previous > 180) longitude -= 360;
-      while (longitude - previous < -180) longitude += 360;
+    const previous = coordinates.at(-1);
+    if (previous) {
+      while (longitude - previous[0] > 180) longitude -= 360;
+      while (longitude - previous[0] < -180) longitude += 360;
     }
-    coordinates.push([longitude, displayLatitude(point.latitude)]);
-    previous = longitude;
+    coordinates.push([longitude, point.latitude]);
   }
   return coordinates;
 }
 
 /**
+ * Map coordinates of sampled geodesic vertices with continuous longitudes
+ * (unwrapLongitudes) and latitudes within the Mercator edge, for bounds.
+ * @param {{ latitude: number, longitude: number }[] | null} points
+ * @returns {[number, number][]}
+ */
+export function unwrapPath(points) {
+  return unwrapLongitudes(points).map(([longitude, latitude]) => [longitude, displayLatitude(latitude)]);
+}
+
+/**
  * A line cut where it crosses the Web Mercator edge (±85.0511°), as pieces of
- * unwrapped map coordinates. A shown piece lies within the edge; a piece
- * `beyond` follows the line's longitudes on the edge (latitudes clamped):
- * there the line is out of the map, and it is drawn differently. `from` and
+ * unwrapped map coordinates. A shown piece lies within the edge and MapLibre
+ * draws it; a piece `beyond` keeps the line's real latitudes and is drawn
+ * over the map (MapLibre's tiles would clamp it onto the edge). `from` and
  * `to` give where a piece starts and ends along the whole line, 0 at the
  * first point and 1 at the last (the sampled vertices are equally spaced
  * along it). Neighbouring pieces share the crossing point, interpolated
@@ -108,22 +143,12 @@ export function unwrapPath(points) {
  * @returns {{ beyond: boolean, coordinates: [number, number][], from: number, to: number }[]}
  */
 export function linePieces(points) {
-  const unwrapped = [];
-  for (const point of points ?? []) {
-    let longitude = point.longitude;
-    const previous = unwrapped.at(-1);
-    if (previous) {
-      while (longitude - previous[0] > 180) longitude -= 360;
-      while (longitude - previous[0] < -180) longitude += 360;
-    }
-    unwrapped.push([longitude, point.latitude]);
-  }
+  const unwrapped = unwrapLongitudes(points);
   if (unwrapped.length < 2) return [];
   const last = unwrapped.length - 1;
   const isBeyond = ([, latitude]) => Math.abs(latitude) > MERCATOR_LATITUDE_LIMIT;
-  const shown = ([longitude, latitude]) => [longitude, displayLatitude(latitude)];
   const pieces = [];
-  let piece = { beyond: isBeyond(unwrapped[0]), coordinates: [shown(unwrapped[0])], from: 0, to: 1 };
+  let piece = { beyond: isBeyond(unwrapped[0]), coordinates: [unwrapped[0]], from: 0, to: 1 };
   for (let index = 1; index <= last; index += 1) {
     const before = unwrapped[index - 1];
     const vertex = unwrapped[index];
@@ -138,7 +163,7 @@ export function linePieces(points) {
       pieces.push(piece);
       piece = { beyond, coordinates: [crossing], from: at, to: 1 };
     }
-    piece.coordinates.push(shown(vertex));
+    piece.coordinates.push(vertex);
   }
   pieces.push(piece);
   const hasLength = ({ coordinates }) =>
@@ -147,22 +172,51 @@ export function linePieces(points) {
   return kept.length > 0 ? kept : pieces.slice(0, 1);
 }
 
+/**
+ * Screen polylines of a stretch beyond the Mercator edge: its copy nearest
+ * the map's centre (n × 360° east or west), projected vertex by vertex and
+ * broken where it passes behind the globe. Runs of fewer than two visible
+ * vertices are left out.
+ * @param {[number, number][]} coordinates unwrapped [longitude, latitude]
+ * @param {{
+ *   centerLongitude: number,
+ *   project: (lngLat: [number, number]) => [number, number],
+ *   visible: (lngLat: [number, number]) => boolean,
+ * }} view
+ * @returns {[number, number][][]}
+ */
+export function screenRuns(coordinates, { centerLongitude, project, visible }) {
+  if (coordinates.length === 0) return [];
+  const longitudes = coordinates.map(([longitude]) => longitude);
+  const middle = (Math.min(...longitudes) + Math.max(...longitudes)) / 2;
+  const shift = Math.round((centerLongitude - middle) / 360) * 360;
+  const runs = [];
+  let run = [];
+  const close = () => {
+    if (run.length >= 2) runs.push(run);
+    run = [];
+  };
+  for (const [longitude, latitude] of coordinates) {
+    const lngLat = [longitude + shift, latitude];
+    if (visible(lngLat)) run.push(project(lngLat));
+    else close();
+  }
+  close();
+  return runs;
+}
+
 export function isSinglePoint(bounds) {
   return bounds[1][0] - bounds[0][0] < 1e-9 && bounds[1][1] - bounds[0][1] < 1e-9;
 }
 
 /**
  * Where a drawn line's tag sits: the middle of the line (sampled vertices are
- * equally spaced along it). When the middle is beyond the Mercator edge (a
- * line over a pole), the middle of that stretch on the edge, where the line
- * passes nearest the pole, instead of the clamped vertex: that one sits where
- * the line reaches the edge, next to A or B, often at the side of the view.
+ * equally spaced along it), at its real latitude, also near a pole.
+ * @returns {[number, number] | null} [longitude, latitude]
  */
 export function routeMidpoint(points) {
-  const pieces = linePieces(points);
-  if (pieces.length === 0) return null;
-  const middlePiece = pieces.find((piece) => piece.from <= 0.5 && piece.to >= 0.5) ?? pieces[0];
-  const coordinates = middlePiece.beyond ? middlePiece.coordinates : unwrapPath(points);
+  const coordinates = unwrapLongitudes(points);
+  if (coordinates.length < 2) return null;
   const middle = (coordinates.length - 1) / 2;
   const lower = coordinates[Math.floor(middle)];
   const upper = coordinates[Math.ceil(middle)];
@@ -292,9 +346,9 @@ export function isLocalizedLabelLayer(layer) {
 }
 
 /**
- * The basemap style as the app draws it: no raster sources (no imagery or
- * shaded relief is ever requested), the house colours and labels in the
- * interface language.
+ * The basemap style as the app draws it: on the globe (MAP_PROJECTION), no
+ * raster sources (no imagery or shaded relief is ever requested), the house
+ * colours and labels in the interface language.
  */
 // A missing property compares as false: MapLibre does that too, but logs a
 // warning for every feature ("Expected value to be of type number, but found
@@ -338,7 +392,7 @@ export function tuneBasemapStyle(style, language) {
       }
       return next;
     });
-  return { ...style, sources, layers };
+  return { ...style, projection: MAP_PROJECTION, sources, layers };
 }
 
 // ---------------------------------------------------------------------------
@@ -377,6 +431,7 @@ export function fallbackStyle() {
   return {
     version: 8,
     name: "convert-offline-graticule",
+    projection: MAP_PROJECTION,
     sources: { "convert-graticule": { type: "geojson", data: graticule(30) } },
     layers: [
       { id: "background", type: "background", paint: { "background-color": "#eceae3" } },

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LINE_COLORS,
+  LINE_WIDTHS,
+  LINE_WIDTH_ZOOMS,
   PIN_SHAPE,
-  WORLD_BOUNDS,
+  WORLD_VIEW_LATITUDE,
   constrainView,
   coordinateFromLngLat,
   decimalsForResolution,
@@ -10,26 +12,35 @@ import {
   gradientColor,
   isLocalizedLabelLayer,
   isSinglePoint,
+  lineWidthAt,
   localizedNameExpression,
+  markerLatitude,
   routeMidpoint,
+  screenRuns,
   tuneBasemapStyle,
 } from "./map-adapter.js";
 import { loadMapLibre, webgl2Available } from "./maplibre.js";
-import { longitudeWithin, pinClassName, pinDisplay, sceneBounds, sceneFeatures } from "./scene.js";
+import {
+  fitTargets,
+  longitudeWithin,
+  pinClassName,
+  polarStretches,
+  sceneBounds,
+  sceneFeatures,
+  scenePoints,
+} from "./scene.js";
 
-// One GeoJSON source holds every line of the scene, cut where it leaves the
-// Web Mercator map (sceneFeatures): a white casing under the shown pieces,
-// then ink lines and A -> B gradient lines, and the pieces beyond the edge
-// dashed on the edge. A piece of a cut gradient line gets a layer of its own
+// One GeoJSON source holds every line of the scene within the Web Mercator
+// edge (sceneFeatures): a white casing, then ink lines and A -> B gradient
+// lines. A piece of a line cut at the edge gets a gradient layer of its own
 // (GRADIENT_PIECE_PREFIX + id:part), whose ramp covers only its stretch of
 // the A -> B colours: line-gradient follows line-progress within a feature.
+// The stretches beyond the edge (over a pole) are drawn by the polar overlay.
 const LINE_SOURCE = "convert-lines";
 const CASING_LAYER = "convert-lines-casing";
 const PLAIN_LAYER = "convert-lines-plain";
 const GRADIENT_LAYER = "convert-lines-gradient";
-const EDGE_LAYER = "convert-lines-edge";
 const GRADIENT_PIECE_PREFIX = "convert-lines-gradient-piece:";
-const SHOWN = ["!=", ["get", "beyond"], true];
 const WHOLE = ["all", ["==", ["get", "from"], 0], ["==", ["get", "to"], 1]];
 const EMPTY_LINES = Object.freeze({ type: "FeatureCollection", features: Object.freeze([]) });
 
@@ -41,17 +52,238 @@ const DOUBLE_CLICK_GUARD_PX = 10;
 const CURSOR_DECIMALS = 5;
 // The view of an empty scene: the whole inhabited world.
 const START_VIEW = Object.freeze({ center: [24, 30], zoom: 1.6 });
-const ZOOM_RANGE = Object.freeze({ minZoom: 0, maxZoom: 20 });
+// MapLibre's globe grows as 1 / cos(latitude) of the centre, and its camera
+// stops at ±85.05°: seen from there a line over a pole needs a zoom below 0
+// to fit on a phone. -2 is the lowest MapLibre allows.
+const ZOOM_RANGE = Object.freeze({ minZoom: -2, maxZoom: 20 });
 
 const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 const animation = (ms) => (reducedMotion() ? 0 : ms);
-const lineWidth = (low, high) => ["interpolate", ["linear"], ["zoom"], 1, low, 12, high];
+const lineWidth = ([low, high]) => ["interpolate", ["linear"], ["zoom"], LINE_WIDTH_ZOOMS[0], low, LINE_WIDTH_ZOOMS[1], high];
 
-/** Decimals that resolve one screen pixel at the current zoom. */
+/** Decimals that resolve one screen pixel at the centre of the map (on the globe its corners may be space). */
 function pickDecimals(map) {
-  const left = map.unproject([0, 0]);
-  const right = map.unproject([1, 0]);
-  return decimalsForResolution(Math.abs(right.lng - left.lng));
+  const { clientWidth, clientHeight } = map.getCanvas();
+  const centre = map.unproject([clientWidth / 2, clientHeight / 2]);
+  const next = map.unproject([clientWidth / 2 + 1, clientHeight / 2]);
+  return decimalsForResolution(Math.abs(next.lng - centre.lng));
+}
+
+/**
+ * The point of the map under a screen point, or null where the screen shows
+ * space around the globe: MapLibre then gives a point on the horizon, which
+ * projects back somewhere else.
+ */
+function lngLatOnMap(map, point) {
+  const lngLat = map.unproject([point.x, point.y]);
+  const back = map.project(lngLat);
+  return Math.abs(back.x - point.x) + Math.abs(back.y - point.y) < 1 ? lngLat : null;
+}
+
+/** False for a point on the far side of the globe: it projects onto a nearer point. */
+function isOnVisibleSide(map, [longitude, latitude]) {
+  const point = map.project([longitude, latitude]);
+  const lngLat = map.unproject(point);
+  const turn = (((lngLat.lng - longitude) % 360) + 540) % 360 - 180;
+  return Math.abs(lngLat.lat - latitude) < 1e-3 && (Math.abs(turn) < 1e-3 || Math.abs(latitude) > 89.99);
+}
+
+// Degrees in a radian: the globe's radius in px is its px per degree of
+// latitude at the centre of the view times this.
+const DEGREES_PER_RADIAN = 57.29577951308232;
+// A fit judges at most about this many points of a scene (a sampled line
+// has hundreds of vertices; every few of them are enough).
+const FIT_POINTS = 120;
+// Halvings of the zoom range a fit makes: 22 levels / 2^12 is 0.005.
+const FIT_STEPS = 12;
+
+/** The globe's radius in px at the current view: how large the map is drawn. */
+function globeRadius(map) {
+  const { lng, lat } = map.getCenter();
+  const north = map.project([lng, lat + 0.5]);
+  const south = map.project([lng, lat - 0.5]);
+  return Math.abs(south.y - north.y) * DEGREES_PER_RADIAN;
+}
+
+/**
+ * The view with `target` in the middle of the part of the map the widgets
+ * leave free, at `zoom` (in the middle of the map where the globe is too
+ * small to move it so).
+ */
+function placeAt(map, target, zoom, padding) {
+  const { clientWidth: width, clientHeight: height } = map.getCanvas();
+  const free = { x: (padding.left + width - padding.right) / 2, y: (padding.top + height - padding.bottom) / 2 };
+  map.jumpTo({ center: target, zoom });
+  const shifted = lngLatOnMap(map, { x: width - free.x, y: height - free.y });
+  if (shifted) map.jumpTo({ center: shifted, zoom });
+  return { center: map.getCenter(), zoom: map.getZoom() };
+}
+
+/**
+ * The largest zoom in [low, high] at which `fits(camera)` holds for the view
+ * placeAt gives, by halving, and its camera; null if it fails at `low`.
+ */
+function largestZoom(map, target, padding, [low, high], fits) {
+  let camera = placeAt(map, target, high, padding);
+  if (fits(camera)) return camera;
+  camera = placeAt(map, target, low, padding);
+  if (!fits(camera)) return null;
+  for (let step = 0; step < FIT_STEPS; step += 1) {
+    const middle = (low + high) / 2;
+    const tried = placeAt(map, target, middle, padding);
+    if (fits(tried)) {
+      low = middle;
+      camera = tried;
+    } else high = middle;
+  }
+  return camera;
+}
+
+/**
+ * The whole globe in the free part of the map, facing the longitude of the
+ * scene's first fit target (or of the view, for an empty scene): the
+ * largest zoom at which its radius takes at most 45 % of the free width or
+ * height.
+ */
+function worldCamera(map, scene, padding) {
+  const { clientWidth: width, clientHeight: height } = map.getCanvas();
+  const room = 0.45 * Math.min(width - padding.left - padding.right, height - padding.top - padding.bottom);
+  const [facing] = fitTargets(scene);
+  const target = [facing ? facing[0] : map.getCenter().lng, WORLD_VIEW_LATITUDE];
+  const start = { center: map.getCenter(), zoom: map.getZoom() };
+  try {
+    return (
+      largestZoom(map, target, padding, [map.getMinZoom(), 6], () => globeRadius(map) <= room) ??
+      placeAt(map, target, map.getMinZoom(), padding)
+    );
+  } finally {
+    map.jumpTo(start);
+  }
+}
+
+/**
+ * The camera that fits a scene on the globe. For each of its fitTargets, the
+ * target goes in the middle of the part of the map the widgets leave free,
+ * at the largest zoom up to maxZoom (found by halving) that shows every
+ * scenePoint inside the padding, on the visible side of the globe; of these
+ * the camera that draws the globe largest is taken. MapLibre's own fitBounds
+ * is not used: on the globe it may centre a long line on the far side of
+ * the globe from its ends, and its camera stops at ±85.05°, short of points
+ * nearer a pole. Each camera is tried with jumpTo and the view put back
+ * before a frame is drawn.
+ */
+function fitCamera(map, scene, bounds, { padding, maxZoom }) {
+  const targets = fitTargets(scene);
+  if (targets.length === 0) return null;
+  const all = scenePoints(scene, bounds);
+  const stride = Math.max(1, Math.ceil(all.length / FIT_POINTS));
+  const points = all.filter((_, index) => index % stride === 0 || index === all.length - 1);
+  const { clientWidth: width, clientHeight: height } = map.getCanvas();
+  const inView = (lngLat) => {
+    const point = map.project(lngLat);
+    if (point.x < padding.left - 2 || point.x > width - padding.right + 2) return false;
+    if (point.y < padding.top - 2 || point.y > height - padding.bottom + 2) return false;
+    return isOnVisibleSide(map, lngLat);
+  };
+  const minZoom = map.getMinZoom();
+  const start = { center: map.getCenter(), zoom: map.getZoom() };
+  let best = null;
+  try {
+    for (const target of targets) {
+      const camera = largestZoom(map, target, padding, [minZoom, maxZoom], () => points.every(inView));
+      if (!camera) {
+        // Nothing shows it all from here: the widest view, if no target does better.
+        best ??= { camera: placeAt(map, target, minZoom, padding), radius: -1 };
+        continue;
+      }
+      map.jumpTo(camera);
+      const radius = globeRadius(map);
+      if (!best || radius > best.radius) best = { camera, radius };
+    }
+  } finally {
+    map.jumpTo(start);
+  }
+  return best.camera;
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+
+/**
+ * Draws the stretches of lines beyond ±85.05° (scene.js, polarStretches)
+ * over the map on their real path: MapLibre's GeoJSON tiles stop at the
+ * Mercator edge, on the globe too (there they would run around the polar
+ * cap). An SVG above the canvas and below the pins and tags, redrawn on every
+ * frame the map renders: a white casing and the line, as wide as MapLibre's.
+ */
+function createPolarOverlay(map) {
+  const svg = document.createElementNS(SVG, "svg");
+  svg.setAttribute("class", "map-polar-lines");
+  svg.setAttribute("aria-hidden", "true");
+  Object.assign(svg.style, { position: "absolute", inset: "0", width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" });
+  map.getCanvas().after(svg);
+  let stretches = [];
+  const draw = () => {
+    svg.replaceChildren();
+    if (stretches.length === 0) return;
+    const zoom = map.getZoom();
+    const view = {
+      centerLongitude: map.getCenter().lng,
+      project: (lngLat) => {
+        const { x, y } = map.project(lngLat);
+        return [x, y];
+      },
+      visible: (lngLat) => isOnVisibleSide(map, lngLat),
+    };
+    const defs = document.createElementNS(SVG, "defs");
+    svg.append(defs);
+    stretches.forEach((stretch, index) => {
+      for (const run of screenRuns(stretch.coordinates, view)) {
+        const points = run.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+        const stroke = (color, width, opacity = 1) => {
+          const polyline = document.createElementNS(SVG, "polyline");
+          polyline.setAttribute("points", points);
+          polyline.setAttribute("fill", "none");
+          polyline.setAttribute("stroke", color);
+          polyline.setAttribute("stroke-width", String(width));
+          polyline.setAttribute("stroke-opacity", String(opacity));
+          polyline.setAttribute("stroke-linecap", "round");
+          polyline.setAttribute("stroke-linejoin", "round");
+          svg.append(polyline);
+        };
+        stroke("#ffffff", lineWidthAt(zoom, LINE_WIDTHS.casing), 0.95);
+        let color = stretch.colors[0];
+        if (stretch.colors[0] !== stretch.colors[1]) {
+          // The colour runs from where the stretch starts to where it ends.
+          const id = `map-polar-gradient-${index}-${defs.childElementCount}`;
+          const gradient = document.createElementNS(SVG, "linearGradient");
+          gradient.setAttribute("id", id);
+          gradient.setAttribute("gradientUnits", "userSpaceOnUse");
+          const [[x1, y1], [x2, y2]] = [run[0], run.at(-1)];
+          for (const [name, value] of Object.entries({ x1, y1, x2, y2 })) gradient.setAttribute(name, value.toFixed(1));
+          stretch.colors.forEach((stopColor, stopIndex) => {
+            const stop = document.createElementNS(SVG, "stop");
+            stop.setAttribute("offset", String(stopIndex));
+            stop.setAttribute("stop-color", stopColor);
+            gradient.append(stop);
+          });
+          defs.append(gradient);
+          color = `url(#${id})`;
+        }
+        stroke(color, lineWidthAt(zoom, LINE_WIDTHS.line));
+      }
+    });
+  };
+  map.on("render", draw);
+  return {
+    setStretches(next) {
+      stretches = next;
+      draw();
+    },
+    remove() {
+      map.off("render", draw);
+      svg.remove();
+    },
+  };
 }
 
 // A pin is anchored at its tip: the element's bottom edge is moved down by
@@ -59,15 +291,14 @@ function pickDecimals(map) {
 const PIN_OFFSET = [0, PIN_SHAPE.dot / 2];
 
 // A needle pin (MapStage draws the parts): the head with the label, the
-// needle, the tip dot on the coordinate, a halo around the tip while it is
-// hovered or dragged, and a chevron beside the tip for a pin clamped to the
-// map's edge.
+// needle, the tip dot on the coordinate, and a halo around the tip while it
+// is hovered or dragged.
 function createPinElement() {
   const element = document.createElement("div");
   // An image named by the pin's title, so screen readers announce its aria-label
   // (moving a pin by keyboard is "Yeniden seç" plus keyboard picking on the map).
   element.setAttribute("role", "img");
-  for (const part of ["halo", "needle", "dot", "edge", "head"]) {
+  for (const part of ["halo", "needle", "dot", "head"]) {
     const span = document.createElement("span");
     span.className = `map-pin-${part}`;
     element.append(span);
@@ -94,9 +325,8 @@ function installLineLayers(map) {
       id: CASING_LAYER,
       type: "line",
       source: LINE_SOURCE,
-      filter: SHOWN,
       layout,
-      paint: { "line-color": "#ffffff", "line-opacity": 0.95, "line-width": lineWidth(6, 10) },
+      paint: { "line-color": "#ffffff", "line-opacity": 0.95, "line-width": lineWidth(LINE_WIDTHS.casing) },
     });
   }
   if (!map.getLayer(PLAIN_LAYER)) {
@@ -104,9 +334,9 @@ function installLineLayers(map) {
       id: PLAIN_LAYER,
       type: "line",
       source: LINE_SOURCE,
-      filter: ["all", ["!=", ["get", "gradient"], true], SHOWN],
+      filter: ["!=", ["get", "gradient"], true],
       layout,
-      paint: { "line-color": LINE_COLORS.ink, "line-width": lineWidth(3, 5) },
+      paint: { "line-color": LINE_COLORS.ink, "line-width": lineWidth(LINE_WIDTHS.line) },
     });
   }
   if (!map.getLayer(GRADIENT_LAYER)) {
@@ -114,31 +344,12 @@ function installLineLayers(map) {
       id: GRADIENT_LAYER,
       type: "line",
       source: LINE_SOURCE,
-      filter: ["all", ["==", ["get", "gradient"], true], SHOWN, WHOLE],
+      filter: ["all", ["==", ["get", "gradient"], true], WHOLE],
       layout,
       paint: {
-        "line-width": lineWidth(3, 5),
+        "line-width": lineWidth(LINE_WIDTHS.line),
         // The colour runs from A to B, so the direction reads on the map.
         "line-gradient": ["interpolate", ["linear"], ["line-progress"], 0, LINE_COLORS.a, 1, LINE_COLORS.b],
-      },
-    });
-  }
-  if (!map.getLayer(EDGE_LAYER)) {
-    // Where a line runs beyond ±85.05° (over a pole) it is out of the map:
-    // dashed on the edge, like the needle of a pin clamped there.
-    map.addLayer({
-      id: EDGE_LAYER,
-      type: "line",
-      source: LINE_SOURCE,
-      filter: ["==", ["get", "beyond"], true],
-      layout: { "line-cap": "butt", "line-join": "round" },
-      paint: {
-        "line-color": ["get", "color"],
-        "line-width": lineWidth(3, 4),
-        "line-dasharray": [1.5, 1.5],
-        // The world's edge clips half of a line drawn on it: offset the
-        // dashes by half their width into the map (scene.js, inwardSide).
-        "line-offset": ["interpolate", ["linear"], ["zoom"], 1, ["*", 1.5, ["get", "inward"]], 12, ["*", 2, ["get", "inward"]]],
       },
     });
   }
@@ -149,13 +360,13 @@ function installLineLayers(map) {
  * the A -> B colour where the piece starts to the colour where it ends; the
  * layers of pieces no longer in `features` are removed.
  * @param {object} map
- * @param {{ properties: { id: string, part: number, gradient: boolean, beyond: boolean, from: number, to: number } }[]} features
+ * @param {{ properties: { id: string, part: number, gradient: boolean, from: number, to: number } }[]} features
  */
 function syncGradientPieces(map, features) {
   const wanted = new Map();
   for (const { properties } of features) {
-    const { id, part, gradient, beyond, from, to } = properties;
-    if (!gradient || beyond || (from === 0 && to === 1)) continue;
+    const { id, part, gradient, from, to } = properties;
+    if (!gradient || (from === 0 && to === 1)) continue;
     wanted.set(`${GRADIENT_PIECE_PREFIX}${id}:${part}`, properties);
   }
   for (const layer of map.getStyle()?.layers ?? []) {
@@ -167,17 +378,14 @@ function syncGradientPieces(map, features) {
       map.setPaintProperty(layerId, "line-gradient", ramp);
       continue;
     }
-    map.addLayer(
-      {
-        id: layerId,
-        type: "line",
-        source: LINE_SOURCE,
-        filter: ["all", ["==", ["get", "id"], id], ["==", ["get", "part"], part]],
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-width": lineWidth(3, 5), "line-gradient": ramp },
-      },
-      EDGE_LAYER,
-    );
+    map.addLayer({
+      id: layerId,
+      type: "line",
+      source: LINE_SOURCE,
+      filter: ["all", ["==", ["get", "id"], id], ["==", ["get", "part"], part]],
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-width": lineWidth(LINE_WIDTHS.line), "line-gradient": ramp },
+    });
   }
 }
 
@@ -219,6 +427,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
   const libraryRef = useRef(null);
   const pinsRef = useRef(new Map());
   const tagsRef = useRef(new Map());
+  const polarRef = useRef(null);
   const dragRef = useRef({ id: null, frame: 0, pending: null });
   const latestRef = useRef(null);
   const basemapRef = useRef({ remote: true, styleLoaded: false, tileErrors: 0, localizedLayers: [] });
@@ -250,23 +459,19 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     const bounds = sceneBounds(latest.scene);
     if (!bounds) return;
     const padding = latest.getPadding();
-    if (isSinglePoint(bounds)) {
-      // One point: centre it in the part of the map the widgets leave free.
-      map.easeTo({
-        center: bounds[0],
-        zoom: Math.max(map.getZoom(), 12),
-        offset: [(padding.left - padding.right) / 2, (padding.top - padding.bottom) / 2],
-        duration: animate ? animation(600) : 0,
-      });
-      return;
-    }
-    map.fitBounds(bounds, { padding, maxZoom: 15, duration: animate ? animation(700) : 0 });
+    // One point keeps a closer zoom, if the map has one.
+    const single = isSinglePoint(bounds);
+    const camera = fitCamera(map, latest.scene, bounds, { padding, maxZoom: single ? Math.max(map.getZoom(), 12) : 15 });
+    if (!camera) return;
+    if (single) map.easeTo({ ...camera, duration: animate ? animation(600) : 0 });
+    else map.flyTo({ ...camera, duration: animate ? animation(700) : 0 });
     map.once("moveend", () => placePinsOnRef.current?.());
   }, []);
 
   const showWorld = useCallback(() => {
     const map = mapRef.current;
-    if (map) map.fitBounds(WORLD_BOUNDS, { padding: latestRef.current.getPadding(), duration: animation(700) });
+    const latest = latestRef.current;
+    if (map) map.flyTo({ ...worldCamera(map, latest.scene, latest.getPadding()), duration: animation(700) });
   }, []);
 
   const zoomBy = useCallback((delta) => {
@@ -365,8 +570,8 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
           maplibreLogo: false,
           renderWorldCopies: true,
           ...ZOOM_RANGE,
-          // The centre may reach the Mercator edge, so pins drawn there can be
-          // fitted below the glass top bar (see constrainView).
+          // The centre may reach the Mercator edge, as far as MapLibre's
+          // camera goes (see constrainView).
           transformConstrain: (lngLat, zoom) => {
             const view = constrainView(lngLat, zoom, ZOOM_RANGE);
             return { center: new maplibregl.LngLat(view.longitude, view.latitude), zoom: view.zoom };
@@ -388,6 +593,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       }
       mapRef.current = map;
       libraryRef.current = maplibregl;
+      polarRef.current = createPolarOverlay(map);
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
       // Bottom-right controls stack upwards: the scale bar sits above the attribution.
@@ -437,6 +643,9 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
         if (!latestRef.current?.scene.picking) return;
         const origin = event.originalEvent?.target;
         if (origin instanceof Element && origin.closest(".maplibregl-marker")) return;
+        // A click in the space around the globe places nothing.
+        const lngLat = lngLatOnMap(map, event.point);
+        if (!lngLat) return;
         // The second click of a double click must not place the next point.
         const now = performance.now();
         if (
@@ -447,7 +656,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
           return;
         }
         lastPick = { time: now, x: event.point.x, y: event.point.y };
-        pick(event.lngLat);
+        pick(lngLat);
       });
 
       // Keyboard: the arrow keys pan the focused map and Enter places what
@@ -481,12 +690,16 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
 
       let cursorLngLat = null;
       map.on("mousemove", (event) => {
-        cursorLngLat = event.lngLat;
+        cursorLngLat = lngLatOnMap(map, event.point);
         if (cursorFrame) return;
         cursorFrame = requestAnimationFrame(() => {
           cursorFrame = 0;
           const output = cursorRef.current;
-          if (!output || !cursorLngLat) return;
+          if (!output) return;
+          if (!cursorLngLat) {
+            output.textContent = "";
+            return;
+          }
           const { latitude, longitude } = coordinateFromLngLat(cursorLngLat, CURSOR_DECIMALS);
           output.textContent = `${latitude}, ${longitude}`;
         });
@@ -515,6 +728,8 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       for (const marker of tags.values()) marker.remove();
       pins.clear();
       tags.clear();
+      polarRef.current?.remove();
+      polarRef.current = null;
       map?.remove();
       mapRef.current = null;
       libraryRef.current = null;
@@ -544,11 +759,11 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     [queueMove, flushMove],
   );
 
-  // A pin's map position: its drawn latitude, on the copy of the world its
-  // line is drawn on.
+  // A pin's map position: on the copy of the world its line is drawn on
+  // (Web Mercator, zoomed in; the globe has one copy).
   const pinLngLat = useCallback((pin, bounds) => {
-    const { longitude, latitude } = pinDisplay(pin);
-    return [bounds ? longitudeWithin(longitude, bounds) : longitude, latitude];
+    const longitude = bounds ? longitudeWithin(pin.longitude, bounds) : pin.longitude;
+    return [longitude, markerLatitude(pin.latitude)];
   }, []);
 
   const { pins: scenePins } = scene;
@@ -619,11 +834,13 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     const features = sceneFeatures({ lines });
     map.getSource(LINE_SOURCE)?.setData(features);
     syncGradientPieces(map, features.features);
+    polarRef.current?.setStretches(polarStretches({ lines }));
     const tags = tagsRef.current;
     const present = new Set();
     for (const line of lines) {
-      const midpoint = line.tag ? routeMidpoint(line.points) : null;
-      if (!midpoint) continue;
+      const middle = line.tag ? routeMidpoint(line.points) : null;
+      if (!middle) continue;
+      const midpoint = [middle[0], markerLatitude(middle[1])];
       present.add(line.id);
       let marker = tags.get(line.id);
       if (!marker) {

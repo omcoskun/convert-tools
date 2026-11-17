@@ -5,10 +5,11 @@
 
 import {
   LINE_COLORS,
-  MERCATOR_LATITUDE_LIMIT,
   displayLatitude,
   gradientColor,
   linePieces,
+  markerLatitude,
+  routeMidpoint,
   unwrapPath,
   wrapLongitude,
 } from "./map-adapter.js";
@@ -66,42 +67,20 @@ import {
 export const EMPTY_SCENE = Object.freeze({ pins: Object.freeze([]), lines: Object.freeze([]), picking: null, fitRequest: 0 });
 
 /**
- * Where a pin is drawn: Web Mercator ends at ±85.0511°, so a point beyond is
- * drawn on that edge (clamped), and edge says which one; there the pin's tip
- * is not the real location, so it is drawn differently. Its coordinates for
- * any calculation are the pin's own and never change.
- * @param {{ latitude: number, longitude: number }} pin
- * @returns {{ longitude: number, latitude: number, clamped: boolean, edge: "north" | "south" | null }}
- */
-export function pinDisplay(pin) {
-  let edge = null;
-  if (pin.latitude > MERCATOR_LATITUDE_LIMIT) edge = "north";
-  else if (pin.latitude < -MERCATOR_LATITUDE_LIMIT) edge = "south";
-  return {
-    longitude: pin.longitude,
-    latitude: displayLatitude(pin.latitude),
-    clamped: edge !== null,
-    edge,
-  };
-}
-
-/**
  * Class list of a pin's marker element. MapLibre's own classes on the
  * element are kept (maplibregl-marker positions it absolutely; without it
  * each pin is pushed down by the pins before it), and so is is-dragging,
  * which the drag handlers set.
  * @param {string[]} current the element's classes now
- * @param {{ latitude: number, longitude: number, tone: string, hollow?: boolean, draggable?: boolean }} pin
+ * @param {{ tone: string, hollow?: boolean, draggable?: boolean }} pin
  * @returns {string}
  */
 export function pinClassName(current, pin) {
-  const { edge } = pinDisplay(pin);
   return [
     ...current.filter((name) => name.startsWith("maplibregl-")),
     "map-pin",
     `tone-${pin.tone}`,
     pin.hollow ? "is-hollow" : "",
-    edge ? `is-clamped edge-${edge}` : "",
     pin.draggable ? "is-draggable" : "",
     current.includes("is-dragging") ? "is-dragging" : "",
   ]
@@ -110,27 +89,12 @@ export function pinClassName(current, pin) {
 }
 
 /**
- * The side of a piece on the Mercator edge where the map is, as the sign of
- * MapLibre's line-offset (positive is right of the direction of travel): the
- * edge clips half of a line drawn on it, so the dashed piece is offset into
- * the map. Eastwards on the north edge the map is on the right.
- * @param {[number, number][]} coordinates
- * @returns {1 | -1}
- */
-function inwardSide(coordinates) {
-  const east = coordinates.at(-1)[0] >= coordinates[0][0] ? 1 : -1;
-  return coordinates[0][1] > 0 ? east : -east;
-}
-
-/**
- * The lines as GeoJSON for one MapLibre source. Each line with at least two
- * points is unwrapped across the antimeridian on its own (longitudes may pass
- * ±180°) and cut where it crosses the Web Mercator edge (linePieces): one
- * LineString per piece. properties: { id, gradient, part (the piece's index
- * in its line), beyond, from, to (where the piece starts and ends along the
- * line, 0 at A, 1 at B) }, and for a piece beyond the edge the colour it is
- * drawn in (dashed, on the edge): the gradient's colour at its middle, or
- * ink, and `inward` (inwardSide).
+ * The lines as GeoJSON for one MapLibre source: of each line with at least
+ * two points, the pieces within the Web Mercator edge (linePieces), unwrapped
+ * across the antimeridian on their own (longitudes may pass ±180°). One
+ * LineString per piece; properties: { id, gradient, part (the piece's index
+ * in its line), from, to (where the piece starts and ends along the line, 0
+ * at A, 1 at B) }. The stretches beyond the edge are polarStretches.
  * @param {Pick<MapScene, "lines">} scene
  */
 export function sceneFeatures(scene) {
@@ -138,15 +102,32 @@ export function sceneFeatures(scene) {
   for (const line of scene.lines) {
     const gradient = line.gradient === true;
     linePieces(line.points).forEach((piece, part) => {
-      const properties = { id: line.id, gradient, part, beyond: piece.beyond, from: piece.from, to: piece.to };
-      if (piece.beyond) {
-        properties.color = gradient ? gradientColor((piece.from + piece.to) / 2) : LINE_COLORS.ink;
-        properties.inward = inwardSide(piece.coordinates);
-      }
+      if (piece.beyond) return;
+      const properties = { id: line.id, gradient, part, from: piece.from, to: piece.to };
       features.push({ type: "Feature", properties, geometry: { type: "LineString", coordinates: piece.coordinates } });
     });
   }
   return { type: "FeatureCollection", features };
+}
+
+/**
+ * The stretches of the lines beyond ±85.0511° (over a pole), which MapLibre's
+ * tiles cannot hold: drawn over the map on their real path (screenRuns),
+ * solid like the rest of the line. colors: the line's colour where the
+ * stretch starts and ends (the A -> B gradient's, or ink twice).
+ * @param {Pick<MapScene, "lines">} scene
+ * @returns {{ id: string, coordinates: [number, number][], from: number, to: number, colors: [string, string] }[]}
+ */
+export function polarStretches(scene) {
+  const stretches = [];
+  for (const line of scene.lines) {
+    for (const piece of linePieces(line.points)) {
+      if (!piece.beyond) continue;
+      const colors = line.gradient === true ? [gradientColor(piece.from), gradientColor(piece.to)] : [LINE_COLORS.ink, LINE_COLORS.ink];
+      stretches.push({ id: line.id, coordinates: piece.coordinates, from: piece.from, to: piece.to, colors });
+    }
+  }
+  return stretches;
 }
 
 /**
@@ -192,8 +173,9 @@ function longitudeSpan(longitudes) {
 }
 
 /**
- * [[west, south], [east, north]] around every pin and line as drawn, or null
- * for an empty scene. A scene across the antimeridian gets an east beyond
+ * [[west, south], [east, north]] around every pin and line, latitudes within
+ * the Web Mercator edge (MapLibre fits no further), or null for an empty
+ * scene. A scene across the antimeridian gets an east beyond
  * 180°, which MapLibre fits as one short span.
  * @param {MapScene} scene
  * @returns {[[number, number], [number, number]] | null}
@@ -207,10 +189,7 @@ export function sceneBounds(scene) {
     south = Math.min(south, latitude);
     north = Math.max(north, latitude);
   };
-  for (const pin of scene.pins) {
-    const { longitude, latitude } = pinDisplay(pin);
-    add(longitude, latitude);
-  }
+  for (const pin of scene.pins) add(pin.longitude, displayLatitude(pin.latitude));
   for (const line of scene.lines) {
     for (const [longitude, latitude] of unwrapPath(line.points)) add(longitude, latitude);
   }
@@ -220,4 +199,69 @@ export function sceneBounds(scene) {
     [west, south],
     [east, north],
   ];
+}
+
+// Fit targets near a pole are tried again every FIT_TARGET_STEP degrees
+// nearer the equator, down to FIT_TARGET_LATITUDE.
+const FIT_TARGET_LATITUDE = 60;
+const FIT_TARGET_STEP = 5;
+
+/**
+ * Where a fit may centre the view, best guess first: the middle of the
+ * scene's first drawn line (on the globe the middle of a long line shows
+ * both its ends; the middle of its bounds may be on the far side of the
+ * globe from both), else the middle of the bounds; within ±85.05°, where
+ * MapLibre's camera stops. A target beyond ±60° is followed by the same
+ * longitude every 5° nearer the equator down to ±60°: MapLibre's globe
+ * grows as 1 / cos(latitude) of the centre, so from nearer a pole it may not
+ * zoom out far enough to show a long line, on a phone. [] for an empty scene.
+ * @param {MapScene} scene
+ * @returns {[number, number][]} [longitude, latitude] each
+ */
+export function fitTargets(scene) {
+  let target = null;
+  for (const line of scene.lines) {
+    const middle = routeMidpoint(line.points);
+    if (middle) {
+      target = [middle[0], displayLatitude(middle[1])];
+      break;
+    }
+  }
+  if (!target) {
+    const bounds = sceneBounds(scene);
+    if (!bounds) return [];
+    const [[west, south], [east, north]] = bounds;
+    target = [(west + east) / 2, (south + north) / 2];
+  }
+  const [longitude, latitude] = target;
+  const targets = [target];
+  const side = Math.sign(latitude);
+  const steps = Math.floor(Math.abs(latitude) / FIT_TARGET_STEP);
+  for (let step = steps; step * FIT_TARGET_STEP >= FIT_TARGET_LATITUDE; step -= 1) {
+    const next = side * step * FIT_TARGET_STEP;
+    // A step closer than half a step to the target adds nothing.
+    if (Math.abs(latitude - next) >= FIT_TARGET_STEP / 2) targets.push([longitude, next]);
+  }
+  return targets;
+}
+
+/**
+ * Every point a fit must show: the pins, on the copy of the world their line
+ * is drawn on (longitudeWithin), and the vertices of the drawn lines,
+ * unwrapped; all at their own latitudes (markerLatitude).
+ * @param {MapScene} scene
+ * @param {[[number, number], [number, number]] | null} bounds from sceneBounds
+ * @returns {[number, number][]}
+ */
+export function scenePoints(scene, bounds) {
+  const points = scene.pins.map((pin) => [
+    bounds ? longitudeWithin(pin.longitude, bounds) : pin.longitude,
+    markerLatitude(pin.latitude),
+  ]);
+  for (const line of scene.lines) {
+    for (const piece of linePieces(line.points)) {
+      for (const [longitude, latitude] of piece.coordinates) points.push([longitude, markerLatitude(latitude)]);
+    }
+  }
+  return points;
 }

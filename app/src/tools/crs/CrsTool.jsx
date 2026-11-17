@@ -11,7 +11,6 @@ import PasteHint from "../../components/PasteHint.jsx";
 import { fill, useConfig, useLanguage } from "../../context.js";
 import { parseCoordinatePaste, parseNumberPair, pastedText } from "../../lib/coordinate-paste.js";
 import { degreesText } from "../../lib/number-text.js";
-import { isBeyondDisplay } from "../../map/map-adapter.js";
 import { useHandoff, useHandoffReceiver } from "../../shell/handoff.js";
 import InputWidget from "../../shell/InputWidget.jsx";
 import ResultHud from "../../shell/ResultHud.jsx";
@@ -302,11 +301,6 @@ export default function CrsTool() {
       </Notice>
     ),
     result && !result.ok && <ErrorMessage key="error" summary={text.crsInvalid} code={result.code} />,
-    position && isBeyondDisplay(position) && (
-      <Notice key="polar" tone="info">
-        {fill(text.mapPolarNote, { points: text.crsPin })}
-      </Notice>
-    ),
   ].filter(Boolean);
 
   const kindNames = [

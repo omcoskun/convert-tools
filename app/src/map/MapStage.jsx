@@ -107,29 +107,6 @@ const stageSx = {
   // The computed point of a direct problem: a hollow head and dot, the same tip.
   "& .map-pin.is-hollow .map-pin-head": { bgcolor: "#ffffff", borderWidth: "2.5px", lineHeight: "21px" },
   "& .map-pin.is-hollow .map-pin-dot": { bgcolor: "#ffffff", borderWidth: "2.5px" },
-  // A pin beyond ±85.05° is drawn on the map's edge: a dashed needle and a
-  // chevron beside the dot pointing to where the point really is.
-  "& .map-pin.is-clamped .map-pin-needle": {
-    width: 0,
-    ml: "-1px",
-    boxShadow: "none",
-    borderLeft: "2px dashed",
-    filter: "drop-shadow(1px 0 0 #ffffff) drop-shadow(-1px 0 0 #ffffff)",
-  },
-  "& .map-pin-edge": { display: "none" },
-  "& .map-pin.is-clamped .map-pin-edge": {
-    display: "block",
-    position: "absolute",
-    left: "calc(50% + 7px)",
-    bottom: -1,
-    width: 0,
-    height: 0,
-    borderLeft: "5px solid transparent",
-    borderRight: "5px solid transparent",
-    filter: "drop-shadow(0 0 1px #ffffff) drop-shadow(0 0 1px #ffffff)",
-  },
-  "& .map-pin.is-clamped.edge-north .map-pin-edge": { borderBottom: "7px solid" },
-  "& .map-pin.is-clamped.edge-south .map-pin-edge": { borderTop: "7px solid" },
   ...Object.fromEntries(
     Object.entries(TONES).flatMap(([tone, { color, halo }]) => [
       [`& .map-pin.tone-${tone} .map-pin-halo`, { bgcolor: halo }],
@@ -137,8 +114,6 @@ const stageSx = {
         `& .map-pin.tone-${tone} .map-pin-dot, & .map-pin.tone-${tone} .map-pin-head, & .map-pin.tone-${tone} .map-pin-needle`,
         { bgcolor: color },
       ],
-      [`& .map-pin.tone-${tone} .map-pin-needle, & .map-pin.tone-${tone} .map-pin-edge`, { color }],
-      [`& .map-pin.tone-${tone}.is-clamped .map-pin-needle`, { bgcolor: "transparent" }],
       [`& .map-pin.tone-${tone}.is-hollow .map-pin-head`, { bgcolor: "#ffffff", borderColor: color, color }],
       [`& .map-pin.tone-${tone}.is-hollow .map-pin-dot`, { bgcolor: "#ffffff", borderColor: color }],
     ]),

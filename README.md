@@ -223,11 +223,13 @@ Değişmeyen kurallar:
   Firefox 68 ve Safari 14'te çalışır (BigInt).
 - Üretim derlemesi göreli URL kullanır (GitHub Pages alt yolunda da çalışır)
   ve Content-Security-Policy meta etiketi taşır.
-- Harita, MapLibre GL JS 6 ile çizilen bir Web Mercator vektör haritasıdır.
-  Çekirdeğin örneklediği jeodezik hattı ve noktaları gösterir. Harita yalnız
-  bir görseldir; ölçümü her zaman çekirdek yapar. ±85,05°'nin ötesindeki
-  noktalar haritanın kenarına çizilir ve formdaki değer değişmez.
-  Antimeridyeni geçen hat tek parça çizilir.
+- Harita, MapLibre GL JS 6 ile çizilen bir vektör haritasıdır: uzaktan
+  bakınca küre, yakınlaşınca (12. düzeyden sonra) Web Mercator. Çekirdeğin
+  örneklediği jeodezik hattı ve noktaları gösterir. Harita yalnız bir
+  görseldir; ölçümü her zaman çekirdek yapar. Kutup yakınındaki noktalar ve
+  kutbun üstünden geçen hatlar kürede gerçek yerlerinde çizilir (MapLibre'nin
+  GeoJSON karoları ±85,05°'de bittiği için bu parça haritanın üstüne ayrıca
+  çizilir). Antimeridyeni geçen hat tek parça çizilir.
 - Altlık OpenFreeMap "positron" stilidir (`config.json` → `map.style`). Uydu
   görüntüsü ve gölgeli rölyef yoktur: `src/map/map-adapter.js` stildeki bütün
   raster kaynakları atar. Atıflar haritanın sağ altında görünür. Altlık

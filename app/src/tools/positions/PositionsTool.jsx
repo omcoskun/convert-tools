@@ -6,13 +6,11 @@ import Disclosure from "../../components/Disclosure.jsx";
 import ErrorMessage from "../../components/ErrorMessage.jsx";
 import Field from "../../components/Field.jsx";
 import Icon from "../../components/Icon.jsx";
-import Notice from "../../components/Notice.jsx";
 import PasteHint from "../../components/PasteHint.jsx";
 import { fill, useConfig, useLanguage } from "../../context.js";
 import { attempt } from "../../lib/attempt.js";
 import { formatPairForCopy } from "../../lib/coordinate-paste.js";
 import { fixedPair } from "../../lib/number-text.js";
-import { isBeyondDisplay } from "../../map/map-adapter.js";
 import { useHandoff, useHandoffReceiver } from "../../shell/handoff.js";
 import InputWidget from "../../shell/InputWidget.jsx";
 import ResultHud from "../../shell/ResultHud.jsx";
@@ -151,11 +149,6 @@ export default function PositionsTool() {
   const notices = [
     reading.status === "error" && <ErrorMessage key="read" summary={text.coordinateInvalid} code={reading.code} />,
     outputs && !outputs.ok && <ErrorMessage key="outputs" summary={text.coordinateInvalid} code={outputs.code} />,
-    value && isBeyondDisplay(value) && (
-      <Notice key="polar" tone="info">
-        {fill(text.mapPolarNote, { points: text.positionPoint })}
-      </Notice>
-    ),
   ].filter(Boolean);
 
   const setOption = (key, input) => setOptions((current) => ({ ...current, [key]: input }));
