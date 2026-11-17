@@ -7,6 +7,7 @@ import {
   coordinateFromLngLat,
   decimalsForResolution,
   fallbackStyle,
+  gradientColor,
   isLocalizedLabelLayer,
   isSinglePoint,
   localizedNameExpression,
@@ -16,12 +17,20 @@ import {
 import { loadMapLibre, webgl2Available } from "./maplibre.js";
 import { longitudeWithin, pinClassName, pinDisplay, sceneBounds, sceneFeatures } from "./scene.js";
 
-// One GeoJSON source holds every line of the scene; a white casing under
-// all of them, then ink lines and A -> B gradient lines.
+// One GeoJSON source holds every line of the scene, cut where it leaves the
+// Web Mercator map (sceneFeatures): a white casing under the shown pieces,
+// then ink lines and A -> B gradient lines, and the pieces beyond the edge
+// dashed on the edge. A piece of a cut gradient line gets a layer of its own
+// (GRADIENT_PIECE_PREFIX + id:part), whose ramp covers only its stretch of
+// the A -> B colours: line-gradient follows line-progress within a feature.
 const LINE_SOURCE = "convert-lines";
 const CASING_LAYER = "convert-lines-casing";
 const PLAIN_LAYER = "convert-lines-plain";
 const GRADIENT_LAYER = "convert-lines-gradient";
+const EDGE_LAYER = "convert-lines-edge";
+const GRADIENT_PIECE_PREFIX = "convert-lines-gradient-piece:";
+const SHOWN = ["!=", ["get", "beyond"], true];
+const WHOLE = ["all", ["==", ["get", "from"], 0], ["==", ["get", "to"], 1]];
 const EMPTY_LINES = Object.freeze({ type: "FeatureCollection", features: Object.freeze([]) });
 
 const STYLE_TIMEOUT_MS = 15000;
@@ -85,6 +94,7 @@ function installLineLayers(map) {
       id: CASING_LAYER,
       type: "line",
       source: LINE_SOURCE,
+      filter: SHOWN,
       layout,
       paint: { "line-color": "#ffffff", "line-opacity": 0.95, "line-width": lineWidth(6, 10) },
     });
@@ -94,7 +104,7 @@ function installLineLayers(map) {
       id: PLAIN_LAYER,
       type: "line",
       source: LINE_SOURCE,
-      filter: ["!=", ["get", "gradient"], true],
+      filter: ["all", ["!=", ["get", "gradient"], true], SHOWN],
       layout,
       paint: { "line-color": LINE_COLORS.ink, "line-width": lineWidth(3, 5) },
     });
@@ -104,7 +114,7 @@ function installLineLayers(map) {
       id: GRADIENT_LAYER,
       type: "line",
       source: LINE_SOURCE,
-      filter: ["==", ["get", "gradient"], true],
+      filter: ["all", ["==", ["get", "gradient"], true], SHOWN, WHOLE],
       layout,
       paint: {
         "line-width": lineWidth(3, 5),
@@ -112,6 +122,62 @@ function installLineLayers(map) {
         "line-gradient": ["interpolate", ["linear"], ["line-progress"], 0, LINE_COLORS.a, 1, LINE_COLORS.b],
       },
     });
+  }
+  if (!map.getLayer(EDGE_LAYER)) {
+    // Where a line runs beyond ±85.05° (over a pole) it is out of the map:
+    // dashed on the edge, like the needle of a pin clamped there.
+    map.addLayer({
+      id: EDGE_LAYER,
+      type: "line",
+      source: LINE_SOURCE,
+      filter: ["==", ["get", "beyond"], true],
+      layout: { "line-cap": "butt", "line-join": "round" },
+      paint: {
+        "line-color": ["get", "color"],
+        "line-width": lineWidth(3, 4),
+        "line-dasharray": [1.5, 1.5],
+        // The world's edge clips half of a line drawn on it: offset the
+        // dashes by half their width into the map (scene.js, inwardSide).
+        "line-offset": ["interpolate", ["linear"], ["zoom"], 1, ["*", 1.5, ["get", "inward"]], 12, ["*", 2, ["get", "inward"]]],
+      },
+    });
+  }
+}
+
+/**
+ * One gradient layer per shown piece of a cut gradient line, its ramp from
+ * the A -> B colour where the piece starts to the colour where it ends; the
+ * layers of pieces no longer in `features` are removed.
+ * @param {object} map
+ * @param {{ properties: { id: string, part: number, gradient: boolean, beyond: boolean, from: number, to: number } }[]} features
+ */
+function syncGradientPieces(map, features) {
+  const wanted = new Map();
+  for (const { properties } of features) {
+    const { id, part, gradient, beyond, from, to } = properties;
+    if (!gradient || beyond || (from === 0 && to === 1)) continue;
+    wanted.set(`${GRADIENT_PIECE_PREFIX}${id}:${part}`, properties);
+  }
+  for (const layer of map.getStyle()?.layers ?? []) {
+    if (layer.id.startsWith(GRADIENT_PIECE_PREFIX) && !wanted.has(layer.id)) map.removeLayer(layer.id);
+  }
+  for (const [layerId, { id, part, from, to }] of wanted) {
+    const ramp = ["interpolate", ["linear"], ["line-progress"], 0, gradientColor(from), 1, gradientColor(to)];
+    if (map.getLayer(layerId)) {
+      map.setPaintProperty(layerId, "line-gradient", ramp);
+      continue;
+    }
+    map.addLayer(
+      {
+        id: layerId,
+        type: "line",
+        source: LINE_SOURCE,
+        filter: ["all", ["==", ["get", "id"], id], ["==", ["get", "part"], part]],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-width": lineWidth(3, 5), "line-gradient": ramp },
+      },
+      EDGE_LAYER,
+    );
   }
 }
 
@@ -550,7 +616,9 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     const map = mapRef.current;
     const maplibregl = libraryRef.current;
     if (!map || !maplibregl || styleRevision === 0) return;
-    map.getSource(LINE_SOURCE)?.setData(sceneFeatures({ lines }));
+    const features = sceneFeatures({ lines });
+    map.getSource(LINE_SOURCE)?.setData(features);
+    syncGradientPieces(map, features.features);
     const tags = tagsRef.current;
     const present = new Set();
     for (const line of lines) {

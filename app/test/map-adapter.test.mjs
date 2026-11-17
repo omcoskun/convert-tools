@@ -15,6 +15,7 @@ import {
   fallbackStyle,
   fitPadding,
   formatPickedCoordinate,
+  gradientColor,
   guardFilter,
   isBeyondDisplay,
   routeMidpoint,
@@ -45,6 +46,33 @@ test("a route across the antimeridian stays one short line", () => {
   assert.ok(east > 180, "B is unwrapped past 180°");
   assert.equal(sceneFeatures(scene).features[0].geometry.type, "LineString");
   assert.ok(Math.abs(routeMidpoint(path.points)[0] - 180) < 1e-6);
+});
+
+test("the tag of a line whose middle is beyond the edge sits on the middle of that stretch", () => {
+  // The owner's screenshot: the tag sat on the clamped corner where the line
+  // reached the edge, next to A. The middle of this line is near the pole,
+  // so the tag goes to the middle of the dashed stretch on the edge, where
+  // the line passes closest to the pole (about 205° east).
+  const path = sampleGeodesicPath(
+    { latitude: "36.36341", longitude: "115.56606" },
+    { latitude: "44.902554", longitude: "-65.212542" },
+  );
+  const [longitude, latitude] = routeMidpoint(path.points);
+  assert.equal(latitude, MERCATOR_LATITUDE_LIMIT);
+  assert.ok(Math.abs(longitude - 205.2) < 2, `longitude ${longitude}`);
+  // A line whose middle is on the map keeps its middle vertex.
+  const [, shownLatitude] = routeMidpoint([
+    { latitude: 89, longitude: 0 },
+    { latitude: 80, longitude: 10 },
+    { latitude: 70, longitude: 20 },
+  ]);
+  assert.equal(shownLatitude, 80);
+});
+
+test("the line colour runs from A's to B's colour", () => {
+  assert.equal(gradientColor(0), "rgb(36, 80, 224)");
+  assert.equal(gradientColor(1), "rgb(226, 73, 44)");
+  assert.equal(gradientColor(0.5), "rgb(131, 77, 134)");
 });
 
 test("fewer than two points draw no route", () => {

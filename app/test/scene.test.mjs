@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { sampleGeodesicPath } from "@convert-tools/core";
 import { EMPTY_SCENE, longitudeWithin, pinClassName, pinDisplay, sceneBounds, sceneFeatures } from "../src/map/scene.js";
+import { LINE_COLORS, gradientColor } from "../src/map/map-adapter.js";
 
 const pin = (id, latitude, longitude) => ({ id, label: id, tone: "ink", latitude, longitude });
 const line = (id, ...pairs) => ({ id, points: pairs.map(([latitude, longitude]) => ({ latitude, longitude })) });
@@ -90,10 +91,80 @@ test("lines carry their id and gradient; fewer than two points draw nothing", ()
   assert.deepEqual(
     sceneFeatures(scene).features.map((feature) => feature.properties),
     [
-      { id: "route", gradient: true },
-      { id: "plain", gradient: false },
+      { id: "route", gradient: true, part: 0, beyond: false, from: 0, to: 1 },
+      { id: "plain", gradient: false, part: 0, beyond: false, from: 0, to: 1 },
     ],
   );
+});
+
+const EDGE = 85.0511287798066;
+
+test("a line over the pole is cut at the Mercator edge; the stretch beyond is its own piece on the edge", () => {
+  // Regression (the owner's screenshot): this line passes 89.54°N. Clamped
+  // into one line it ran 169° of longitude along the top edge as if the
+  // route went that way.
+  const path = sampleGeodesicPath(
+    { latitude: "36.36341", longitude: "115.56606" },
+    { latitude: "44.902554", longitude: "-65.212542" },
+  );
+  const features = sceneFeatures(sceneOf({ lines: [{ id: "inverse", points: path.points, gradient: true }] })).features;
+  assert.deepEqual(
+    features.map(({ properties }) => [properties.id, properties.part, properties.beyond]),
+    [
+      ["inverse", 0, false],
+      ["inverse", 1, true],
+      ["inverse", 2, false],
+    ],
+  );
+  const [before, beyond, after] = features;
+  for (const [, latitude] of [...before.geometry.coordinates, ...after.geometry.coordinates]) assert.ok(latitude <= EDGE);
+  for (const [, latitude] of beyond.geometry.coordinates) assert.equal(latitude, EDGE);
+  // The pieces meet where the line crosses the edge.
+  assert.deepEqual(before.geometry.coordinates.at(-1), beyond.geometry.coordinates[0]);
+  assert.deepEqual(beyond.geometry.coordinates.at(-1), after.geometry.coordinates[0]);
+  assert.equal(before.geometry.coordinates.at(-1)[1], EDGE);
+  // from/to: where each piece starts and ends along the whole line (0 at A, 1 at B).
+  assert.equal(before.properties.from, 0);
+  assert.equal(before.properties.to, beyond.properties.from);
+  assert.equal(beyond.properties.to, after.properties.from);
+  assert.equal(after.properties.to, 1);
+  // About 9° of the line's 99° arc lies beyond 85.05°N.
+  const share = beyond.properties.to - beyond.properties.from;
+  assert.ok(share > 0.07 && share < 0.11, `share beyond the edge ${share}`);
+  // The dashed stretch takes the line's colour where it leaves the map.
+  assert.equal(beyond.properties.color, gradientColor((beyond.properties.from + beyond.properties.to) / 2));
+  assert.equal(before.properties.color, undefined);
+  // It runs east on the north edge: the map is to its right (positive line-offset).
+  assert.equal(beyond.properties.inward, 1);
+});
+
+test("the stretch beyond the south edge is cut the same way, and a plain line's stays ink", () => {
+  const features = sceneFeatures(sceneOf({ lines: [line("route", [-80, 0], [-89, 90], [-80, 180])] })).features;
+  assert.deepEqual(
+    features.map(({ properties }) => properties.beyond),
+    [false, true, false],
+  );
+  const beyond = features[1];
+  assert.deepEqual(beyond.geometry.coordinates.map(([, latitude]) => latitude), [-EDGE, -EDGE, -EDGE]);
+  close(beyond.geometry.coordinates[0][0], (90 * (EDGE - 80)) / 9, "leaves the map where -85.05° is crossed");
+  close(beyond.geometry.coordinates[1][0], 90, "follows the line's own longitude");
+  assert.equal(beyond.properties.color, LINE_COLORS.ink);
+  // East on the south edge: the map is to its left.
+  assert.equal(beyond.properties.inward, -1);
+});
+
+test("a line from a point beyond the edge starts with its stretch beyond", () => {
+  const features = sceneFeatures(sceneOf({ lines: [line("route", [89, 0], [87, 10], [80, 20])] })).features;
+  assert.deepEqual(
+    features.map(({ properties }) => properties.beyond),
+    [true, false],
+  );
+  const crossing = (87 - EDGE) / (87 - 80);
+  close(features[0].geometry.coordinates.at(-1)[0], 10 + 10 * crossing, "crossing longitude");
+  close(features[0].properties.to, (1 + crossing) / 2, "crossing along the line");
+  assert.deepEqual(features[1].geometry.coordinates.at(-1), [20, 80]);
+  // A point exactly on the edge is shown, not beyond.
+  assert.equal(sceneFeatures(sceneOf({ lines: [line("edge", [EDGE, 0], [80, 0])] })).features.length, 1);
 });
 
 test("pins beyond the Web Mercator limit are drawn on its edge and say which edge", () => {

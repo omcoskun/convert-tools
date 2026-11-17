@@ -3,7 +3,15 @@
 // and the one map of the workspace (MapStage) draws it, so a tool never
 // touches MapLibre. Pure: no React, no MapLibre, no DOM.
 
-import { MERCATOR_LATITUDE_LIMIT, displayLatitude, unwrapPath, wrapLongitude } from "./map-adapter.js";
+import {
+  LINE_COLORS,
+  MERCATOR_LATITUDE_LIMIT,
+  displayLatitude,
+  gradientColor,
+  linePieces,
+  unwrapPath,
+  wrapLongitude,
+} from "./map-adapter.js";
 
 /**
  * A point on the map: a round pin with a short label above it.
@@ -102,21 +110,40 @@ export function pinClassName(current, pin) {
 }
 
 /**
- * The lines as GeoJSON for one MapLibre source: one LineString per line with
- * at least two points, each unwrapped across the antimeridian on its own
- * (longitudes may pass ±180°) and with latitudes clamped for display.
- * properties: { id, gradient }.
+ * The side of a piece on the Mercator edge where the map is, as the sign of
+ * MapLibre's line-offset (positive is right of the direction of travel): the
+ * edge clips half of a line drawn on it, so the dashed piece is offset into
+ * the map. Eastwards on the north edge the map is on the right.
+ * @param {[number, number][]} coordinates
+ * @returns {1 | -1}
+ */
+function inwardSide(coordinates) {
+  const east = coordinates.at(-1)[0] >= coordinates[0][0] ? 1 : -1;
+  return coordinates[0][1] > 0 ? east : -east;
+}
+
+/**
+ * The lines as GeoJSON for one MapLibre source. Each line with at least two
+ * points is unwrapped across the antimeridian on its own (longitudes may pass
+ * ±180°) and cut where it crosses the Web Mercator edge (linePieces): one
+ * LineString per piece. properties: { id, gradient, part (the piece's index
+ * in its line), beyond, from, to (where the piece starts and ends along the
+ * line, 0 at A, 1 at B) }, and for a piece beyond the edge the colour it is
+ * drawn in (dashed, on the edge): the gradient's colour at its middle, or
+ * ink, and `inward` (inwardSide).
  * @param {Pick<MapScene, "lines">} scene
  */
 export function sceneFeatures(scene) {
   const features = [];
   for (const line of scene.lines) {
-    const coordinates = unwrapPath(line.points);
-    if (coordinates.length < 2) continue;
-    features.push({
-      type: "Feature",
-      properties: { id: line.id, gradient: line.gradient === true },
-      geometry: { type: "LineString", coordinates },
+    const gradient = line.gradient === true;
+    linePieces(line.points).forEach((piece, part) => {
+      const properties = { id: line.id, gradient, part, beyond: piece.beyond, from: piece.from, to: piece.to };
+      if (piece.beyond) {
+        properties.color = gradient ? gradientColor((piece.from + piece.to) / 2) : LINE_COLORS.ink;
+        properties.inward = inwardSide(piece.coordinates);
+      }
+      features.push({ type: "Feature", properties, geometry: { type: "LineString", coordinates: piece.coordinates } });
     });
   }
   return { type: "FeatureCollection", features };

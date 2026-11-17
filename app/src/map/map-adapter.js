@@ -12,6 +12,20 @@ export const MERCATOR_LATITUDE_LIMIT = 85.0511287798066;
 // gradient runs from a to b; other lines are ink.
 export const LINE_COLORS = Object.freeze({ a: "#2450e0", b: "#e2492c", ink: "#16191c" });
 
+/**
+ * The colour of a gradient line at `t` (0 at A, 1 at B): LINE_COLORS.a and
+ * LINE_COLORS.b mixed per RGB channel, as MapLibre's line-gradient does.
+ * @param {number} t
+ * @returns {string} "rgb(r, g, b)"
+ */
+export function gradientColor(t) {
+  const channels = (hex) => [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+  const from = channels(LINE_COLORS.a);
+  const to = channels(LINE_COLORS.b);
+  const mixed = from.map((value, index) => Math.round(value + (to[index] - value) * t));
+  return `rgb(${mixed.join(", ")})`;
+}
+
 /** West-south and east-north corners of the "whole world" view. */
 export const WORLD_BOUNDS = Object.freeze([
   [-170, -58],
@@ -80,14 +94,75 @@ export function unwrapPath(points) {
   return coordinates;
 }
 
+/**
+ * A line cut where it crosses the Web Mercator edge (±85.0511°), as pieces of
+ * unwrapped map coordinates. A shown piece lies within the edge; a piece
+ * `beyond` follows the line's longitudes on the edge (latitudes clamped):
+ * there the line is out of the map, and it is drawn differently. `from` and
+ * `to` give where a piece starts and ends along the whole line, 0 at the
+ * first point and 1 at the last (the sampled vertices are equally spaced
+ * along it). Neighbouring pieces share the crossing point, interpolated
+ * linearly between the vertices on either side. Zero-length pieces (a line
+ * that only touches the edge) are left out.
+ * @param {{ latitude: number, longitude: number }[] | null} points
+ * @returns {{ beyond: boolean, coordinates: [number, number][], from: number, to: number }[]}
+ */
+export function linePieces(points) {
+  const unwrapped = [];
+  for (const point of points ?? []) {
+    let longitude = point.longitude;
+    const previous = unwrapped.at(-1);
+    if (previous) {
+      while (longitude - previous[0] > 180) longitude -= 360;
+      while (longitude - previous[0] < -180) longitude += 360;
+    }
+    unwrapped.push([longitude, point.latitude]);
+  }
+  if (unwrapped.length < 2) return [];
+  const last = unwrapped.length - 1;
+  const isBeyond = ([, latitude]) => Math.abs(latitude) > MERCATOR_LATITUDE_LIMIT;
+  const shown = ([longitude, latitude]) => [longitude, displayLatitude(latitude)];
+  const pieces = [];
+  let piece = { beyond: isBeyond(unwrapped[0]), coordinates: [shown(unwrapped[0])], from: 0, to: 1 };
+  for (let index = 1; index <= last; index += 1) {
+    const before = unwrapped[index - 1];
+    const vertex = unwrapped[index];
+    const beyond = isBeyond(vertex);
+    if (beyond !== piece.beyond) {
+      const edge = Math.sign(piece.beyond ? before[1] : vertex[1]) * MERCATOR_LATITUDE_LIMIT;
+      const fraction = (edge - before[1]) / (vertex[1] - before[1]);
+      const crossing = [before[0] + fraction * (vertex[0] - before[0]), edge];
+      const at = (index - 1 + fraction) / last;
+      piece.coordinates.push(crossing);
+      piece.to = at;
+      pieces.push(piece);
+      piece = { beyond, coordinates: [crossing], from: at, to: 1 };
+    }
+    piece.coordinates.push(shown(vertex));
+  }
+  pieces.push(piece);
+  const hasLength = ({ coordinates }) =>
+    coordinates.some(([longitude, latitude]) => longitude !== coordinates[0][0] || latitude !== coordinates[0][1]);
+  const kept = pieces.filter(hasLength);
+  return kept.length > 0 ? kept : pieces.slice(0, 1);
+}
+
 export function isSinglePoint(bounds) {
   return bounds[1][0] - bounds[0][0] < 1e-9 && bounds[1][1] - bounds[0][1] < 1e-9;
 }
 
-/** Middle of a drawn line, where its tag sits (sampled vertices are equally spaced along it). */
+/**
+ * Where a drawn line's tag sits: the middle of the line (sampled vertices are
+ * equally spaced along it). When the middle is beyond the Mercator edge (a
+ * line over a pole), the middle of that stretch on the edge, where the line
+ * passes nearest the pole, instead of the clamped vertex: that one sits where
+ * the line reaches the edge, next to A or B, often at the side of the view.
+ */
 export function routeMidpoint(points) {
-  const coordinates = unwrapPath(points);
-  if (coordinates.length < 2) return null;
+  const pieces = linePieces(points);
+  if (pieces.length === 0) return null;
+  const middlePiece = pieces.find((piece) => piece.from <= 0.5 && piece.to >= 0.5) ?? pieces[0];
+  const coordinates = middlePiece.beyond ? middlePiece.coordinates : unwrapPath(points);
   const middle = (coordinates.length - 1) / 2;
   const lower = coordinates[Math.floor(middle)];
   const upper = coordinates[Math.ceil(middle)];
