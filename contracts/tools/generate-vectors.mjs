@@ -1154,6 +1154,43 @@ function triaxialDirectAccuracyVectors() {
   });
 }
 
+// A pair near a caustic (m12 about 1.6e-3) from the seed-31 synthetic set of
+// make-geod3-synthetic.mjs, and its images under the mirror symmetries of the
+// ellipsoid (bet -> -bet; omg -> -omg, 180 - omg, omg + 180) with and without
+// swapping the two points. The miss distance is small over a wide range of
+// azimuths there and its local minimum lies about five degrees from the line
+// through point 2, so a search seeded only by minima of the miss returned a
+// line 0.6 b longer. No random numbers are drawn, so every other file stays
+// byte-identical.
+const TRIAXIAL_CAUSTIC = [50.862682105, 9.729093444, -50.864195166783205, 159.053383641444498];
+
+function triaxialCausticVectors() {
+  const ellipsoid = TRIAXIAL_ELLIPSOIDS.find((entry) => entry.id === "CAYLEY");
+  const axes = [ellipsoid.a, ellipsoid.b, ellipsoid.c].map(String);
+  const wrap = (omega) => (omega > 180 ? omega - 360 : omega <= -180 ? omega + 360 : omega);
+  const omegaMaps = [(omega) => omega, (omega) => -omega, (omega) => wrap(180 - omega), (omega) => wrap(omega + 180)];
+  const [bet1, omg1, bet2, omg2] = TRIAXIAL_CAUSTIC;
+  const pairs = [];
+  for (const swap of [false, true]) {
+    for (const sign of [1, -1]) {
+      for (const map of omegaMaps) {
+        const [b1, o1, b2, o2] = swap ? [bet2, omg2, bet1, omg1] : [bet1, omg1, bet2, omg2];
+        pairs.push({ bet1: dec(sign * b1, 15), omg1: dec(map(o1), 15), bet2: dec(sign * b2, 15), omg2: dec(map(o2), 15) });
+      }
+    }
+  }
+  const inverse = runTool(GEOD3SOLVE, ["-i", "-t", ...axes, "-p", "15"], pairs.map((p) => `${p.bet1} ${p.omg1} ${p.bet2} ${p.omg2}`));
+  const rows = pairs.map((pair, index) => {
+    const [alp1, alp2, s12] = inverse[index].split(/\s+/);
+    if (!(Number(s12) > 0)) throw new Error(`Geod3Solve inverse CAYLEY-caustic-${index}: ${inverse[index]}`);
+    return [`CAYLEY-caustic-${String(index).padStart(2, "0")}`, ellipsoid.id, ...axes, pair.bet1, pair.omg1, pair.bet2, pair.omg2, alp1, alp2, s12, "1e-13"];
+  });
+  manifest.files.push({
+    ...writeCsv("triaxial-caustic.csv", [...TRIAXIAL_HEADER, "bet2", "omg2", "expected_alp1", "expected_alp2", "expected_s12", "tolerance"], rows),
+    source: "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)",
+  });
+}
+
 // ------------------------------------------------------------------ run
 
 const forwardRows = utmUpsForward();
@@ -1172,6 +1209,7 @@ triaxialShortestVectors();
 triaxialConventionVectors();
 triaxialUmbilicFarVectors();
 triaxialDirectAccuracyVectors();
+triaxialCausticVectors();
 
 manifest.skipped = skipped;
 manifest.files.sort((a, b) => a.name.localeCompare(b.name));

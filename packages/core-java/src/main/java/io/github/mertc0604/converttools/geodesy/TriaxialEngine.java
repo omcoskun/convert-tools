@@ -31,7 +31,14 @@ package io.github.mertc0604.converttools.geodesy;
 
 import io.github.mertc0604.converttools.coordinates.core.Angles;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Mirror of packages/core-js/src/geodesy/triaxial/{ellipsoid3,geodesic3}.js:
@@ -49,6 +56,14 @@ final class TriaxialEngine {
     private static final int RAYS = 180;
     private static final int REFINE_RAYS = 16;
     private static final int NEWTON_ITERATIONS = 40;
+    // Newton switches from the cheap to the accurate integrator below this
+    // miss (unit b); the cheap integrator's error is about 1e-5.
+    private static final double CHEAP_MISS = 1e-4;
+    // Two converged lines of the same length are different geodesics only
+    // when their initial headings differ by more than this (degrees); two
+    // Newton runs that end on the same short or near-conjugate line can differ
+    // by ~1e-8.
+    private static final double AMBIGUOUS_HEADING = 1e-6;
 
     /** Semiaxes with the shape constants of Ellipsoid3::Ellipsoid3(a, b, c). */
     static final class Shape {
@@ -100,10 +115,21 @@ final class TriaxialEngine {
     private record End(double[] R, double[] V, double m, double dm, double M) {
     }
 
-    private record Event(double s, double miss) {
+    /** A closest approach to P2: arc length, distance, and the offset of P2 along n x V. */
+    private record Event(double s, double miss, double side) {
     }
 
-    private record Start(double alpha, double s) {
+    private record Row(double alpha, List<Event> events) {
+    }
+
+    private record Seed(int k, Event event, double alpha, double s) {
+    }
+
+    private record Seeds(List<Seed> minima, List<Seed> brackets) {
+    }
+
+    /** A Newton start; step is the largest Newton update of alpha. */
+    private record Start(double alpha, double s, double step) {
     }
 
     private record Solution(double alpha, double s, End end, double miss) {
@@ -467,27 +493,63 @@ final class TriaxialEngine {
         return Math.sqrt((x[0] - y[0]) * (x[0] - y[0]) + (x[1] - y[1]) * (x[1] - y[1]) + (x[2] - y[2]) * (x[2] - y[2]));
     }
 
-    private static List<Event> traceRay(Shape u, double[] y0, double[] P2, double sMax) {
+    /** One classical fourth-order Runge-Kutta step of length h. */
+    private static double[] rk4(Shape u, double[] y, double h) {
+        double[] k1 = new double[DIM];
+        double[] k2 = new double[DIM];
+        double[] k3 = new double[DIM];
+        double[] k4 = new double[DIM];
+        double[] z = new double[DIM];
+        derivative(u, y, k1);
+        for (int i = 0; i < DIM; i++) {
+            z[i] = y[i] + (h / 2) * k1[i];
+        }
+        derivative(u, z, k2);
+        for (int i = 0; i < DIM; i++) {
+            z[i] = y[i] + (h / 2) * k2[i];
+        }
+        derivative(u, z, k3);
+        for (int i = 0; i < DIM; i++) {
+            z[i] = y[i] + h * k3[i];
+        }
+        derivative(u, z, k4);
+        double[] out = new double[DIM];
+        for (int i = 0; i < DIM; i++) {
+            out[i] = y[i] + (h / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);
+        }
+        return out;
+    }
+
+    /**
+     * Closest approaches to P2 of the line from y0, up to arc length sMax. The
+     * fan only seeds Newton (which uses the accurate integrator), so the line
+     * is traced with fixed RK4 steps of u.step / 2 and each closest approach
+     * is located to about 1e-9.
+     */
+    private static List<Event> traceRaySeed(Shape u, double[] y0, double[] P2, double sMax) {
         List<Event> events = new ArrayList<>();
-        int count = (int) Math.ceil(sMax / u.step);
-        double H = sMax / count;
+        double h = u.step / 2;
+        int count = (int) Math.ceil(sMax / h);
         double[] y = y0;
         double f = along(y, P2);
         for (int i = 0; i < count; i++) {
-            double[] next = step(u, y, H, 0);
+            double[] next = rk4(u, y, h);
             double fNext = along(next, P2);
             if (f > 0 && fNext <= 0) {
-                double d = H * f / (f - fNext);
-                double[] at = step(u, y, d, 0);
-                for (int iteration = 0; iteration < 8; iteration++) {
+                double d = h * f / (f - fNext);
+                double[] at = rk4(u, y, d);
+                for (int iteration = 0; iteration < 2; iteration++) {
                     double correction = -along(at, P2) / alongDerivative(u, at, P2);
-                    d = Math.min(H, Math.max(0, d + correction));
-                    at = step(u, y, d, 0);
-                    if (Math.abs(correction) <= 1e-15) {
+                    d = Math.min(h, Math.max(0, d + correction));
+                    at = rk4(u, y, d);
+                    if (Math.abs(correction) <= 1e-9) {
                         break;
                     }
                 }
-                events.add(new Event(i * H + d, distance3(new double[] {at[0], at[1], at[2]}, P2)));
+                double[] R = {at[0], at[1], at[2]};
+                double[] W = cross(unitNormal(u, R), new double[] {at[3], at[4], at[5]});
+                double side = (P2[0] - R[0]) * W[0] + (P2[1] - R[1]) * W[1] + (P2[2] - R[2]) * W[2];
+                events.add(new Event(i * h + d, distance3(R, P2), side));
             }
             y = next;
             f = fNext;
@@ -495,7 +557,8 @@ final class TriaxialEngine {
         return events;
     }
 
-    private static Event nearest(List<Event> events, double s) {
+    /** The event of events whose arc length is nearest to s, or null. */
+    private static Event nearestEvent(List<Event> events, double s) {
         Event best = null;
         for (Event event : events) {
             if (best == null || Math.abs(event.s() - s) < Math.abs(best.s() - s)) {
@@ -503,6 +566,45 @@ final class TriaxialEngine {
             }
         }
         return best;
+    }
+
+    /**
+     * Newton seeds from a row of rays at a constant azimuth spacing. minima:
+     * events whose miss is a local minimum against the nearest events (in s)
+     * of the two neighbouring rays. brackets: pairs of nearest events on
+     * neighbouring rays k, k + 1 on which side changes sign, so that a line
+     * between them passes through P2; the seed is interpolated linearly. A
+     * cyclic row joins the last ray to the first; otherwise the two end rays
+     * only serve as neighbours of minima.
+     */
+    private static Seeds seedsOf(List<Row> rows, double spacing, boolean cyclic) {
+        int n = rows.size();
+        List<Seed> minima = new ArrayList<>();
+        List<Seed> brackets = new ArrayList<>();
+        for (int k = cyclic ? 0 : 1; k < (cyclic ? n : n - 1); k++) {
+            List<Event> left = rows.get((k + n - 1) % n).events();
+            List<Event> right = rows.get((k + 1) % n).events();
+            for (Event event : rows.get(k).events()) {
+                Event l = nearestEvent(left, event.s());
+                Event r = nearestEvent(right, event.s());
+                if ((l == null || event.miss() <= l.miss()) && (r == null || event.miss() <= r.miss())) {
+                    minima.add(new Seed(k, event, rows.get(k).alpha(), event.s()));
+                }
+            }
+        }
+        for (int k = 0; k < (cyclic ? n : n - 1); k++) {
+            List<Event> next = rows.get((k + 1) % n).events();
+            for (Event event : rows.get(k).events()) {
+                Event other = nearestEvent(next, event.s());
+                if (other == null || !(event.side() * other.side() < 0)) {
+                    continue;
+                }
+                double t = event.side() / (event.side() - other.side());
+                brackets.add(new Seed(k, event, rows.get(k).alpha() + t * spacing,
+                        event.s() + t * (other.s() - event.s())));
+            }
+        }
+        return new Seeds(minima, brackets);
     }
 
     /** The shortest geodesic, or null if no Newton iteration converged. */
@@ -520,74 +622,92 @@ final class TriaxialEngine {
         double span = umb1 ? 180 : 360;
         double spacing = span / RAYS;
         double sMax = Math.PI * u.a;
-        double[] alphas = new double[RAYS];
-        List<List<Event>> rays = new ArrayList<>();
+        List<Row> coarseRows = new ArrayList<>();
         for (int j = 0; j < RAYS; j++) {
-            alphas[j] = -span / 2 + j * spacing;
-            rays.add(traceRay(u, initialState(u, bet1, omg1, angle(alphas[j])), P2, sMax));
+            double alpha = -span / 2 + j * spacing;
+            coarseRows.add(new Row(alpha, traceRaySeed(u, initialState(u, bet1, omg1, angle(alpha)), P2, sMax)));
         }
+        Seeds coarse = seedsOf(coarseRows, spacing, true);
+        // Every coarse minimum seeds Newton with the coarse spacing as step
+        // limit: near the antipodal umbilic of an umbilical start the miss
+        // varies by less than the seed tracer's error and only a long Newton
+        // step finds the line.
         List<Start> starts = new ArrayList<>();
-        for (int j = 0; j < RAYS; j++) {
-            List<Event> left = rays.get((j + RAYS - 1) % RAYS);
-            List<Event> right = rays.get((j + 1) % RAYS);
-            for (Event event : rays.get(j)) {
-                Event l = nearest(left, event.s());
-                Event r = nearest(right, event.s());
-                if ((l == null || event.miss() <= l.miss()) && (r == null || event.miss() <= r.miss())) {
-                    starts.add(new Start(alphas[j], event.s()));
+        for (Seed seed : coarse.minima()) {
+            starts.add(new Start(seed.alpha(), seed.s(), spacing));
+        }
+        if (REFINE_RAYS == 0) {
+            for (Seed seed : coarse.brackets()) {
+                starts.add(new Start(seed.alpha(), seed.s(), spacing));
+            }
+        } else {
+            // Two local minima of the miss can sit closer together than one
+            // coarse ray spacing, and the missed one can lie up to two coarse
+            // cells from the seed when the coarser line sits exactly on a ray
+            // (symmetric pairs do). Every coarse minimum is therefore also
+            // refined by a fine fan over its cell and two neighbours on each
+            // side, whose minima and brackets seed Newton with the fine spacing
+            // as step limit. A coarse bracket outside every fine fan seeds
+            // Newton directly: near a caustic (m12 close to 0) the miss is small
+            // over a wide range of azimuths and its local minimum can lie
+            // several cells away from the line through P2.
+            double fineSpacing = 2 * spacing / REFINE_RAYS;
+            int perCell = REFINE_RAYS / 2;
+            int total = RAYS * perCell;
+            Map<Integer, List<Event>> traced = new HashMap<>();
+            Set<Integer> centres = new LinkedHashSet<>();
+            for (Seed seed : coarse.minima()) {
+                centres.add(seed.k());
+            }
+            Set<Integer> covered = new HashSet<>();
+            for (int j : centres) {
+                for (int d = -2; d < 2; d++) {
+                    covered.add(((j + d) % RAYS + RAYS) % RAYS);
+                }
+            }
+            for (Seed seed : coarse.brackets()) {
+                if (!covered.contains(seed.k())) {
+                    starts.add(new Start(seed.alpha(), seed.s(), spacing));
+                }
+            }
+            Set<Event> seenMinima = Collections.newSetFromMap(new IdentityHashMap<>());
+            Set<Event> seenBrackets = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (int j : centres) {
+                List<Row> rows = new ArrayList<>();
+                for (int k = 0; k <= 2 * REFINE_RAYS; k++) {
+                    int g = j * perCell - REFINE_RAYS + k;
+                    int key = (g % total + total) % total;
+                    List<Event> events = traced.get(key);
+                    if (events == null) {
+                        double alpha = -span / 2 + key * fineSpacing;
+                        events = traceRaySeed(u, initialState(u, bet1, omg1, angle(alpha)), P2, sMax);
+                        traced.put(key, events);
+                    }
+                    rows.add(new Row(-span / 2 + g * fineSpacing, events));
+                }
+                Seeds fine = seedsOf(rows, fineSpacing, false);
+                for (Seed seed : fine.minima()) {
+                    if (seenMinima.add(seed.event())) {
+                        starts.add(new Start(seed.alpha(), seed.s(), fineSpacing));
+                    }
+                }
+                for (Seed seed : fine.brackets()) {
+                    if (seenBrackets.add(seed.event())) {
+                        starts.add(new Start(seed.alpha(), seed.s(), fineSpacing));
+                    }
                 }
             }
         }
         Solution best = null;
         List<Solution> solutions = new ArrayList<>();
         for (Start start : starts) {
-            Solution solution = newton(u, bet1, omg1, P2, start.alpha(), start.s(), spacing);
+            Solution solution = newton(u, bet1, omg1, P2, start.alpha(), start.s(), start.step());
             if (solution == null) {
                 continue;
             }
             solutions.add(solution);
             if (best == null || solution.s() < best.s()) {
                 best = solution;
-            }
-        }
-        if (REFINE_RAYS > 0) {
-            // Two local minima of the miss can sit closer together than one
-            // coarse ray spacing, and the missed one can lie up to two coarse
-            // cells from the seed when the coarser line sits exactly on a ray
-            // (symmetric pairs do). Refine every coarse seed with a fine fan
-            // over the seed's cell and its neighbours and start Newton from the
-            // fine minima as well; a fine seed limits the Newton update to the
-            // fine spacing.
-            double fineSpacing = 2 * spacing / REFINE_RAYS;
-            List<Start> fineStarts = new ArrayList<>();
-            for (Start start : starts) {
-                List<List<Event>> fine = new ArrayList<>();
-                for (int k = 0; k <= 2 * REFINE_RAYS; k++) {
-                    double alpha = start.alpha() - 2 * spacing + k * fineSpacing;
-                    fine.add(traceRay(u, initialState(u, bet1, omg1, angle(alpha)), P2, sMax));
-                }
-                for (int k = 1; k < 2 * REFINE_RAYS; k++) {
-                    List<Event> left = fine.get(k - 1);
-                    List<Event> right = fine.get(k + 1);
-                    double alpha = start.alpha() - 2 * spacing + k * fineSpacing;
-                    for (Event event : fine.get(k)) {
-                        Event l = nearest(left, event.s());
-                        Event r = nearest(right, event.s());
-                        if ((l == null || event.miss() <= l.miss()) && (r == null || event.miss() <= r.miss())) {
-                            fineStarts.add(new Start(alpha, event.s()));
-                        }
-                    }
-                }
-            }
-            for (Start start : fineStarts) {
-                Solution solution = newton(u, bet1, omg1, P2, start.alpha(), start.s(), fineSpacing);
-                if (solution == null) {
-                    continue;
-                }
-                solutions.add(solution);
-                if (best == null || solution.s() < best.s()) {
-                    best = solution;
-                }
             }
         }
         if (best == null) {
@@ -633,7 +753,7 @@ final class TriaxialEngine {
                     continue;
                 }
                 double wrapped = Math.abs(solution.alpha() - best.alpha()) % period;
-                if (Math.min(wrapped, period - wrapped) > 1e-9) {
+                if (Math.min(wrapped, period - wrapped) > AMBIGUOUS_HEADING) {
                     ambiguous = true;
                     break;
                 }
@@ -653,55 +773,87 @@ final class TriaxialEngine {
         return omg[0] < 0 ? -1 : 1;
     }
 
+    /** The state after arc length s, by fixed RK4 steps of at most u.step / 4. */
+    private static double[] integrateCheap(Shape u, double[] y0, double s) {
+        int count = (int) Math.max(1, Math.ceil(Math.abs(s) / (u.step / 4)));
+        double h = s / count;
+        double[] y = y0;
+        for (int i = 0; i < count; i++) {
+            y = rk4(u, y, h);
+        }
+        return y;
+    }
+
+    /**
+     * Newton's method on (alp1, s) for the line through P2. The first phase
+     * follows the line with the cheap RK4 integrator (error about 1e-5 b)
+     * until it passes within CHEAP_MISS of P2; the second phase finishes with
+     * the accurate integrator. Each phase has up to NEWTON_ITERATIONS
+     * iterations and stops after three iterations without a smaller miss.
+     */
     private static Solution newton(Shape u, double[] bet1, double[] omg1, double[] P2,
                                    double alpha0, double s0, double spacing) {
-        double alpha = alpha0;
-        double s = s0;
-        Solution best = null;
-        int lastBest = 0;
+        // dV1/dalp: the heading turned by 90 degrees (by 45 at an umbilical
+        // point, where the direction depends on 2 alp, with twice the speed).
         boolean umbilic = u.umbilical && bet1[1] == 0 && omg1[0] == 0;
         double speed = umbilic ? 2 : 1;
         double[] R1 = ellipToCart(u, bet1, omg1);
-        for (int iteration = 0; iteration < NEWTON_ITERATIONS; iteration++) {
-            double[] start = angle(alpha);
-            double[] V1 = headingToDirection(u, bet1, omg1, start);
-            // dV1/dalp: the heading turned by 90 degrees (45 at an umbilical
-            // point, where the direction depends on 2 alp with twice the speed).
-            double[] turned = headingToDirection(u, bet1, omg1, angle(alpha + (umbilic ? 45 : 90)));
-            double sense = Math.signum(dot(cross(unitNormal(u, R1), V1), turned));
-            if (sense == 0 || Double.isNaN(sense)) {
-                sense = 1;
+        double alpha = alpha0;
+        double s = s0;
+        for (int phase = 0; phase < 2; phase++) {
+            boolean accurate = phase == 1;
+            Solution best = null;
+            int lastBest = 0;
+            boolean reached = false;
+            for (int iteration = 0; iteration < NEWTON_ITERATIONS; iteration++) {
+                double[] V1 = headingToDirection(u, bet1, omg1, angle(alpha));
+                double[] turned = headingToDirection(u, bet1, omg1, angle(alpha + (umbilic ? 45 : 90)));
+                double sense = Math.signum(dot(cross(unitNormal(u, R1), V1), turned));
+                if (sense == 0 || Double.isNaN(sense)) {
+                    sense = 1;
+                }
+                double[] y0 = {R1[0], R1[1], R1[2], V1[0], V1[1], V1[2], 0, 1, 1, 0};
+                End end = finish(u, accurate ? integrate(u, y0, s) : integrateCheap(u, y0, s));
+                double[] r = {P2[0] - end.R()[0], P2[1] - end.R()[1], P2[2] - end.R()[2]};
+                double miss = Math.sqrt(dot(r, r));
+                if (best == null || miss < best.miss()) {
+                    best = new Solution(alpha, s, end, miss);
+                    lastBest = iteration;
+                }
+                if (!accurate && miss <= CHEAP_MISS) {
+                    reached = true;
+                    break;
+                }
+                // Near an umbilic the reduced length is small and the iteration
+                // converges slowly: keep going until the miss itself is well
+                // below the distance tolerance, or for three iterations after
+                // the last improvement.
+                if (accurate && miss <= 1e-14 * u.a) {
+                    break;
+                }
+                if (iteration - lastBest >= 3) {
+                    break;
+                }
+                double[] W = cross(unitNormal(u, end.R()), end.V());
+                double ds = dot(r, end.V());
+                double dalpha = sense * dot(r, W) / (end.m() * speed) / (Math.PI / 180);
+                if (!Double.isFinite(dalpha)) {
+                    dalpha = 0;
+                }
+                dalpha = Math.max(-spacing, Math.min(spacing, dalpha));
+                alpha += dalpha;
+                s += ds;
+                if (!(s > 0)) {
+                    return null;
+                }
             }
-            End end = finish(u, integrate(u, new double[] {R1[0], R1[1], R1[2], V1[0], V1[1], V1[2], 0, 1, 1, 0}, s));
-            double[] r = {P2[0] - end.R()[0], P2[1] - end.R()[1], P2[2] - end.R()[2]};
-            double miss = Math.sqrt(dot(r, r));
-            if (best == null || miss < best.miss()) {
-                best = new Solution(alpha, s, end, miss);
-                lastBest = iteration;
-            }
-            // Near an umbilic the reduced length is small and the iteration
-            // converges slowly: keep going until the miss itself is well below
-            // the distance tolerance, or for three iterations after the last
-            // improvement.
-            if (miss <= 1e-14 * u.a) {
-                break;
-            }
-            if (iteration - lastBest >= 3) {
-                break;
-            }
-            double[] W = cross(unitNormal(u, end.R()), end.V());
-            double ds = dot(r, end.V());
-            double dalpha = sense * dot(r, W) / (end.m() * speed) / (Math.PI / 180);
-            if (!Double.isFinite(dalpha)) {
-                dalpha = 0;
-            }
-            dalpha = Math.max(-spacing, Math.min(spacing, dalpha));
-            alpha += dalpha;
-            s += ds;
-            if (!(s > 0)) {
+            if (!accurate && !reached) {
                 return null;
             }
+            if (accurate) {
+                return best.miss() < 1e-12 ? best : null;
+            }
         }
-        return best.miss() < 1e-12 ? best : null;
+        return null;
     }
 }

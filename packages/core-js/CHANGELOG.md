@@ -91,6 +91,23 @@ için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
 - Java `Geodesic.direct` azimutu motora `((x % 360) + 360) % 360` ile
   yuvarlanmış olarak veriyordu (1 ulp kayıp); artık JavaScript gibi ham
   değeri verir, motor kesin `AngNormalize` uygular.
+- Üç eksenli ters problem kaustik yakınındaki (m12 ≈ 0) bazı çiftlerde en
+  kısa jeodeziği kaçırıp daha uzun bir hat döndürüyordu (bulunan CAYLEY
+  çiftinde 0,6 b): kaçırma mesafesinin yerel en küçüğü doğru hattan birkaç
+  ışın uzakta kalabiliyordu. Komşu iki ışın arasında P2'nin hattın bir
+  yanından öbür yanına geçtiği yerler artık Newton'a başlangıç verir.
+- Üç eksenli ters problemde `ambiguous`, kısa ya da eşleniğe yakın hatlarda
+  yanlışlıkla `true` olabiliyordu: aynı hatta yakınsayan iki Newton
+  çözümünün azimutları 1e-8° düzeyinde ayrılıyordu. Farklı jeodezik sayılmak
+  için gereken azimut farkı 1e-9°'den 1e-6°'ye çıktı.
+
+### Değişenler
+
+- Üç eksenli ters problem hızlandı (CAYLEY'de 1000 rastgele çiftte ortanca
+  4,1 ms; diğer elipsoitlerde 10–60 kat): azimut yelpazesi ve Newton'un ilk
+  aşaması sabit adımlı Runge–Kutta ile izlenir, son aşama değişmeden
+  Gragg–Bulirsch–Stoer ile. Yedi elipsoitte eski sonuçlarla fark en çok
+  1,6e-14 b.
 
 ## 3.0.0 — 2026-11-13
 

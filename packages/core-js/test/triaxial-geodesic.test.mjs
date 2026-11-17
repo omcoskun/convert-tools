@@ -67,6 +67,20 @@ test("inverse finds the shortest geodesic in near-conjugate cases", () => {
   }
 });
 
+test("inverse finds the shortest geodesic near a caustic (contracts/test-vectors/triaxial-caustic.csv)", () => {
+  const rows = readVectors("triaxial-caustic.csv");
+  assert.equal(rows.length, 16);
+  for (const row of rows) {
+    const options = { ellipsoid: { a: Number(row.a), b: Number(row.b), c: Number(row.c) } };
+    const result = inverseTriaxialGeodesic({ beta: row.bet1, omega: row.omg1 }, { beta: row.bet2, omega: row.omg2 }, options);
+    const tolerance = Number(row.tolerance);
+    const m12 = Math.abs(result.reducedLength);
+    assert.ok(Math.abs(result.distance - Number(row.expected_s12)) <= tolerance, `${row.id}: distance ${result.distance}`);
+    assert.ok(headingDifference(result.initialAzimuthDegrees, row.expected_alp1) * m12 <= tolerance, `${row.id}: alp1`);
+    assert.ok(headingDifference(result.finalAzimuthDegrees, row.expected_alp2) * m12 <= tolerance, `${row.id}: alp2`);
+  }
+});
+
 test("triaxial inverse matches Geod3Solve conventions on symmetric and umbilical pairs", () => {
   const rows = readVectors("triaxial-conventions.csv");
   const degree = (1e-7 * Math.PI) / 180;

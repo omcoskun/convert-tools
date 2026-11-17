@@ -38,6 +38,7 @@ public final class TriaxialGeodesicTest {
         Path vectors = Path.of(args.length > 0 ? args[0] : "contracts/test-vectors");
         inverseVectors(vectors);
         shortestVectors(vectors);
+        causticVectors(vectors);
         conventionVectors(vectors);
         umbilicFarVectors(vectors);
         antipodalUmbilics();
@@ -137,6 +138,24 @@ public final class TriaxialGeodesicTest {
                     new Point(num(row, "bet1"), num(row, "omg1")), new Point(num(row, "bet2"), num(row, "omg2")), axes);
             check(result.distance() - num(row, "expected_s12") <= 1e-13,
                     row.get("id") + ": distance " + result.distance());
+        }
+    }
+
+    private static void causticVectors(Path dir) throws IOException {
+        List<Map<String, String>> rows = read(dir, "triaxial-caustic.csv");
+        check(rows.size() == 16, "triaxial-caustic.csv rows " + rows.size());
+        for (Map<String, String> row : rows) {
+            Axes axes = new Axes(num(row, "a"), num(row, "b"), num(row, "c"));
+            TriaxialGeodesic.InverseResult result = TriaxialGeodesic.inverse(
+                    new Point(num(row, "bet1"), num(row, "omg1")), new Point(num(row, "bet2"), num(row, "omg2")), axes);
+            double tolerance = num(row, "tolerance");
+            double m12 = Math.abs(result.reducedLength());
+            check(Math.abs(result.distance() - num(row, "expected_s12")) <= tolerance,
+                    row.get("id") + ": distance " + result.distance());
+            check(headingDifference(result.initialAzimuthDegrees(), num(row, "expected_alp1")) * m12 <= tolerance,
+                    row.get("id") + ": alp1");
+            check(headingDifference(result.finalAzimuthDegrees(), num(row, "expected_alp2")) * m12 <= tolerance,
+                    row.get("id") + ": alp2");
         }
     }
 

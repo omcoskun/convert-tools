@@ -35,16 +35,45 @@ sağlamlık, çift hassasiyete yakın doğruluk, kod boyu.
   `c²/a` ile ölçeklenir, ekstrapolasyon tablosu yakınsayana kadar derinleşir.
   Son konum yüzeye, hız teğet düzleme izdüşürülür. Uzunluklar içeride `b = 1`
   birimine ölçeklenir.
-- **Ters problem (en kısa rota).** P1'den eşit aralıklı azimut yelpazesiyle
-  geodezikler `π a` uzunluğuna (bir yüzey çapı üst sınırı) kadar izlenir; her
-  ışında P2'ye en yakın geçişler (`(P2 − X)·V = 0`) bulunur. Azimut yönünde
-  yerel en küçük kaçırma mesafeleri, `(α, s)` üzerinde Newton yöntemine başlangıç
-  olur: `Δs = r·V`, `Δα = r·W / m`, burada `W` azimut değişiminin Jacobi
-  alanının birim yönüdür. Yakınsayan çözümlerin en kısası döndürülür.
+- **Ters problem (en kısa rota).** P1'den 180 ışınlık eşit aralıklı azimut
+  yelpazesiyle (umbilik başlangıçta 180°'lik aralıkta) geodezikler `π a`
+  uzunluğuna (bir yüzey çapı üst sınırı) kadar izlenir; her ışında P2'ye en
+  yakın geçişler (`(P2 − X)·V = 0`) bulunur. Yelpaze yalnızca Newton'a başlangıç
+  verdiği için ucuz bir integratörle izlenir: `u.step/2` sabit adımlı
+  dördüncü mertebe Runge–Kutta (konum hatası CAYLEY'de yaklaşık 2e-4 b), geçiş
+  noktası 1e-9 düzeyinde bulunur. Her geçiş, P2'nin hattın hangi yanında
+  kaldığını da (`(P2 − X)·(n × V)` işareti) kaydeder. Newton başlangıçları:
+  1. komşu ışınlara göre kaçırma mesafesinin yerel en küçükleri;
+  2. her en küçüğün hücresi ve iki yanındaki ikişer hücre üzerinde 16 aralıklı
+     inceltme yelpazesinin (aralık 0,25°) yerel en küçükleri ve işaret
+     değişimleri;
+  3. hiçbir inceltme yelpazesinin örtmediği, komşu iki kaba ışın arasındaki
+     işaret değişimleri: P2 iki hattın arasında kalır, aradaki bir hat P2'den
+     geçer. Bu başlangıç kaustik yakınındaki (m12 ≈ 0) çiftler içindir; orada
+     kaçırma mesafesi geniş bir azimut aralığında küçüktür ve yerel en küçüğü
+     P2'den geçen hattan birkaç hücre uzakta kalabilir. Bulunan örnek (CAYLEY,
+     tohum 31'li sentetik set): `(50.862682105, 9.729093444) →
+     (−50.864195166783205, 159.053383641444498)`; kaçırmanın en küçüğü 88°'de,
+     doğru hat 93,18°'de; bu başlangıç yokken çözücü 0,6 b daha uzun bir hat
+     döndürüyordu. Sözleşme vektörü `triaxial-caustic.csv` bu çifti, elipsoidin
+     ayna simetrileri altındaki görüntülerini ve noktaları yer değiştirilmiş
+     hallerini taşır (16 satır, `Geod3Solve -i -p 15`; eski arama 16'sında da
+     0,6 b uzun hat veriyordu).
+
+  Newton `(α, s)` üzerinde çalışır: `Δs = r·V`, `Δα = r·W / m`, burada `W`
+  azimut değişiminin Jacobi alanının birim yönüdür; azimut adımı başlangıcın
+  yelpaze aralığıyla sınırlıdır. İlk aşama ucuz integratörle (`u.step/4` sabit
+  adımlı RK4, hata yaklaşık 1e-5 b) kaçırma 1e-4 b'nin altına inene kadar
+  sürer; inemeyen başlangıç bırakılır. İkinci aşama doğru integratörle (GBS)
+  kaçırma `1e-14 · a`'nın altına inene ya da üç yinelemede küçülmez olana kadar
+  sürer. Her aşamanın en çok 40 yinelemesi vardır. Kaçırması 1e-12'nin altında
+  kalan çözümlerin en kısası döndürülür.
 - **Bilinen sınır.** Yelpaze ayrıklığı nedeniyle çok yakın iki çözüm
-  (eşlenik noktaya yakın durumlar) birleşebilir; bunun ölçümü aşama 3
-  testlerindedir. Tam umbilik–karşı umbilik çiftinde sonsuz sayıda en kısa
-  geodezik vardır; döndürülen biri onlardan biridir.
+  (eşlenik noktaya yakın durumlar) birleşebilir; inceltme yelpazesi ve işaret
+  değişimi başlangıçları bunun içindir. `find-triaxial-misses.mjs` 20.000
+  çiftte (tohum 1) 1440 ışınlık bir aramaya göre kaçırılmış daha kısa bir hat
+  bulmadı (17 Kasım 2026). Tam umbilik–karşı umbilik çiftinde sonsuz sayıda en
+  kısa geodezik vardır; döndürülen biri onlardan biridir.
 
 ## API
 
@@ -100,10 +129,19 @@ Tüm sayılar bu çalışmada çalıştırılan komutlardan; birim `b`.
   ω > 0 iken β, ω < 0 iken 180 − β, azimut ±90° döner) yakın antipodal
   çiftlerde mesafe farkı ≤ 2,1e-14 (bağıl), test sınırı 1e-13;
   kürede büyük çember kapalı formları ≤ 1,2e-14.
-- **Hız.** Ters problem satır başına yaklaşık 45 ms (JS); tam Geod3Test
-  (500.000 satır) bu yüzden çok çekirdekle çalıştırılır
-  (`validate-geod3test.mjs` worker thread'leri, `Geod3TestFullSet` paralel
-  akış).
+- **Hız.** `node contracts/tools/bench-triaxial-inverse.mjs --count 1000
+  --seed 9` (CAYLEY, iki nokta da kürede düzgün dağılımlı, JS, tek çekirdek):
+  ters problem ortanca 4,1 ms, p95 10,4 ms; ucuz yelpaze ve iki aşamalı
+  Newton'dan önce ortanca 104 ms, p95 175 ms (17 Kasım 2026). Aynı 1000 çiftte
+  `s12` farkı en çok 1,0e-14 b, `α₁` farkı 3,0e-12°. Rastgele 200'er çiftte
+  ortalama: Dünya benzeri 1,2 ms, hafif üç eksenli 1,7 ms, oblate 1,3 ms,
+  prolate 2,0 ms, (3, 2, 1) 14 ms, (1; 0,9; 0,3) 19 ms; eski sonuçlarla fark
+  her birinde ≤ 1,6e-14 b. Tam Geod3Test (500.000 satır) yine çok çekirdekle
+  çalıştırılır (`validate-geod3test.mjs` worker thread'leri,
+  `Geod3TestFullSet` paralel akış). JavaScript ve Java bit düzeyinde aynı
+  değildir (trigonometrik fonksiyonlar farklıdır): tohum 31'li 3000 satırlık
+  sentetik sette `s12` bağıl farkı en çok 1,3e-14, her satırın yargısı iki
+  dilde aynı.
 - **Risk.** Yakın umbilik satırlarda bizim mesafe farkımız 7e-14'e kadar
   çıktı; taban 1e-13'e yakındır. Geod3Solve bu blokta 1e-11 düzeyinde
   hatalı olduğundan "2 × referans" kuralı orada daha geniştir; genel blokta
@@ -146,8 +184,11 @@ doğruysa `true`, değilse `false`'dur:
    düzlemden ayrılıyor; ayna görüntüsü de aynı uzunlukta);
 2. `opposite` (umbilikten her yön, karşı umbilike aynı uzunlukta varır);
 3. yakınsayan Newton çözümleri arasında, en iyiden uzunluğu en çok 1e-13
-   (b birimi) farklı ve başlangıç azimutu 1e-9 dereceden fazla farklı (360
-   modunda; 1. nokta umbilikse 180 modunda) başka bir çözüm var.
+   (b birimi) farklı ve başlangıç azimutu 1e-6 dereceden fazla farklı (360
+   modunda; 1. nokta umbilikse 180 modunda) başka bir çözüm var. Eşik 1e-9°
+   iken kısa ya da eşleniğe yakın hatlarda aynı hatta yakınsayan iki Newton
+   çözümünün azimutları 1e-8° düzeyinde ayrılıp yanlışlıkla `true` veriyordu
+   (tohum 31'li sentetik sette `s12 = 2e-4` olan satır).
 
 Çakışık noktalarda (`s12 = 0`) `ambiguous` daima `false`'dur.
 
