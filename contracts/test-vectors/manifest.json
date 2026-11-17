@@ -76,6 +76,12 @@
       "source": "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)"
     },
     {
+      "name": "triaxial-direct-accuracy.csv",
+      "rows": 500,
+      "sha256": "d2dc363d4992f09fee2aa58b5eacad4bb576b26d13b7db1c14e4412e36b5ac25",
+      "source": "Geod3Solve -t a b c -p 15 (bet2, omg2, alp2)"
+    },
+    {
       "name": "triaxial-direct.csv",
       "rows": 80,
       "sha256": "78a16a901f03c8d2fda429369b0089fc3337fdef8bc2505d1de1decc467ec5a8",

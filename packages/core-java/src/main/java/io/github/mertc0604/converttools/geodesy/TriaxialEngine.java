@@ -291,27 +291,44 @@ final class TriaxialEngine {
         dy[9] = -curvature * y[8];
     }
 
+    // Both running sums of the modified midpoint rule (z0 + h f and z0 + 2 h f)
+    // carry a Neumaier compensation term (a - sum + b, or b - sum + a when the
+    // increment is larger), so the round-off of every state update is kept and
+    // added back before the final average. Without it the round-off of the
+    // velocity accumulates along the line and moves the end point by about
+    // 1e-13 b.
     private static double[] midpoint(Shape u, double[] y0, double H, int n) {
         double h = H / n;
         double[] z0 = y0.clone();
         double[] z1 = new double[DIM];
+        double[] e0 = new double[DIM];
+        double[] e1 = new double[DIM];
         double[] f = new double[DIM];
         derivative(u, z0, f);
         for (int i = 0; i < DIM; i++) {
-            z1[i] = z0[i] + h * f[i];
+            double increment = h * f[i];
+            double value = z0[i] + increment;
+            z1[i] = value;
+            e1[i] = Math.abs(z0[i]) >= Math.abs(increment) ? z0[i] - value + increment : increment - value + z0[i];
         }
         for (int step = 1; step < n; step++) {
             derivative(u, z1, f);
             for (int i = 0; i < DIM; i++) {
-                double t = z0[i] + 2 * h * f[i];
+                double increment = 2 * h * f[i];
+                double value = z0[i] + increment;
+                double lost = Math.abs(z0[i]) >= Math.abs(increment) ? z0[i] - value + increment
+                        : increment - value + z0[i];
+                double low = e0[i] + lost;
                 z0[i] = z1[i];
-                z1[i] = t;
+                e0[i] = e1[i];
+                z1[i] = value;
+                e1[i] = low;
             }
         }
         derivative(u, z1, f);
         double[] out = new double[DIM];
         for (int i = 0; i < DIM; i++) {
-            out[i] = 0.5 * (z1[i] + z0[i] + h * f[i]);
+            out[i] = 0.5 * (z1[i] + e1[i] + (z0[i] + e0[i]) + h * f[i]);
         }
         return out;
     }
@@ -358,14 +375,46 @@ final class TriaxialEngine {
         return step(u, step(u, y, H / 2, depth + 1), H / 2, depth + 1);
     }
 
+    /**
+     * Integrates the state over arc length s (unit b), carrying the round-off
+     * of each macro step in a compensation term and projecting the state back
+     * onto the ellipsoid and the tangent plane after every step.
+     */
     private static double[] integrate(Shape u, double[] y0, double s) {
         int count = (int) Math.max(1, Math.ceil(Math.abs(s) / u.step));
         double H = s / count;
-        double[] y = y0;
+        double[] y = y0.clone();
+        double[] error = new double[DIM];
+        double[] precise = new double[DIM];
         for (int i = 0; i < count; i++) {
-            y = step(u, y, H, 0);
+            for (int j = 0; j < DIM; j++) {
+                precise[j] = y[j] + error[j];
+            }
+            double[] next = step(u, precise, H, 0);
+            // Keep the position on the ellipsoid and the velocity in its tangent plane.
+            double[][] rv = projectToSurface(u,
+                    new double[] {next[0], next[1], next[2]}, new double[] {next[3], next[4], next[5]});
+            for (int j = 0; j < 3; j++) {
+                next[j] = rv[0][j];
+                next[3 + j] = rv[1][j];
+            }
+            for (int j = 0; j < 6; j++) {
+                y[j] = next[j];
+                error[j] = 0;
+            }
+            for (int j = 6; j < DIM; j++) {
+                double increment = next[j] - precise[j];
+                double value = y[j] + increment;
+                error[j] += Math.abs(y[j]) >= Math.abs(increment) ? y[j] - value + increment
+                        : increment - value + y[j];
+                y[j] = value;
+            }
         }
-        return y;
+        double[] out = new double[DIM];
+        for (int j = 0; j < DIM; j++) {
+            out[j] = y[j] + error[j];
+        }
+        return out;
     }
 
     private static double[] initialState(Shape u, double[] bet, double[] omg, double[] alp) {

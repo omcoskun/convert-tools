@@ -153,6 +153,26 @@ test("triaxial direct matches Geod3Solve (contracts/test-vectors/triaxial-direct
   }
 });
 
+test("direct position agrees with Geod3Solve to 5e-14", () => {
+  const rows = readVectors("triaxial-direct-accuracy.csv");
+  assert.equal(rows.length, 500);
+  let worst = 0;
+  let worstId = "";
+  for (const row of rows) {
+    const options = { ellipsoid: { a: Number(row.a), b: Number(row.b), c: Number(row.c) } };
+    const result = directTriaxialGeodesic({ beta: row.bet1, omega: row.omg1 }, row.alp1, row.s12, options);
+    const reached = triaxialToCartesian({ beta: result.beta, omega: result.omega }, options);
+    const expected = triaxialToCartesian({ beta: row.expected_bet2, omega: row.expected_omg2 }, options);
+    const miss = cartesianDistance(reached, expected);
+    if (miss > worst) {
+      worst = miss;
+      worstId = row.id;
+    }
+  }
+  assert.ok(worst <= 5e-14, `direct position: max ${worst.toExponential(3)} at ${worstId} over ${rows.length} rows`);
+  console.log(`direct position: max ${worst.toExponential(3)} b over ${rows.length} rows`);
+});
+
 test("triaxial inverse is symmetric and its line closes on point 2", () => {
   for (const ellipsoid of [CAYLEY, EARTH3, MILD]) {
     const options = { ellipsoid };

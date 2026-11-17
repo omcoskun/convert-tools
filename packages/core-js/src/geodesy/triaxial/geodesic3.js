@@ -74,24 +74,42 @@ function derivative(u, y, dy) {
   dy[9] = -curvature * y[8];
 }
 
+// Both running sums of the modified midpoint rule (z0 + h f and z0 + 2 h f)
+// carry a Neumaier compensation term (a - sum + b, or b - sum + a when the
+// increment is larger), so the round-off of every state update is kept and
+// added back before the final average. Without it the round-off of the
+// velocity accumulates along the line and moves the end point by about
+// 1e-13 b.
 function midpoint(u, y0, H, n) {
   const h = H / n;
   const z0 = y0.slice();
   const z1 = new Array(DIM);
+  const e0 = new Array(DIM).fill(0);
+  const e1 = new Array(DIM);
   const f = new Array(DIM);
   derivative(u, z0, f);
-  for (let i = 0; i < DIM; i += 1) z1[i] = z0[i] + h * f[i];
+  for (let i = 0; i < DIM; i += 1) {
+    const increment = h * f[i];
+    const value = z0[i] + increment;
+    z1[i] = value;
+    e1[i] = Math.abs(z0[i]) >= Math.abs(increment) ? z0[i] - value + increment : increment - value + z0[i];
+  }
   for (let step = 1; step < n; step += 1) {
     derivative(u, z1, f);
     for (let i = 0; i < DIM; i += 1) {
-      const t = z0[i] + 2 * h * f[i];
+      const increment = 2 * h * f[i];
+      const value = z0[i] + increment;
+      const lost = Math.abs(z0[i]) >= Math.abs(increment) ? z0[i] - value + increment : increment - value + z0[i];
+      const low = e0[i] + lost;
       z0[i] = z1[i];
-      z1[i] = t;
+      e0[i] = e1[i];
+      z1[i] = value;
+      e1[i] = low;
     }
   }
   derivative(u, z1, f);
   const out = new Array(DIM);
-  for (let i = 0; i < DIM; i += 1) out[i] = 0.5 * (z1[i] + z0[i] + h * f[i]);
+  for (let i = 0; i < DIM; i += 1) out[i] = 0.5 * (z1[i] + e1[i] + (z0[i] + e0[i]) + h * f[i]);
   return out;
 }
 
@@ -127,13 +145,38 @@ function step(u, y, H, depth = 0) {
   return step(u, step(u, y, H / 2, depth + 1), H / 2, depth + 1);
 }
 
-/** Integrates the state over arc length s (unit b). */
+/**
+ * Integrates the state over arc length s (unit b), carrying the round-off of
+ * each macro step in a compensation term and projecting the state back onto
+ * the ellipsoid and the tangent plane after every step.
+ */
 function integrate(u, y0, s) {
   const count = Math.max(1, Math.ceil(Math.abs(s) / u.step));
   const H = s / count;
-  let y = y0;
-  for (let i = 0; i < count; i += 1) y = step(u, y, H);
-  return y;
+  const y = y0.slice();
+  const error = new Array(DIM).fill(0);
+  const precise = new Array(DIM);
+  for (let i = 0; i < count; i += 1) {
+    for (let j = 0; j < DIM; j += 1) precise[j] = y[j] + error[j];
+    const next = step(u, precise, H);
+    // Keep the position on the ellipsoid and the velocity in its tangent plane.
+    const [R, V] = projectToSurface(u, [next[0], next[1], next[2]], [next[3], next[4], next[5]]);
+    for (let j = 0; j < 3; j += 1) next[j] = R[j];
+    for (let j = 0; j < 3; j += 1) next[3 + j] = V[j];
+    for (let j = 0; j < 6; j += 1) {
+      y[j] = next[j];
+      error[j] = 0;
+    }
+    for (let j = 6; j < DIM; j += 1) {
+      const increment = next[j] - precise[j];
+      const value = y[j] + increment;
+      error[j] += Math.abs(y[j]) >= Math.abs(increment) ? y[j] - value + increment : increment - value + y[j];
+      y[j] = value;
+    }
+  }
+  const out = new Array(DIM);
+  for (let j = 0; j < DIM; j += 1) out[j] = y[j] + error[j];
+  return out;
 }
 
 function initialState(u, bet, omg, alp) {

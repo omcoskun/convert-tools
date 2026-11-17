@@ -1123,6 +1123,37 @@ function triaxialUmbilicFarVectors() {
   });
 }
 
+// Direct problems whose end point is compared with Geod3Solve to 5e-14. The
+// integrator's round-off accumulates over the macro steps, so the end point
+// can be off by about 1.3e-13 even where m12 and M12 meet 1e-13. This section
+// draws from its own generator, so every other file stays byte-identical.
+function triaxialDirectAccuracyVectors() {
+  const ellipsoid = TRIAXIAL_ELLIPSOIDS.find((entry) => entry.id === "CAYLEY");
+  const axes = [ellipsoid.a, ellipsoid.b, ellipsoid.c].map(String);
+  const next = mulberry32(0xd17ec7);
+  const u = (min, max) => min + next() * (max - min);
+  const sphereLatitude = () => (Math.asin(u(-1, 1)) * 180) / Math.PI;
+  const lines = [];
+  for (let index = 0; index < 500; index += 1) {
+    lines.push({
+      id: `CAYLEY-direct-accuracy-${String(index).padStart(3, "0")}`,
+      bet1: dec(sphereLatitude(), 9),
+      omg1: dec(u(-180, 180), 9),
+      alp1: dec(u(-180, 180), 9),
+      s12: dec(u(0, 4.4), 9),
+    });
+  }
+  const direct = runTool(GEOD3SOLVE, ["-t", ...axes, "-p", "15"], lines.map((l) => `${l.bet1} ${l.omg1} ${l.alp1} ${l.s12}`));
+  const rows = lines.map((line, index) => {
+    const [bet2, omg2, alp2] = direct[index].split(/\s+/);
+    return [line.id, ellipsoid.id, ...axes, line.bet1, line.omg1, line.alp1, line.s12, bet2, omg2, alp2, "5e-14"];
+  });
+  manifest.files.push({
+    ...writeCsv("triaxial-direct-accuracy.csv", [...TRIAXIAL_HEADER, "alp1", "s12", "expected_bet2", "expected_omg2", "expected_alp2", "tolerance"], rows),
+    source: "Geod3Solve -t a b c -p 15 (bet2, omg2, alp2)",
+  });
+}
+
 // ------------------------------------------------------------------ run
 
 const forwardRows = utmUpsForward();
@@ -1140,6 +1171,7 @@ triaxialVectors();
 triaxialShortestVectors();
 triaxialConventionVectors();
 triaxialUmbilicFarVectors();
+triaxialDirectAccuracyVectors();
 
 manifest.skipped = skipped;
 manifest.files.sort((a, b) => a.name.localeCompare(b.name));

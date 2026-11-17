@@ -44,6 +44,7 @@ public final class TriaxialGeodesicTest {
         genericNotAmbiguous();
         coincidentAndAntipodes();
         directVectors(vectors);
+        directAccuracyVectors(vectors);
         symmetryAndClosure();
         finiteDifferences();
         oblateLimit();
@@ -217,6 +218,29 @@ public final class TriaxialGeodesicTest {
                     row.get("id") + ": alp2");
         }
         System.out.printf(Locale.ROOT, "triaxial-direct.csv position: max %.3e b over %d rows%n", worst, rows.size());
+    }
+
+    private static void directAccuracyVectors(Path dir) throws IOException {
+        List<Map<String, String>> rows = read(dir, "triaxial-direct-accuracy.csv");
+        check(rows.size() == 500, "triaxial-direct-accuracy.csv rows " + rows.size());
+        double worst = 0;
+        String worstId = "";
+        for (Map<String, String> row : rows) {
+            Axes axes = new Axes(num(row, "a"), num(row, "b"), num(row, "c"));
+            TriaxialGeodesic.DirectResult result = TriaxialGeodesic.direct(
+                    new Point(num(row, "bet1"), num(row, "omg1")), num(row, "alp1"), num(row, "s12"), axes);
+            Cartesian reached = TriaxialGeodesic.toCartesian(new Point(result.beta(), result.omega()), axes);
+            Cartesian expected = TriaxialGeodesic.toCartesian(
+                    new Point(num(row, "expected_bet2"), num(row, "expected_omg2")), axes);
+            double miss = distance(reached, expected);
+            if (miss > worst) {
+                worst = miss;
+                worstId = row.get("id");
+            }
+        }
+        check(worst <= 5e-14, "direct position: max " + worst + " at " + worstId + " over " + rows.size() + " rows");
+        System.out.printf(Locale.ROOT, "triaxial-direct-accuracy.csv position: max %.3e b over %d rows%n",
+                worst, rows.size());
     }
 
     private static void symmetryAndClosure() {
