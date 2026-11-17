@@ -207,3 +207,26 @@ test("examples, fit requests, models and a handed-over point", () => {
   assert.equal(received.fitRequest, direct.fitRequest + 1);
   assert.equal(run(state, { type: "receive", coordinate: { latitude: "1", longitude: "2" } }).a, "1, 2", "the start by default");
 });
+
+test("reordering a route retains all coordinates and updates shared endpoints", () => {
+  const state = run(empty(), { type: "mode", mode: "route" }, pick("1", "2"), pick("3", "4"), { type: "adding", on: true }, pick("5", "6"), { type: "arm", index: 1 });
+  const moved = run(state, { type: "reorder", from: 2, to: 0 });
+  assert.deepEqual(modePoints(moved), ["5, 6", "1, 2", "3, 4"]);
+  assert.equal(moved.armed, null);
+  assert.deepEqual(modePoints(run(moved, { type: "mode", mode: "inverse" })), ["5, 6", "3, 4"]);
+  assert.deepEqual(modePoints(run(moved, { type: "reorder", from: 0, to: 2 })), ["1, 2", "3, 4", "5, 6"]);
+  for (const action of [{ from: -1, to: 0 }, { from: 0, to: 3 }, { from: 0.5, to: 1 }, { from: 1, to: 1 }]) {
+    assert.equal(run(state, { type: "reorder", ...action }), state);
+  }
+  const inverse = empty();
+  assert.equal(run(inverse, { type: "reorder", from: 0, to: 1 }), inverse);
+});
+
+test("finishing map insertion pauses selection even when a route row is empty", () => {
+  const state = run(empty(), { type: "mode", mode: "route" }, { type: "adding", on: true }, pick("1", "2"));
+  const finished = run(state, { type: "adding", on: false });
+  assert.equal(pickTarget(finished), null);
+  assert.deepEqual(modePoints(finished), ["1, 2", ""]);
+  assert.equal(run(finished, pick("3", "4")), finished);
+  assert.deepEqual(pickTarget(run(finished, { type: "adding", on: true })), { index: 1, append: false });
+});

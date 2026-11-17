@@ -29,6 +29,9 @@ const PATHS = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  up: <path d="M12 20V4m-6 6 6-6 6 6" />,
+  down: <path d="M12 4v16m-6-6 6 6 6-6" />,
+  route: <><circle cx="5" cy="18" r="2" /><circle cx="19" cy="6" r="2" /><path d="M7 18h9a4 4 0 0 0 0-8H8a2 2 0 0 1 0-4h9" /></>,
   minus: <path d="M5 12h14" />,
   focus: (
     <>

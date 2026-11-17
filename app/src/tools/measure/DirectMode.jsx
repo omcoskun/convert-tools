@@ -21,7 +21,7 @@ const message = { m: 0, color: COLORS.error, fontSize: TYPE.meta, fontWeight: 65
  *   dispatch: (action: object) => void,
  * }} props
  */
-export default function DirectMode({ state, target, dispatch }) {
+export default function DirectMode({ state, target, dispatch, showFormats }) {
   const { text } = useLanguage();
   const azimuthInvalid = readNumberText(state.azimuth).status === "invalid";
   const distanceInvalid = readNumberText(state.distance).status === "invalid";
@@ -33,6 +33,7 @@ export default function DirectMode({ state, target, dispatch }) {
         label={text.startPoint}
         badge={{ text: "A", tone: "a" }}
         value={state.a}
+        showFormats={showFormats}
         onChange={(value) => dispatch({ type: "edit", index: 0, text: value })}
         onPoints={(points, { swapped }) => dispatch({ type: "paste", index: 0, points, swapped })}
         picking={target != null && target.index === 0}

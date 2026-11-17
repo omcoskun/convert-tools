@@ -1,7 +1,8 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { coordinateResults } from "@convert-tools/core";
 import CallSnippet from "../../components/CallSnippet.jsx";
 import Chips from "../../components/Chips.jsx";
+import Disclosure from "../../components/Disclosure.jsx";
 import ErrorMessage from "../../components/ErrorMessage.jsx";
 import Icon from "../../components/Icon.jsx";
 import Notice from "../../components/Notice.jsx";
@@ -84,6 +85,7 @@ function readInputs(mode, readings, azimuth, distance) {
  * (useHandoffReceiver) fills A or B, also while the tool is hidden.
  */
 export default function MeasureTool() {
+  const [showFormats, setShowFormats] = useState(true);
   const { language, text, examples: exampleLabels } = useLanguage();
   const { measure: settings } = useConfig();
   // Kept while another tool is open; a map pick in progress is not.
@@ -334,13 +336,28 @@ export default function MeasureTool() {
 
   return (
     <>
-      <InputWidget title={text.distanceTitle} icon="measure" actions={actions}>
+      <InputWidget title={text.distanceTitle} subtitle={text.measureSubtitle} icon="measure" actions={actions}>
         <Segmented
           label={text.modeLabel}
           value={mode}
           onChange={(next) => dispatch({ type: "mode", mode: next, result: value })}
-          options={MEASURE_MODES.map((id) => ({ value: id, label: modeLabels[id] }))}
+          options={MEASURE_MODES.map((id) => ({ value: id, label: modeLabels[id], icon: { inverse: "measure", direct: "crosshair", route: "route" }[id] }))}
         />
+        <Box sx={{ pb: 1.5, borderBottom: `1px solid ${COLORS.rule}` }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
+            <Box component="h2" sx={{ m: 0, fontSize: TYPE.body, fontWeight: 650 }}>
+              {{ inverse: text.inverseTitle, direct: text.directTitle, route: text.routeTitle }[mode]}
+            </Box>
+            {/* Off hides DMS/MGRS under each point; errors and the swap notice stay. */}
+            <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 0.5, flex: "none", fontSize: TYPE.label, color: COLORS.ink2, cursor: "pointer", minHeight: 32 }}>
+              <input type="checkbox" checked={showFormats} onChange={(event) => setShowFormats(event.target.checked)} aria-label={text.coordinateFormatsLabel} style={{ accentColor: COLORS.a }} />
+              {text.coordinateFormats}
+            </Box>
+          </Box>
+          <Box component="p" sx={{ m: 0, color: COLORS.muted, fontSize: TYPE.meta, lineHeight: 1.5 }}>
+            {{ inverse: text.inverseIntro, direct: text.directIntro, route: text.routeIntro }[mode]}
+          </Box>
+        </Box>
         <Box
           component="form"
           noValidate
@@ -353,24 +370,27 @@ export default function MeasureTool() {
           }}
           sx={{ display: "flex", flexDirection: "column", gap: 1 }}
         >
-          {mode === "inverse" && <InverseMode rows={rows} target={target} dispatch={dispatch} />}
-          {mode === "direct" && <DirectMode state={state} target={target} dispatch={dispatch} />}
+          {mode === "inverse" && <InverseMode rows={rows} target={target} dispatch={dispatch} showFormats={showFormats} />}
+          {mode === "direct" && <DirectMode state={state} target={target} dispatch={dispatch} showFormats={showFormats} />}
           {mode === "route" && (
-            <RouteMode rows={rows} target={target} adding={state.adding} maxPoints={state.routeMaxPoints} dispatch={dispatch} />
+            <RouteMode rows={rows} target={target} adding={state.adding} maxPoints={state.routeMaxPoints} dispatch={dispatch} showFormats={showFormats} />
           )}
           {/* After a paste of points it says what was pasted, and announces it. */}
           <PasteHint hint={pasteHint} notice={pasteNotice} sx={{ fontSize: TYPE.meta }} />
         </Box>
-        <Chips
-          label={text.examples}
-          items={settings.examples
-            .filter((example) => example.mode === mode)
-            .map((example) => ({
-              key: example.id,
-              label: exampleLabels[example.id],
-              onClick: () => dispatch({ type: "example", example }),
-            }))}
-        />
+        <Disclosure title={text.examplePresets}>
+          <Chips
+            label={text.examples}
+            items={settings.examples
+              .filter((example) => example.mode === mode)
+              .map((example) => ({
+                key: example.id,
+                label: exampleLabels[example.id],
+                onClick: () => dispatch({ type: "example", example }),
+              }))}
+          />
+        </Disclosure>
+        <Box component="p" sx={{ m: 0, fontSize: TYPE.label, color: COLORS.muted, lineHeight: 1.5 }}>{text.surfaceNote}</Box>
       </InputWidget>
       <ResultHud
         {...hud}

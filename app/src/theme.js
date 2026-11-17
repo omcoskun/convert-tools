@@ -7,22 +7,17 @@ import { createTheme } from "./ui/index.js";
 // A is cobalt, B is vermilion, and the measured route runs from one to the
 // other. Besides A and B only status (warning, error, success) has a hue.
 //
-// Contrast (WCAG AA: 4.5:1 for text, 3:1 for focus rings), checked by
-// test/kit.test.mjs: ink #16191c on paper #f3f1eb 15.6:1; muted #5f666b on
-// paper2 4.8:1, on sheet 5.6:1 and on the glass even over black 4.7:1;
-// onInkMuted #a9aeb0 on ink 7.9:1 and on inkRaised 6.0:1; A ink #1a3db0 on
-// sheet 8.7:1; B ink #a92f19 on sheet 6.5:1; error on errorSoft 5.3:1; warn
-// on warnSoft 5.8:1.
+// Text and focus contrast is verified in test/kit.test.mjs.
 export const COLORS = Object.freeze({
-  paper: "#f3f1eb",
-  paper2: "#ebe8df",
-  sheet: "#fcfbf8",
-  ink: "#16191c",
-  ink2: "#394045",
-  muted: "#5f666b",
-  faint: "#8a9094",
-  rule: "#e2ded3",
-  rule2: "#cfc8ba",
+  paper: "#f2f4f7",
+  paper2: "#e9edf2",
+  sheet: "#ffffff",
+  ink: "#18212f",
+  ink2: "#354459",
+  muted: "#596779",
+  faint: "#8793a3",
+  rule: "#dfe5ec",
+  rule2: "#c6d0dc",
   a: "#2450e0",
   aSoft: "#e8edfd",
   aInk: "#1a3db0",
@@ -33,12 +28,12 @@ export const COLORS = Object.freeze({
   warnSoft: "#fff4d8",
   focus: "#2450e0",
   // Text and controls on ink surfaces (readouts, the result widget).
-  onInk: "#f3f1eb",
+  onInk: "#f2f4f7",
   onInkMuted: "#a9aeb0",
   inkRaised: "#2a2f33",
   focusOnInk: "#9fb4ff",
   // The sheet at about 90 %, for bars and widgets over the map.
-  glass: "rgba(252, 251, 248, 0.92)",
+  glass: "rgba(255, 255, 255, 0.96)",
   error: "#b3341d",
   errorSoft: "#fbeae6",
   success: "#1d7a4e",
@@ -75,7 +70,7 @@ export const BAR_HEIGHT = 52;
  * and the result bar, without its drawer) leave to the map (spec 11).
  */
 export const WORKSPACE = Object.freeze({
-  inputWidth: "clamp(320px, 26vw, 400px)",
+  inputWidth: "clamp(340px, 27vw, 400px)",
   hudWidth: "min(760px, calc(100% - 48px))",
   inset: 16,
   hudBottom: 20,
@@ -83,7 +78,7 @@ export const WORKSPACE = Object.freeze({
 });
 
 export const UI_FONT =
-  '"Avenir Next", Avenir, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", sans-serif';
+  '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", sans-serif';
 export const MONO_FONT = 'ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace';
 
 // Phone layout below this width: the workspace puts the map above a bottom
