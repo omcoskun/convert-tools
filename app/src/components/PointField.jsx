@@ -87,6 +87,7 @@ function Badge({ text, tone }) {
  *   onRemove?: () => void,
  *   removeLabel?: string,
  *   copyLabel: string,
+ *   showFormats?: boolean,
  * }} props
  *   onPoints: a paste of more than one pair, or of one pair that was only
  *   valid as longitude, latitude (so the swap can be announced); without
@@ -109,6 +110,7 @@ export default function PointField({
   onRemove,
   removeLabel,
   copyLabel,
+  showFormats = true,
 }) {
   const { text } = useLanguage();
   const messageId = useId();
@@ -159,7 +161,7 @@ export default function PointField({
             color: picking ? "#ffffff" : tone.ink,
             "&:hover": { borderColor: tone.color },
             // In a narrow field only the icon shows; the name keeps the visible words first.
-            "@container (max-width: 300px)": { px: 0, "& > .pick-text": visuallyHidden },
+            "@container (max-width: 340px)": { px: 0, "& > .pick-text": visuallyHidden },
           }}
         >
           <Icon name="crosshair" size={16} />
@@ -204,7 +206,7 @@ export default function PointField({
         onPaste={handlePaste}
         placeholder={text.pointPlaceholder}
         error={status === "invalid"}
-        describedBy={message || formats ? messageId : undefined}
+        describedBy={message || (formats && showFormats) || reading.swapped ? messageId : undefined}
       />
       {message ? (
         <Box
@@ -215,9 +217,9 @@ export default function PointField({
           {message}
         </Box>
       ) : (
-        formats && (
+        formats && (showFormats || reading.swapped) && (
           <Box id={messageId}>
-            <Box
+            {showFormats && <Box
               component="dl"
               sx={{ m: 0, display: "grid", gridTemplateColumns: "40px minmax(0, 1fr)", gap: "2px 8px", alignItems: "baseline" }}
             >
@@ -251,7 +253,7 @@ export default function PointField({
                   </Box>
                 </Box>
               ))}
-            </Box>
+            </Box>}
             {reading.swapped && (
               <Box component="p" sx={{ m: 0, mt: "2px", color: COLORS.muted, fontSize: TYPE.meta, lineHeight: 1.45 }}>
                 {text.pointSwapped}

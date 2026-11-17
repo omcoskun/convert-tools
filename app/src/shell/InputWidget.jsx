@@ -14,6 +14,7 @@ import { useWidgetRef, useWorkspace } from "./workspace-context.js";
  * tool renders exactly one, next to its ResultHud.
  * @param {{
  *   title: string,
+ *   subtitle?: string,
  *   icon?: string,
  *   actions?: import("react").ReactNode,
  *   children: import("react").ReactNode,
@@ -22,7 +23,7 @@ import { useWidgetRef, useWorkspace } from "./workspace-context.js";
  *   row at the foot of the widget, outside its scrolling body (e.g. swap,
  *   clear).
  */
-export default function InputWidget({ title, icon, actions, children }) {
+export default function InputWidget({ title, subtitle, icon, actions, children }) {
   const { text } = useLanguage();
   const { expanded } = useWorkspace();
   const widgetRef = useWidgetRef("input");
@@ -87,7 +88,8 @@ export default function InputWidget({ title, icon, actions, children }) {
             [PHONE]: { minHeight: 44, pr: 2, borderBottom: 0 },
           }}
         >
-          {icon && <Icon name={icon} size={18} />}
+          {icon && <Box sx={{ display: "grid", placeItems: "center", width: 32, height: 32, borderRadius: 1, bgcolor: COLORS.aSoft, color: COLORS.aInk }}><Icon name={icon} size={18} /></Box>}
+          <Box sx={{ flex: 1, minWidth: 0, py: 1.5 }}>
           <Box
             component="h1"
             id="tool-title"
@@ -105,6 +107,8 @@ export default function InputWidget({ title, icon, actions, children }) {
             }}
           >
             {title}
+          </Box>
+          {subtitle && <Box component="p" sx={{ m: 0, mt: 0.5, fontSize: TYPE.meta, color: COLORS.muted }}>{subtitle}</Box>}
           </Box>
           <Box
             component="button"
@@ -158,7 +162,7 @@ export default function InputWidget({ title, icon, actions, children }) {
               scrollbarGutter: "stable",
               display: "flex",
               flexDirection: "column",
-              gap: 2,
+              gap: 1.5,
               p: 2,
               [PHONE]: { flex: "none", overflow: "visible", pt: 0.5 },
             }}
@@ -176,6 +180,7 @@ export default function InputWidget({ title, icon, actions, children }) {
                 px: 1.5,
                 py: 1,
                 borderTop: `1px solid ${COLORS.rule}`,
+                bgcolor: COLORS.paper,
                 "& .MuiButton-root": { whiteSpace: "nowrap" },
                 "& .MuiButton-startIcon": { mr: "6px" },
                 [PHONE]: { px: 2, pt: 0, pb: 2, borderTop: 0 },

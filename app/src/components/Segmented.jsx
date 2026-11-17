@@ -10,7 +10,7 @@ const TONES = {
     color: COLORS.muted,
     hover: COLORS.ink,
     checkedBg: COLORS.sheet,
-    checkedColor: COLORS.ink,
+    checkedColor: COLORS.aInk,
     checkedShadow: "0 1px 2px rgba(22, 25, 28, 0.14), 0 0 0 0.5px rgba(22, 25, 28, 0.06)",
     ring: COLORS.focus,
   },

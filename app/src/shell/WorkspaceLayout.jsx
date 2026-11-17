@@ -195,7 +195,7 @@ export default function WorkspaceLayout({ hidden = false, children }) {
               : {
                   display: "flex",
                   flexDirection: "column",
-                  "& > .map-stage": { position: "relative", top: "auto", right: "auto", bottom: "auto", left: "auto", flex: "1 1 auto", minHeight: 150 },
+                  "& > .map-stage": { position: "relative", zIndex: 0, top: "auto", right: "auto", bottom: "auto", left: "auto", flex: "1 1 auto", minHeight: 150 },
                   "& > .workspace-ui": {
                     position: "relative",
                     top: "auto",

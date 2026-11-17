@@ -22,7 +22,7 @@ const POINTS = [
  *   rows: the two point fields as typed; target: what the next map click
  *   places (pickTarget).
  */
-export default function InverseMode({ rows, target, dispatch }) {
+export default function InverseMode({ rows, target, dispatch, showFormats }) {
   const { text } = useLanguage();
   return POINTS.map(({ letter, tone }, index) => (
     <PointField
@@ -31,6 +31,7 @@ export default function InverseMode({ rows, target, dispatch }) {
       label={index === 0 ? text.startPoint : text.endPoint}
       badge={{ text: letter, tone }}
       value={rows[index]}
+      showFormats={showFormats}
       onChange={(value) => dispatch({ type: "edit", index, text: value })}
       onPoints={(points, { swapped }) => dispatch({ type: "paste", index, points, swapped })}
       picking={target != null && !target.append && target.index === index}
