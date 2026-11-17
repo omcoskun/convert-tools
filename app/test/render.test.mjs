@@ -305,7 +305,9 @@ test("each measure mode names its result and its model in the result widget", ()
   assert.ok(routeResult.includes(label("routeLabel", "en")), routeResult);
   // The mode switch at the top of the input widget has the open mode checked.
   const input = element(route.html, 'data-widget="input"');
-  assert.match(input, new RegExp(`role="radio" aria-checked="true"[^>]*>${lang.en.text.modeRoute}<`));
+  const selectedMode = input.match(/<button[^>]*role="radio" aria-checked="true"[^>]*>[\s\S]*?<\/button>/)?.[0];
+  assert.ok(selectedMode, "one mode is selected");
+  assert.equal(visibleText(selectedMode), lang.en.text.modeRoute);
 });
 
 test("the direct mode shows the end point it computed, the line as travelled", () => {

@@ -28,6 +28,10 @@ const desktop = {
   gap: 1,
   pointerEvents: "none",
   "& > *": { pointerEvents: "auto" },
+  "@media (min-width: 1100px)": {
+    left: `calc(50% + (${WORKSPACE.inputWidth} + ${WORKSPACE.inset}px) / 2)`,
+    width: `min(760px, calc(100% - ${WORKSPACE.inputWidth} - 64px))`,
+  },
 };
 
 const hudSx = (expanded) => ({
@@ -92,6 +96,7 @@ const hudSx = (expanded) => ({
     "&:focus-visible": { outlineColor: COLORS.focus },
   },
   ...(expanded && {
+    "@media (min-width: 1100px)": { left: "50%", width: WORKSPACE.hudWidth },
     "& .hud-notices, & .hud-box": { display: "none" },
   }),
   [PHONE]: expanded
@@ -212,7 +217,7 @@ export default function ResultHud({
         )}
         <div className="hud-main">
           <div className="hud-head">
-            <Box component="p" id={labelId} sx={{ ...readoutLabelSx, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <Box component="p" id={labelId} sx={{ ...readoutLabelSx, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", [PHONE]: { whiteSpace: "normal" } }}>
               {label}
             </Box>
             {aside}

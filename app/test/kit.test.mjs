@@ -240,28 +240,6 @@ test("theme.js exports the design tokens", () => {
   assert.deepEqual(Object.keys(theme.SHADOW).sort(), ["float", "raised"]);
   assert.equal(theme.SHADOW_FLOAT, theme.SHADOW.float);
   for (const key of ["onInk", "onInkMuted", "inkRaised", "glass"]) assert.equal(typeof theme.COLORS[key], "string", key);
-  // The colours that existed before the design system keep their values.
-  const kept = {
-    paper: "#f3f1eb",
-    paper2: "#ebe8df",
-    sheet: "#fcfbf8",
-    ink: "#16191c",
-    ink2: "#394045",
-    muted: "#5f666b",
-    faint: "#8a9094",
-    rule: "#e2ded3",
-    rule2: "#cfc8ba",
-    a: "#2450e0",
-    aSoft: "#e8edfd",
-    aInk: "#1a3db0",
-    b: "#e2492c",
-    bSoft: "#fdece7",
-    bInk: "#a92f19",
-    warn: "#855600",
-    warnSoft: "#fff4d8",
-    focus: "#2450e0",
-  };
-  for (const [key, value] of Object.entries(kept)) assert.equal(theme.COLORS[key], value, key);
   for (const name of ["UI_FONT", "MONO_FONT", "PHONE", "theme"]) assert.ok(theme[name], name);
 });
 

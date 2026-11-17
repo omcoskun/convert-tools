@@ -46,7 +46,7 @@ const link = {
   whiteSpace: "nowrap",
   transition: `background-color ${MOTION.fast} ${MOTION.ease}, color ${MOTION.fast} ${MOTION.ease}`,
   "&:hover": { bgcolor: COLORS.paper2, color: COLORS.ink },
-  "&[aria-current='page'], &[aria-current='page']:hover": { bgcolor: COLORS.ink, color: COLORS.onInk },
+  "&[aria-current='page'], &[aria-current='page']:hover": { bgcolor: COLORS.aSoft, color: COLORS.aInk },
   [PHONE]: { height: 40, minWidth: 40 },
 };
 
@@ -142,11 +142,14 @@ export default function TopBar({ tool, onSelect, language, onLanguage, overMap =
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "none", color: COLORS.ink }}>
         <BrandMark />
+        <Box sx={{ [PHONE]: visuallyHidden }}>
         <Box
           component="span"
           sx={{ fontSize: TYPE.title, fontWeight: 700, letterSpacing: "-0.01em", [PHONE]: visuallyHidden }}
         >
           {text.brandName}
+        </Box>
+        <Box component="span" sx={{ display: "block", mt: "2px", fontSize: 10, color: COLORS.muted, [COMPACT]: { display: "none" } }}>{text.workspaceSubtitle}</Box>
         </Box>
       </Box>
       <Box

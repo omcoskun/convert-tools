@@ -224,7 +224,7 @@ function reduce(state, action) {
       return { ...state, armed: null, paused: true, adding: false };
     case "adding": {
       const adding = action.on ?? !state.adding;
-      return { ...state, adding, armed: null, paused: adding ? false : state.paused };
+      return { ...state, adding, armed: null, paused: !adding };
     }
     case "add": {
       const rows = modePoints(state);
@@ -235,6 +235,14 @@ function reduce(state, action) {
       const rows = modePoints(state);
       if (state.mode !== "route" || rows.length <= 2 || !isRow(action.index, rows)) return state;
       return { ...withPoints(state, rows.filter((_, index) => index !== action.index)), armed: null };
+    }
+    case "reorder": {
+      const rows = modePoints(state);
+      if (state.mode !== "route" || !isRow(action.from, rows) || !isRow(action.to, rows) || action.from === action.to) return state;
+      const reordered = [...rows];
+      const [point] = reordered.splice(action.from, 1);
+      reordered.splice(action.to, 0, point);
+      return { ...withPoints(state, reordered), armed: null };
     }
     case "reverse": {
       // Two points: A ↔ B; route: every point. A and B are the route's ends,
