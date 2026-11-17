@@ -119,9 +119,10 @@
  *   180°. Large only for nearly antipodal points, where the azimuths depend
  *   on the last bits of the input; null when the azimuth is undefined
  * @property {number | null} areaUncertaintySquareMetres how far
- *   areaSquareMetres may be from the exact value: 2 c^2 times
- *   bearingUncertaintyDegrees in radians, plus 1e-14 c^2 of round-off (c the
- *   authalic radius); null when the azimuth is undefined
+ *   areaSquareMetres may be from the exact value: the area swept between two
+ *   geodesics bearingUncertaintyDegrees apart, the angle in radians times
+ *   min(2 c^2, s12^2 / 2), plus 1e-14 c^2 of round-off (c the authalic
+ *   radius); null when the azimuth is undefined
  */
 
 /**

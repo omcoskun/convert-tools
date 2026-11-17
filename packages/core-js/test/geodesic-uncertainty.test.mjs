@@ -1,10 +1,12 @@
 // The inverse problem's azimuths and area are ill-conditioned for nearly
-// antipodal points: an endpoint offset e moves the azimuths by about e / |m12|
-// and S12 by about 2 c^2 e / |m12|. Every inverse result reports how far its
-// azimuths and area may be from the exact ones, so a display shows only the
-// digits that mean something:
+// antipodal points: an endpoint offset e turns the geodesic by about e / |m12|
+// at its start, and S12 moves by the area swept between the two geodesics,
+// rad(turn) * integral of m(t) dt, which is at most rad(turn) * s12^2 / 2
+// (m(t) <= t on an ellipsoid) and about rad(turn) * 2 c^2 for a half
+// meridian. Every inverse result reports how far its azimuths and area may be
+// from the exact ones, so a display shows only the digits that mean something:
 //   bearingUncertaintyDegrees    min(180, max(1e-11, deg(1e-7 m / |m12|)))
-//   areaUncertaintySquareMetres  2 c^2 rad(bearingUncertainty) + 1e-14 c^2
+//   areaUncertaintySquareMetres  rad(bearingUncertainty) min(2 c^2, s12^2 / 2) + 1e-14 c^2
 // 1e-7 m is the contract's azimuth tolerance |delta azi| * |m12| (all 500000
 // GeodTest rows meet it; the largest is 7.53e-8 m). These tests check that
 // the reported bounds hold on every row of the GeodSolve vectors.
@@ -19,14 +21,34 @@ function ellipsoidOf(row) {
   return row.ellipsoid === undefined ? WGS84 : { id: row.ellipsoid, a: Number(row.a), f: Number(row.f) };
 }
 
-test("an ordinary line has a tiny azimuth uncertainty and an area uncertainty of square metres", () => {
-  // Ankara - Istanbul, m12 = 350 km: 1e-7 m / 350 km is 1.6e-11°, and
-  // 2 c^2 times that in radians is 23 m^2, plus 0.41 m^2 of round-off. Over
-  // GeodTest, S12 errors behave as c^2 e / |m12| with e up to 2e-8 m, so S12
-  // is not known to 0.1 m^2 on ordinary lines either.
+test("an ordinary line has a tiny azimuth uncertainty and an area uncertainty of round-off", () => {
+  // Ankara - Istanbul, m12 = s12 = 350 km: 1e-7 m / 350 km is 1.6e-11°; the
+  // swept area is 2.9e-13 rad * (350 km)^2 / 2 = 0.02 m^2, plus 0.41 m^2 of
+  // round-off.
   const result = inverseGeodesic({ latitude: 39.933365, longitude: 32.859742 }, { latitude: 41.008238, longitude: 28.978359 });
   assert.ok(result.bearingUncertaintyDegrees > 1e-11 && result.bearingUncertaintyDegrees < 2e-11, String(result.bearingUncertaintyDegrees));
-  assert.ok(result.areaUncertaintySquareMetres > 23 && result.areaUncertaintySquareMetres < 24, String(result.areaUncertaintySquareMetres));
+  assert.ok(result.areaUncertaintySquareMetres > 0.4 && result.areaUncertaintySquareMetres < 0.45, String(result.areaUncertaintySquareMetres));
+});
+
+test("a short line's area uncertainty is round-off, not c^2 times its azimuth uncertainty", () => {
+  // 5 km: the azimuths may turn by 1e-7 m / 5 km = 2e-11 rad, which would be
+  // 1600 m^2 as 2 c^2 times it; the area swept is 2e-11 * (5 km)^2 / 2.
+  const result = inverseGeodesic({ latitude: 39.9, longitude: 32.8 }, { latitude: 39.9, longitude: 32.8586 });
+  assert.ok(result.distanceMetres > 4900 && result.distanceMetres < 5100, String(result.distanceMetres));
+  assert.ok(result.areaUncertaintySquareMetres < 0.42, String(result.areaUncertaintySquareMetres));
+});
+
+test("the area uncertainty is the swept area on the ellipsoid of the measurement", () => {
+  const ellipsoid = { id: "oblate-50", a: 6378137, f: 1 / 50 };
+  for (const end of [{ latitude: 10, longitude: 30 }, { latitude: -9.9, longitude: 179.5 }]) {
+    const result = inverseGeodesic({ latitude: 10, longitude: 0 }, end, { ellipsoid });
+    const e2 = ellipsoid.f * (2 - ellipsoid.f);
+    const e = Math.sqrt(e2);
+    const c2 = (ellipsoid.a ** 2 + (ellipsoid.a * (1 - ellipsoid.f)) ** 2 * (Math.atanh(e) / e)) / 2;
+    const turn = result.bearingUncertaintyDegrees * (Math.PI / 180);
+    const expected = turn * Math.min(2 * c2, result.distanceMetres ** 2 / 2) + 1e-14 * c2;
+    assert.ok(Math.abs(result.areaUncertaintySquareMetres - expected) <= 1e-9 * expected, `${result.areaUncertaintySquareMetres} vs ${expected}`);
+  }
 });
 
 test("coincident points have no azimuth and no uncertainty", () => {

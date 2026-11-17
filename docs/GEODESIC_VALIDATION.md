@@ -355,23 +355,29 @@ maksimumu) için bir risktir; eşik değiştirilmedi.
 
 Bu kötü koşulluluk artık sonuçta raporlanır: her ters sonuç
 `bearingUncertaintyDegrees = min(180°, max(1e-11°, 1e-7 m / |m12|))` ve
-`areaUncertaintySquareMetres = 2 c² · rad(bearingUncertaintyDegrees) +
-1e-14 c²` taşır (azimut tanımsızken ikisi de `null`). 1e-7 m, sözleşmenin
-`|Δazi|·|m12|` toleransıdır. 17 Kasım 2026'da tam GeodTest setinde
+`areaUncertaintySquareMetres = rad(bearingUncertaintyDegrees) ·
+min(2 c², s12² / 2) + 1e-14 c²` taşır (azimut tanımsızken ikisi de `null`).
+1e-7 m, sözleşmenin `|Δazi|·|m12|` toleransıdır. Alan sınırı, başlangıçta
+bu kadar dönen iki geodezik arasında kalan alandır: dönme açısı çarpı
+`∫ m(t) dt`; elipsoitte `m(t) ≤ t` olduğundan bu en çok `s12² / 2`, yarım
+meridyen boyunca yaklaşık `2 c²`. İlk sürüm her çizgide `2 c²` kullanıyordu;
+bu, kısa çizgilerde gerçek hatanın yaklaşık bir milyon katıydı (GeodTest
+short bloğunda en büyük `|ΔS12|/sınır` 1,4e-6) ve 5 km'lik her ölçümde S12'yi
+gereksiz yere kaba gösterirdi. 17 Kasım 2026'da tam GeodTest setinde
 (JavaScript, belirsiz rota olan 3 satır hariç) ölçülen değerler sınırın
 altındadır:
 
-| Blok | en büyük `\|Δazi\|·\|m12\|` (m) | en büyük `\|ΔS12\|·\|m12\|/c²` (m) | `\|m12\|` > 100 km iken en büyük `\|ΔS12\|` (m²) |
-|---|---:|---:|---:|
-| random | 1,27e-8 | 7,38e-9 | 0,82 |
-| antipodal | 2,87e-9 | 5,49e-9 | 1,86 |
-| short | 2,67e-9 | 2,71e-13 | — |
-| one-pole | 1,27e-8 | 7,81e-9 | 0,27 |
-| opposite-poles | 1,53e-9 | 3,06e-9 | — |
-| meridional | 1,27e-8 | 7,19e-9 | 0,97 |
-| equatorial | 0 | 1,96e-12 | 6,4e-4 |
-| vertex-to-vertex | 9,1e-19 | 1,8e-18 | — |
-| near-vertex | 1,00e-8 | 2,00e-8 | — |
+| Blok | en büyük `\|Δazi\|·\|m12\|` (m) | en büyük `\|ΔS12\|·\|m12\|/c²` (m) | `\|m12\|` > 100 km iken en büyük `\|ΔS12\|` (m²) | en büyük `\|ΔS12\|` / alan sınırı |
+|---|---:|---:|---:|---:|
+| random | 1,27e-8 | 7,38e-9 | 0,82 | 4,6e-2 |
+| antipodal | 2,87e-9 | 5,49e-9 | 1,86 | 2,7e-2 |
+| short | 2,67e-9 | 2,71e-13 | — | 3,9e-2 |
+| one-pole | 1,27e-8 | 7,81e-9 | 0,27 | 7,3e-2 |
+| opposite-poles | 1,53e-9 | 3,06e-9 | — | 1,5e-2 |
+| meridional | 1,27e-8 | 7,19e-9 | 0,97 | 6,9e-2 |
+| equatorial | 0 | 1,96e-12 | 6,4e-4 | 9,6e-6 |
+| vertex-to-vertex | 9,1e-19 | 1,8e-18 | — | 4,2e-6 |
+| near-vertex | 1,00e-8 | 2,00e-8 | — | 8,3e-2 |
 
 Son sütun, sıradan hatlarda da S12'nin 0,1 m² basamağının anlamlı
 olmadığını gösterir (GeodSolve'un kendi farkları da bu düzeydedir); tanıtım

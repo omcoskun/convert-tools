@@ -58,12 +58,13 @@ için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
   taşır: `bearingUncertaintyDegrees` (Java `bearingUncertaintyDegrees()`),
   azimutların kesin değerden en fazla ne kadar uzak olabileceği,
   `max(1e-11°, 1e-7 m / |m12|)` (en çok 180°); ve
-  `areaUncertaintySquareMetres`, S12 için `2 c² · rad(azimut belirsizliği) +
-  1e-14 c²`. Neredeyse antipodal noktalarda azimut ve S12 girdinin son
+  `areaUncertaintySquareMetres`, S12 için `rad(azimut belirsizliği) ·
+  min(2 c², s12² / 2) + 1e-14 c²`, yani azimut belirsizliği kadar ayrılan iki
+  geodezik arasında kalan alan. Neredeyse antipodal noktalarda azimut ve S12 girdinin son
   bitlerine duyarlıdır; bu alanlar gösterilen basamakların anlamlı olup
   olmadığını söyler. Azimut tanımsızken ikisi de `null`'dır. GeodTest'in
   500 000 satırında (belirsiz rota satırları hariç) ikisi de tutar: en büyük
-  `|Δazi|·|m12|` 1,27e-8 m, en büyük `|ΔS12|·|m12|/c²` 2,0e-8 m.
+  `|Δazi|·|m12|` 1,27e-8 m; S12 hatası her blokta sınırın en çok 0,083'ü.
 
 - Ters ve doğrudan geodezik sonuçları (JavaScript `inverseGeodesic`,
   `directGeodesic`, `sampleGeodesicPath`, `measurePolyline` segmentleri;
