@@ -96,6 +96,16 @@ için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
 
 ### Düzeltilenler
 
+- `formatDms` / `formatDdm` (Java `DmsFormat.formatDms` / `formatDdm`)
+  son haneyi GeographicLib `DMS::Encode` gibi yuvarlar: önce tam dereceyi
+  ayırır, kalanı saniyeye veya dakikaya çevirip ikili değerden tam ondalık
+  yuvarlar (tam eşitlikte çifte). Önceden açının tamamı 3600 (ya da 60) ve
+  10^basamak ile çarpılıp yuvarlanıyordu; yarım birime çok yakın değerlerde
+  ve 9 basamakta son hane bir birim kayabiliyordu (ör. 89,500138888888884°
+  0 basamakta `89°30'01"N`, doğrusu `89°30'00"N`). Yeni
+  `display-formats.csv` (5400 satır, her basamak sayısı 0–9) bunu iki dilde
+  denetler.
+
 - JavaScript ters çözücü iki noktada GeographicLib C++ 2.7'den ayrılıyordu
   (Newton bracket güncellemesi `numit > maxit1` ve prolate InverseStart'ta
   `lam12x`). Ekvatora çok yakın prolate çizgilerde mesafe 9,5 cm'ye kadar

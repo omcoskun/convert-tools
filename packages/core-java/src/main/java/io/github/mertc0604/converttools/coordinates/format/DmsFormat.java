@@ -2,9 +2,10 @@ package io.github.mertc0604.converttools.coordinates.format;
 
 import io.github.mertc0604.converttools.ConvertToolsException;
 import io.github.mertc0604.converttools.ErrorCode;
-import io.github.mertc0604.converttools.coordinates.core.CoordinateMath;
 import io.github.mertc0604.converttools.coordinates.model.CoordinatePoint;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -172,22 +173,15 @@ public final class DmsFormat {
     ) {
         validateValue(value, axis);
         validateDigits(secondDigits);
-        double scale = Math.pow(10, secondDigits);
-        long totalSeconds = Math.round(Math.abs(value) * 3600 * scale);
-        long degreeScale = Math.round(3600 * scale);
-        long minuteScale = Math.round(60 * scale);
-        long degrees = totalSeconds / degreeScale;
-        long remainder = totalSeconds - degrees * degreeScale;
-        long minutes = remainder / minuteScale;
-        double seconds =
-                (double) (remainder - minutes * minuteScale) / scale;
+        Parts parts = encodeParts(value, 3600, secondDigits);
         int degreeWidth = axis == CoordinateAxis.LONGITUDE ? 3 : 2;
         return String.format(
                 Locale.ROOT,
-                "%0" + degreeWidth + "d°%02d'%s\"%s",
-                degrees,
-                minutes,
-                padSeconds(seconds, secondDigits),
+                "%0" + degreeWidth + "d°%02d'%02d%s\"%s",
+                parts.degrees(),
+                parts.units() / 60,
+                parts.units() % 60,
+                parts.fraction(),
                 hemisphere(value, axis)
         );
     }
@@ -203,18 +197,14 @@ public final class DmsFormat {
     ) {
         validateValue(value, axis);
         validateDigits(minuteDigits);
-        double scale = Math.pow(10, minuteDigits);
-        long totalMinutes = Math.round(Math.abs(value) * 60 * scale);
-        long degreeScale = Math.round(60 * scale);
-        long degrees = totalMinutes / degreeScale;
-        double minutes =
-                (double) (totalMinutes - degrees * degreeScale) / scale;
+        Parts parts = encodeParts(value, 60, minuteDigits);
         int degreeWidth = axis == CoordinateAxis.LONGITUDE ? 3 : 2;
         return String.format(
                 Locale.ROOT,
-                "%0" + degreeWidth + "d°%s'%s",
-                degrees,
-                padMinutes(minutes, minuteDigits),
+                "%0" + degreeWidth + "d°%02d%s'%s",
+                parts.degrees(),
+                parts.units(),
+                parts.fraction(),
                 hemisphere(value, axis)
         );
     }
@@ -262,17 +252,32 @@ public final class DmsFormat {
         return value < 0 ? "W" : "E";
     }
 
-    private static String padSeconds(double value, int digits) {
-        String formatted = CoordinateMath.fixed(value, digits);
-        int width = digits == 0 ? 2 : 3 + digits;
-        return "0".repeat(Math.max(0, width - formatted.length()))
-                + formatted;
+    /**
+     * Whole degrees, whole minutes or seconds below a degree (already carried)
+     * and the decimal fraction text (".11400", or "" with no digits).
+     */
+    private record Parts(long degrees, int units, String fraction) {
     }
 
-    private static String padMinutes(double value, int digits) {
-        String formatted = CoordinateMath.fixed(value, digits);
-        int width = digits == 0 ? 2 : 3 + digits;
-        return "0".repeat(Math.max(0, width - formatted.length()))
-                + formatted;
+    /**
+     * As GeographicLib DMS::Encode: the whole degrees are split off first
+     * (exactly), the rest is turned into minutes or seconds with one rounding
+     * and written with {@code digits} decimals, rounded exactly from the
+     * binary value with an exact tie to even (as printf); a carry to 60 goes
+     * into the next component. perDegree is 60 (minutes) or 3600 (seconds).
+     */
+    private static Parts encodeParts(double value, int perDegree, int digits) {
+        double magnitude = Math.abs(value);
+        double whole = Math.floor(magnitude);
+        String text = new BigDecimal((magnitude - whole) * perDegree)
+                .setScale(digits, RoundingMode.HALF_EVEN)
+                .toPlainString();
+        int point = text.indexOf('.');
+        int units = Integer.parseInt(point < 0 ? text : text.substring(0, point));
+        return new Parts(
+                (long) whole + units / perDegree,
+                units % perDegree,
+                point < 0 ? "" : text.substring(point)
+        );
     }
 }

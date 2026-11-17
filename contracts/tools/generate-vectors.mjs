@@ -859,6 +859,76 @@ function georefVectors() {
   });
 }
 
+// ------------------------------------------------------- display formats
+
+// DMS and DDM text as the position tool shows it, at every digit count it
+// offers (0 to 9), against GeographicLib DMS::Encode. The draws use a
+// generator of their own, so adding this file left the others byte-identical.
+// Edge cases: values a fraction of the last digit short of a carry into the
+// next minute and degree (to 90° and 180° too), values beside a half unit of
+// the last digit, the poles, the antimeridian and tiny negative angles. -0 is
+// left out: DMS::Encode writes it with S or W, this library with N or E.
+const DISPLAY_DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+// Random, fixed and tiny angles go with every format and digit count; an
+// edge case only with the format and digit count it is the edge of.
+function displayFormatAngles() {
+  const draw = mulberry32(SEED ^ 0xd15);
+  const angles = [];
+  const add = (kind, axis, value, only) => angles.push({ kind, axis, value: dec(value, only ? 15 : 12), ...only });
+  for (let i = 0; i < 100; i += 1) add("random", "latitude", -90 + 180 * draw());
+  for (let i = 0; i < 100; i += 1) add("random", "longitude", -180 + 360 * draw());
+  for (const [axis, value] of [["latitude", "0"], ["latitude", "90"], ["latitude", "-90"], ["longitude", "0"], ["longitude", "180"], ["longitude", "-180"]]) {
+    angles.push({ kind: "fixed", axis, value });
+  }
+  for (const axis of ["latitude", "longitude"]) {
+    angles.push({ kind: "tiny", axis, value: "0.000000000001" }, { kind: "tiny", axis, value: "-0.000000000001" });
+  }
+  for (const digits of DISPLAY_DIGITS) {
+    const unit = 10 ** -digits;
+    for (const [axis, degrees] of [["latitude", 0], ["latitude", 39], ["latitude", 89], ["longitude", 0], ["longitude", 39], ["longitude", 179]]) {
+      const dms = { format: "dms", digits };
+      const ddm = { format: "ddm", digits };
+      for (const sign of [1, -1]) {
+        // Seconds 0.4 and 0.6 of a unit short of 60 (DMS), minutes likewise (DDM).
+        add("carry-second", axis, sign * (degrees + 59 / 60 + (60 - 0.4 * unit) / 3600), dms);
+        add("stay-second", axis, sign * (degrees + 59 / 60 + (60 - 0.6 * unit) / 3600), dms);
+        add("carry-minute", axis, sign * (degrees + (60 - 0.4 * unit) / 60), ddm);
+        add("stay-minute", axis, sign * (degrees + (60 - 0.6 * unit) / 60), ddm);
+        // Beside half a unit of the last digit of 30 seconds and of 30 minutes.
+        for (const offset of [-0.01, 0, 0.01]) {
+          add("half-second", axis, sign * (degrees + 0.5 + ((0.5 + offset) * unit) / 3600), dms);
+          add("half-minute", axis, sign * (degrees + (30 + (0.5 + offset) * unit) / 60), ddm);
+        }
+      }
+    }
+  }
+  return angles;
+}
+
+function displayFormatVectors() {
+  const header = ["id", "format", "axis", "digits", "value", "expected"];
+  const angles = displayFormatAngles();
+  const rows = [];
+  for (const [format, component] of [["dms", "second"], ["ddm", "minute"]]) {
+    for (const digits of DISPLAY_DIGITS) {
+      const chosen = angles
+        .map((angle, index) => ({ ...angle, index }))
+        .filter((angle) => (angle.format ?? format) === format && (angle.digits ?? digits) === digits);
+      const lines = chosen.map((angle) => `${component} ${angle.axis} ${digits} ${angle.value}`);
+      const encoded = helper(["dms-encode"], lines);
+      chosen.forEach((angle, index) => {
+        if (isError(encoded[index])) throw new Error(`DMS::Encode ${lines[index]}: ${encoded[index]}`);
+        rows.push([`${angle.kind}-${angle.axis}-${String(angle.index).padStart(4, "0")}-${format}-p${digits}`, format, angle.axis, digits, angle.value, encoded[index]]);
+      });
+    }
+  }
+  manifest.files.push({
+    ...writeCsv("display-formats.csv", header, rows),
+    source: "GeographicLib DMS::Encode(angle, SECOND (dms) or MINUTE (ddm), digits, LATITUDE or LONGITUDE, ':') via geographiclib-helper",
+  });
+}
+
 // ------------------------------------------------------ triaxial geodesics
 
 // Geod3Solve prints positions, headings and lengths only: m12, M12 and M21
@@ -1267,6 +1337,7 @@ triaxialDirectAccuracyVectors();
 triaxialCausticVectors();
 triaxialCutLocusVectors();
 geod3testSample();
+displayFormatVectors();
 
 manifest.skipped = skipped;
 manifest.files.sort((a, b) => a.name.localeCompare(b.name));

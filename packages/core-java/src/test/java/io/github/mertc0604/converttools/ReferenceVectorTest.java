@@ -1,5 +1,7 @@
 package io.github.mertc0604.converttools;
 
+import io.github.mertc0604.converttools.coordinates.format.CoordinateAxis;
+import io.github.mertc0604.converttools.coordinates.format.DmsFormat;
 import io.github.mertc0604.converttools.coordinates.grid.Gars;
 import io.github.mertc0604.converttools.coordinates.grid.Georef;
 import io.github.mertc0604.converttools.coordinates.grid.Mgrs;
@@ -63,6 +65,7 @@ public final class ReferenceVectorTest {
         test.geodesicSample();
         test.gars();
         test.georef();
+        test.displayFormats();
         if (!test.hardFailures.isEmpty()) {
             throw new AssertionError(String.join("\n", test.hardFailures));
         }
@@ -693,6 +696,35 @@ public final class ReferenceVectorTest {
             angularCentre(check, centre, id, row, () -> Georef.decode(row.get("expected_code")));
         }
         centre.print();
+        check.finish();
+    }
+
+    /**
+     * DMS and DDM text against GeographicLib DMS::Encode at every digit count
+     * the position tool offers; GeographicLib writes ':' between components
+     * (the mirror of packages/core-js/test/display-formats.test.mjs).
+     */
+    private void displayFormats() throws IOException {
+        Check check = new Check("display formats");
+        for (Map<String, String> row : read("display-formats.csv")) {
+            String id = row.get("id");
+            boolean dms = row.get("format").equals("dms");
+            CoordinateAxis axis = row.get("axis").equals("longitude") ? CoordinateAxis.LONGITUDE : CoordinateAxis.LATITUDE;
+            int digits = Integer.parseInt(row.get("digits"));
+            double value = number(row, "value");
+            String text = check.attempt(id, () -> dms
+                    ? DmsFormat.formatDms(value, axis, digits)
+                    : DmsFormat.formatDdm(value, axis, digits));
+            if (text == null) {
+                continue;
+            }
+            String colon = dms
+                    ? text.replaceFirst("°", ":").replaceFirst("'", ":").replaceFirst("\"", "")
+                    : text.replaceFirst("°", ":").replaceFirst("'", "");
+            if (!colon.equals(row.get("expected"))) {
+                check.fail(id + ": " + row.get("value") + " gives " + colon + ", GeographicLib " + row.get("expected"));
+            }
+        }
         check.finish();
     }
 

@@ -41,6 +41,7 @@ kütüphanesi), Python 3.14.7, Apple clang 21.
 | `triaxial-direct.csv` | 80 | `Geod3Solve -t a b c -p 15`; aynı beş elipsoit | `1e-10 · b` konum; son azimut `b·Δα` aynı |
 | `gars.csv` | 3072 | GeographicLib `GARS::Forward/Reverse` | birebir metin; merkez 1e-12° |
 | `georef.csv` | 3590 | GeographicLib `Georef::Forward/Reverse` | birebir metin; merkez 1e-12° |
+| `display-formats.csv` | 5400 | GeographicLib `DMS::Encode(açı, SECOND/MINUTE, basamak, LATITUDE/LONGITUDE, ':')`; DMS ve DDM, basamak 0–9; rastgele açılar ve taşma/yarım birim kenarları | birebir metin (bileşenler `:` ile) |
 | `unit-conversions.csv` | 4 | Tanımlar: 1 uluslararası deniz mili = 1852 m, 1 uluslararası ayak = 0,3048 m (kesin) | birebir kesir |
 
 `geodtest-sample.csv`, Karney'nin 500.000 satırlık resmî `GeodTest.dat`

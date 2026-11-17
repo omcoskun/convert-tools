@@ -17,8 +17,12 @@
 //   geographiclib-helper gars-reverse         "code"           -> "lat lon prec"
 //   geographiclib-helper georef-forward PREC  "lat lon"        -> "code"
 //   geographiclib-helper georef-reverse       "code"           -> "lat lon prec"
+//   geographiclib-helper dms-encode   "component axis prec angle"  -> DMS::Encode
+//     component "second" or "minute", axis "latitude" or "longitude"; the
+//     text uses ':' between components (dmssep), e.g. "39:56:00.11400N".
 
 #include <GeographicLib/Constants.hpp>
+#include <GeographicLib/DMS.hpp>
 #include <GeographicLib/GARS.hpp>
 #include <GeographicLib/Georef.hpp>
 #include <GeographicLib/PolarStereographic.hpp>
@@ -29,6 +33,7 @@
 #include <sstream>
 #include <string>
 
+using GeographicLib::DMS;
 using GeographicLib::GARS;
 using GeographicLib::Georef;
 using GeographicLib::PolarStereographic;
@@ -88,6 +93,13 @@ int main(int argc, char** argv) {
           Georef::Reverse(code, lat, lon, outPrec, true);
         }
         std::printf("%.17g %.17g %d\n", lat, lon, outPrec);
+      } else if (mode == "dms-encode") {
+        std::string component, axis, angle;
+        unsigned digits;
+        in >> component >> axis >> digits >> angle;
+        const auto trailing = component == "minute" ? DMS::MINUTE : DMS::SECOND;
+        const auto hemisphere = axis == "longitude" ? DMS::LONGITUDE : DMS::LATITUDE;
+        std::printf("%s\n", DMS::Encode(std::stod(angle), trailing, digits, hemisphere, ':').c_str());
       } else {
         std::fprintf(stderr, "unknown mode %s\n", mode.c_str());
         return 2;

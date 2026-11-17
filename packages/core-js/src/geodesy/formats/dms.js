@@ -1,4 +1,4 @@
-import { fixed, validatePoint } from "../core/numbers.js";
+import { validatePoint } from "../core/numbers.js";
 import { ConvertToolsError } from "../../errors.js";
 
 const HEMISPHERE = /[NSEW]/gi;
@@ -78,14 +78,36 @@ export function parseAngle(value, axis) {
   return result;
 }
 
-function splitRounded(value, secondDigits) {
-  const totalSeconds = Math.round(Math.abs(value) * 3600 * 10 ** secondDigits);
-  const scale = 10 ** secondDigits;
-  const degrees = Math.floor(totalSeconds / (3600 * scale));
-  const remainder = totalSeconds - degrees * 3600 * scale;
-  const minutes = Math.floor(remainder / (60 * scale));
-  const seconds = (remainder - minutes * 60 * scale) / scale;
-  return { degrees, minutes, seconds };
+// x >= 0 as decimal text with `digits` decimals, rounded exactly (toFixed
+// rounds the binary value, not a shorter decimal) and an exact tie to even,
+// as printf does. An exact tie is x = k / 2^(digits+1) with k odd.
+function exactFixed(x, digits) {
+  const text = x.toFixed(digits);
+  const scaled = x * 2 ** (digits + 1);
+  const last = Number(text[text.length - 1]);
+  if (Number.isInteger(scaled) && scaled % 2 === 1 && last % 2 === 1) {
+    return text.slice(0, -1) + String(last - 1);
+  }
+  return text;
+}
+
+// As GeographicLib DMS::Encode: the whole degrees are split off first
+// (exactly), the rest is turned into minutes or seconds with one rounding
+// and written with `digits` decimals (exactFixed); a carry to 60 goes into
+// the next component. perDegree is 60 (minutes) or 3600 (seconds).
+// Returns the whole degrees, the whole minutes or seconds below a degree
+// (0 ... perDegree, already carried) and the decimal fraction text.
+function encodeParts(value, perDegree, digits) {
+  const magnitude = Math.abs(value);
+  const whole = Math.floor(magnitude);
+  const text = exactFixed((magnitude - whole) * perDegree, digits);
+  const point = text.indexOf(".");
+  const units = Number(point < 0 ? text : text.slice(0, point));
+  return {
+    degrees: whole + Math.floor(units / perDegree),
+    units: units % perDegree,
+    fraction: point < 0 ? "" : text.slice(point),
+  };
 }
 
 function validateAxisValue(value, axis) {
@@ -107,12 +129,6 @@ function validateDigits(digits) {
   }
 }
 
-// Two integer digits, plus the point and the fraction when there is one
-// ("24" with no digits, "24.00" with two), as in the Java DmsFormat.
-function fractionWidth(digits) {
-  return digits === 0 ? 2 : 3 + digits;
-}
-
 /**
  * @param {number} value degrees
  * @param {"latitude" | "longitude"} axis
@@ -124,7 +140,9 @@ function fractionWidth(digits) {
 export function formatDms(value, axis, secondDigits = 5) {
   validateAxisValue(value, axis);
   validateDigits(secondDigits);
-  const { degrees, minutes, seconds } = splitRounded(value, secondDigits);
+  const { degrees, units, fraction } = encodeParts(value, 3600, secondDigits);
+  const minutes = Math.floor(units / 60);
+  const seconds = `${String(units % 60).padStart(2, "0")}${fraction}`;
   const degreeWidth = axis === "longitude" ? 3 : 2;
   const hemisphere =
     axis === "latitude"
@@ -134,7 +152,7 @@ export function formatDms(value, axis, secondDigits = 5) {
       : value < 0
         ? "W"
         : "E";
-  return `${String(degrees).padStart(degreeWidth, "0")}°${String(minutes).padStart(2, "0")}'${fixed(seconds, secondDigits).padStart(fractionWidth(secondDigits), "0")}"${hemisphere}`;
+  return `${String(degrees).padStart(degreeWidth, "0")}°${String(minutes).padStart(2, "0")}'${seconds}"${hemisphere}`;
 }
 
 /**
@@ -146,10 +164,8 @@ export function formatDms(value, axis, secondDigits = 5) {
 export function formatDdm(value, axis, minuteDigits = 7) {
   validateAxisValue(value, axis);
   validateDigits(minuteDigits);
-  const scale = 10 ** minuteDigits;
-  const totalMinutes = Math.round(Math.abs(value) * 60 * scale);
-  const degrees = Math.floor(totalMinutes / (60 * scale));
-  const minutes = (totalMinutes - degrees * 60 * scale) / scale;
+  const { degrees, units, fraction } = encodeParts(value, 60, minuteDigits);
+  const minutes = `${String(units).padStart(2, "0")}${fraction}`;
   const degreeWidth = axis === "longitude" ? 3 : 2;
   const hemisphere =
     axis === "latitude"
@@ -159,7 +175,7 @@ export function formatDdm(value, axis, minuteDigits = 7) {
       : value < 0
         ? "W"
         : "E";
-  return `${String(degrees).padStart(degreeWidth, "0")}°${fixed(minutes, minuteDigits).padStart(fractionWidth(minuteDigits), "0")}'${hemisphere}`;
+  return `${String(degrees).padStart(degreeWidth, "0")}°${minutes}'${hemisphere}`;
 }
 
 export function parseCoordinatePair(latitude, longitude) {
