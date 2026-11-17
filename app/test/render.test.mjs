@@ -404,6 +404,58 @@ test("an ordinary line keeps four decimals of its azimuths and no notice", () =>
   }
 });
 
+// A fixed-seed generator for the random-input render tests below.
+function seeded(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** A number as the Turkish interface writes it: grouped, decimal comma, real minus sign. */
+function turkishNumber(fixedText) {
+  const negative = fixedText.startsWith("-") && Number(fixedText) !== 0;
+  return `${negative ? "−" : ""}${turkish(fixedText.replace("-", ""))}`;
+}
+
+test("for random points the measure tool shows the core's distance and azimuths, rounded", () => {
+  const random = seeded(0x5ca1ab1e);
+  const coordinate = (limit) => (random() * 2 - 1) * limit;
+  for (let index = 0; index < 12; index += 1) {
+    const start = { latitude: coordinate(90).toFixed(6), longitude: coordinate(180).toFixed(6) };
+    const end = { latitude: coordinate(90).toFixed(6), longitude: coordinate(180).toFixed(6) };
+    const inverse = core.inverseGeodesic(start, end);
+    const example = { id: `random-${index}`, mode: "inverse", points: [`${start.latitude}, ${start.longitude}`, `${end.latitude}, ${end.longitude}`] };
+    const result = visibleText(element(renderTool("measure", { configuration: measureOpeningOn(example) }).html, 'data-widget="result"'));
+    const kilometres = core.convertLength(String(inverse.distanceMetres), "metre", "kilometre", 3).value;
+    assert.ok(result.includes(`${turkishNumber(Number(kilometres).toFixed(3))} km`), `${example.points}: ${result}`);
+    if (inverse.bearingUncertaintyDegrees <= 5e-5) {
+      for (const degrees of [inverse.initialBearingDegrees, inverse.finalBearingDegrees]) {
+        assert.ok(result.includes(`${turkishNumber(degrees.toFixed(4))}°`), `${example.points}: ${degrees} in ${result}`);
+      }
+    }
+  }
+});
+
+test("for random points the position tool shows the core's DMS, DDM, UTM/UPS and MGRS text", () => {
+  const random = seeded(0xc0ffee);
+  for (let index = 0; index < 12; index += 1) {
+    const latitude = ((random() * 2 - 1) * 90).toFixed(7);
+    const longitude = ((random() * 2 - 1) * 180).toFixed(7);
+    const position = { ...config.position, initial: { ...config.position.initial, format: "dd", values: { ...config.position.initial.values, ddLat: latitude, ddLon: longitude } } };
+    const { html } = renderTool("positions", { configuration: { ...config, position } });
+    const hud = visibleText(element(html, 'data-widget="result"'));
+    const outputs = core.coordinateResults({ latitude, longitude });
+    const words = (text) => text.replace(/\s+/g, " ");
+    for (const key of ["dms", "ddm", "utmUps"]) assert.ok(hud.includes(words(outputs[key])), `${latitude}, ${longitude} ${key}: ${outputs[key]} in ${hud}`);
+    assert.ok(hud.replace(/\s/g, "").includes(outputs.mgrs.replace(/\s/g, "")), `${latitude}, ${longitude} MGRS ${outputs.mgrs}`);
+  }
+});
+
 test("the details end with the exact library call", () => {
   const { text } = renderTool("measure");
   assert.ok(text.includes(lang.tr.text.libraryCall));

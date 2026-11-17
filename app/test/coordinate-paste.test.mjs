@@ -117,6 +117,21 @@ test("DMS and DDM pairs are converted by the core to decimal degrees", () => {
   assert.deepEqual(one(`41°30'N 34°0'E`), [point("41.5", "34")]);
 });
 
+test("a DMS or DDM pair finer than 10 decimals of a degree keeps its digits", () => {
+  // 1e-7" is 2.8e-11°, 1e-8' is 1.7e-10°: written with 10 decimals of a
+  // degree (up to 5e-11° off) these would lose typed digits.
+  for (const [latitudeText, longitudeText, step] of [
+    [`55°46'37.6882879"N`, `025°24'09.6083781"W`, 1e-7 / 3600],
+    [`49°42.31694544'N`, `102°00.00000250'W`, 1e-8 / 60],
+    [`12°24'48.006929634"N`, `138°06'27.335517257"W`, 1e-9 / 3600],
+  ]) {
+    const exact = fromDms(latitudeText, longitudeText);
+    const [{ latitude, longitude }] = parseCoordinatePaste(`${latitudeText} ${longitudeText}`).points;
+    assert.ok(Math.abs(Number(latitude) - exact.latitude) <= step / 10, `${latitudeText}: ${latitude}`);
+    assert.ok(Math.abs(Number(longitude) - exact.longitude) <= step / 10, `${longitudeText}: ${longitude}`);
+  }
+});
+
 test("one DMS angle or a broken pair is not a pair", () => {
   for (const text of [`41°44'23.6"N`, `41° 44' 23.6"`, `41°44'23.6"N 34°01'03.7"N`, `41°74'23.6"N 34°01'03.7"E`]) {
     assert.equal(parseCoordinatePaste(text), null, text);

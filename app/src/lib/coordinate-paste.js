@@ -28,8 +28,11 @@ const TRAILING_TOKEN = new RegExp(String.raw`(${NUMBER})\s*°?\s*([${LETTERS}])?
 const LEADING_TOKEN = new RegExp(String.raw`(?:([${LETTERS}])\s*)?(${NUMBER})\s*°?(?:\s+|$)`, "y");
 // Minute or second marks, or a degree sign followed by more digits.
 const ANGLE_MARKS = /['′’"″]|°\s*\d/;
-// Decimals the DMS conversion is written with: 1e-10° is about 0.01 mm.
+// Decimals the DMS conversion is written with: 1e-10° is about 0.01 mm,
+// more when the text has finer seconds or minutes (see decimalsFor), up to
+// the 15 a double holds.
 const DMS_DECIMALS = 10;
+const MOST_DECIMALS = 15;
 
 /** Unicode minus signs become "-", typographic double quotes a second mark. */
 function normalizeSigns(input) {
@@ -137,10 +140,22 @@ function decimalPair(first, second) {
   return { latitude, longitude, swapped, longitudeFirst };
 }
 
+/**
+ * Decimals for the degrees of one DMS/DDM angle text: 10, or enough that
+ * writing them stays within a tenth of the typed step (f decimals of
+ * seconds, a step of 2.8e-(f+4)°: f + 5; of minutes, 1.7e-(f+2)°: f + 3).
+ */
+function decimalsFor(angle) {
+  const numbers = angle.match(/\d+(?:[.,]\d+)?/g) ?? [];
+  const fraction = (numbers[numbers.length - 1] ?? "").split(/[.,]/)[1] ?? "";
+  const extra = { 2: 3, 3: 5 }[numbers.length] ?? 0;
+  return Math.min(MOST_DECIMALS, Math.max(DMS_DECIMALS, fraction.length + extra));
+}
+
 /** Decimal degrees of a core result as plain text without trailing zeros. */
-function degreesText(value) {
+function degreesText(value, decimals = DMS_DECIMALS) {
   return value
-    .toFixed(DMS_DECIMALS)
+    .toFixed(decimals)
     .replace(/(\.\d*?)0+$/, "$1")
     .replace(/\.$/, "")
     .replace(/^-0$/, "0");
@@ -193,7 +208,12 @@ function dmsPair(line) {
   for (const { parts: [latitude, longitude], swapped, longitudeFirst } of attempts) {
     try {
       const point = fromDms(latitude, longitude);
-      return { latitude: degreesText(point.latitude), longitude: degreesText(point.longitude), swapped, longitudeFirst };
+      return {
+        latitude: degreesText(point.latitude, decimalsFor(latitude)),
+        longitude: degreesText(point.longitude, decimalsFor(longitude)),
+        swapped,
+        longitudeFirst,
+      };
     } catch {
       // Not a valid angle pair in this order; try the next or give up.
     }
