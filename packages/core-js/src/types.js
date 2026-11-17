@@ -236,6 +236,9 @@
  * @property {number} reducedLength reduced length m12
  * @property {number} geodesicScale12 geodesic scale M12
  * @property {number} geodesicScale21 geodesic scale M21
+ * @property {boolean} ambiguous true when several shortest geodesics exist
+ *   between the points and the result is only one of them; false for
+ *   coincident points
  */
 
 /**

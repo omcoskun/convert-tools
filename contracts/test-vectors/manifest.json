@@ -70,6 +70,12 @@
       "source": "GeoConvert -u -p 9 and GeoConvert -g -p 9 with MGRS input (cell centre); valid=0 where GeoConvert reports ERROR"
     },
     {
+      "name": "triaxial-conventions.csv",
+      "rows": 212,
+      "sha256": "26bccafba60b588c87dd68a9e727142c722839761a3f9d9829899a55bcad171f",
+      "source": "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)"
+    },
+    {
       "name": "triaxial-direct.csv",
       "rows": 80,
       "sha256": "78a16a901f03c8d2fda429369b0089fc3337fdef8bc2505d1de1decc467ec5a8",

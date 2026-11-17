@@ -129,13 +129,18 @@ import { inverseTriaxialGeodesic, directTriaxialGeodesic } from "@convert-tools/
 const ellipsoid = { a: Math.SQRT2, b: 1, c: Math.SQRT1_2 };
 inverseTriaxialGeodesic({ beta: 10, omega: 20 }, { beta: -30, omega: 100 }, { ellipsoid });
 // { distance: 1.8183135741369816, initialAzimuthDegrees: 115.365…, finalAzimuthDegrees: 91.142…,
-//   reducedLength: 0.842…, geodesicScale12: -0.973…, geodesicScale21: -0.091… }
+//   reducedLength: 0.842…, geodesicScale12: -0.973…, geodesicScale21: -0.091…, ambiguous: false }
 directTriaxialGeodesic({ beta: 10, omega: 20 }, 45, 1.5, { ellipsoid });
 ```
 
-Ters problem en kısa geodeziği döndürür; `triaxialToCartesian` ve
-`cartesianToTriaxial` koordinat dönüşümüdür. Yöntem ve doğrulama:
-[docs/TRIAXIAL_VALIDATION.md](../../docs/TRIAXIAL_VALIDATION.md).
+Ters problem en kısa geodeziği döndürür; nokta çifti için aynı uzunlukta
+birden çok en kısa jeodezik varsa (örneğin iki nokta da β = 0 elipsindeyken
+düzlemden ayrılan bir çizgi ya da antipodal umbilikler) sonuçtaki `ambiguous`
+alanı `true`'dur ve döndürülen yollardan yalnızca biridir; çakışık noktalarda
+`false`'dur. GeographicLib'in eş uzunluktaki jeodezikler ve umbilik noktalardaki
+azimut etiketi arasındaki seçimi uygulanır (bkz. doğrulama belgesi).
+`triaxialToCartesian` ve `cartesianToTriaxial` koordinat dönüşümüdür. Yöntem ve
+doğrulama: [docs/TRIAXIAL_VALIDATION.md](../../docs/TRIAXIAL_VALIDATION.md).
 
 ## Biçim kuralları
 

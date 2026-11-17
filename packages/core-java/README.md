@@ -253,7 +253,9 @@ JavaScript satırlarıyla aynı kodla yargılar.
 
 Üç eksenli elipsoitte geodezik `TriaxialGeodesic` sınıfındadır
 (`inverse`, `direct`, `toCartesian`, `fromCartesian`; kayıtlar `Axes`,
-`Point`, `Cartesian`, `InverseResult`, `DirectResult`); JavaScript
-modülüyle aynı kurallar: `docs/TRIAXIAL_VALIDATION.md`.
+`Point`, `Cartesian`, `InverseResult`, `DirectResult`). `InverseResult`
+son bileşen olarak `ambiguous` taşır: aynı uzunlukta birden çok en kısa
+jeodezik varsa `true`, çakışık noktalarda `false`. JavaScript modülüyle aynı
+kurallar: `docs/TRIAXIAL_VALIDATION.md`.
 
 Değişiklikler: `packages/core-js/CHANGELOG.md` (iki çekirdek için ortak).

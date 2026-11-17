@@ -98,7 +98,7 @@ public final class Geod3TestFullSet {
             outputs[o] = distance;
             outputs[o + 1] = initial == null ? Double.NaN : initial;
             outputs[o + 2] = inverse.finalAzimuthDegrees() == null ? Double.NaN : inverse.finalAzimuthDegrees();
-            outputs[o + 3] = 0;
+            outputs[o + 3] = inverse.ambiguous() ? 1 : 0;
             // Closure: where the reported line really ends, compared with point 2.
             Cartesian end = TriaxialGeodesic.toCartesian(new Point(v[0], v[1]), AXES);
             if (initial != null) {

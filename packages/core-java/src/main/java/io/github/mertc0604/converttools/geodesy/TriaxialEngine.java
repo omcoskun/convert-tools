@@ -94,7 +94,7 @@ final class TriaxialEngine {
     record Direct(double[] bet2, double[] omg2, double[] alp2, double m12, double M12, double M21) {
     }
 
-    record Inverse(double s12, double[] alp1, double[] alp2, double m12, double M12, double M21) {
+    record Inverse(double s12, double[] alp1, double[] alp2, double m12, double M12, double M21, boolean ambiguous) {
     }
 
     private record End(double[] R, double[] V, double m, double dm, double M) {
@@ -462,10 +462,13 @@ final class TriaxialEngine {
         double[] P1 = ellipToCart(u, bet1, omg1);
         double[] P2 = ellipToCart(u, bet2, omg2);
         if (P1[0] == P2[0] && P1[1] == P2[1] && P1[2] == P2[2]) {
-            return new Inverse(0, angle(0), angle(0), 0, 1, 1);
+            return new Inverse(0, angle(0), angle(0), 0, 1, 1, false);
         }
-        boolean umbilic = u.umbilical && bet1[1] == 0 && omg1[0] == 0;
-        double span = umbilic ? 180 : 360;
+        // At an umbilical point the heading maps to the direction through 2 alp:
+        // headings in [-90, 90) cover every direction once.
+        boolean umb1 = u.umbilical && bet1[1] == 0 && omg1[0] == 0;
+        boolean umb2 = u.umbilical && bet2[1] == 0 && omg2[0] == 0;
+        double span = umb1 ? 180 : 360;
         double spacing = span / RAYS;
         double sMax = Math.PI * u.a;
         double[] alphas = new double[RAYS];
@@ -487,9 +490,14 @@ final class TriaxialEngine {
             }
         }
         Solution best = null;
+        List<Solution> solutions = new ArrayList<>();
         for (Start start : starts) {
             Solution solution = newton(u, bet1, omg1, P2, start.alpha(), start.s(), spacing);
-            if (solution != null && (best == null || solution.s() < best.s())) {
+            if (solution == null) {
+                continue;
+            }
+            solutions.add(solution);
+            if (best == null || solution.s() < best.s()) {
                 best = solution;
             }
         }
@@ -524,7 +532,11 @@ final class TriaxialEngine {
             }
             for (Start start : fineStarts) {
                 Solution solution = newton(u, bet1, omg1, P2, start.alpha(), start.s(), fineSpacing);
-                if (solution != null && (best == null || solution.s() < best.s())) {
+                if (solution == null) {
+                    continue;
+                }
+                solutions.add(solution);
+                if (best == null || solution.s() < best.s()) {
                     best = solution;
                 }
             }
@@ -533,10 +545,63 @@ final class TriaxialEngine {
             return null;
         }
         double[] alp2 = directionToHeading(u, bet2, omg2, best.end().V());
-        double[] alp1 = umbilic
+        double[] alp1 = umb1
                 ? directionToHeading(u, bet1, omg1, headingToDirection(u, bet1, omg1, angle(best.alpha())))
                 : angle(best.alpha());
-        return new Inverse(best.s() * model.b, alp1, alp2, best.end().m() * model.b, best.end().M(), best.end().dm());
+        // GeographicLib's choice between equally short geodesics and between
+        // the two heading labels of a direction at an umbilical point
+        // (docs/TRIAXIAL_VALIDATION.md). The mirror image in the plane z = 0
+        // and the heading label leave s12, m12, M12 and M21 unchanged.
+        boolean opposite = umb1 && umb2 && bet1[0] == -bet2[0] && omg1[1] == -omg2[1];
+        // A line leaving the plane bet = 0 has an equally short mirror image.
+        boolean ambiguous = bet1[0] == 0 && bet2[0] == 0 && Math.abs(alp1[1]) > 1e-9;
+        // R1: both points on the ellipse bet = 0; leave towards negative bet.
+        if (bet1[0] == 0 && bet2[0] == 0 && alp1[1] > 0) {
+            alp1 = new double[] {alp1[0], -alp1[1]};
+            alp2 = new double[] {alp2[0], -alp2[1]};
+        }
+        // R2: umbilical start, end on the plane y = 0.
+        if (umb1 && !opposite && onPlane(bet2, omg2) && Math.abs(alp1[1]) <= 1e-9) {
+            alp1 = new double[] {Math.signum(omg1[1]) * side(omg2), 0};
+        }
+        // R3: umbilical end, start on the plane y = 0.
+        if (umb2 && !opposite && onPlane(bet1, omg1) && Math.abs(alp2[1]) <= 1e-9) {
+            alp2 = umb1
+                    ? new double[] {Math.signum(omg2[1]), 0}
+                    : new double[] {-Math.signum(omg2[1]) * side(omg1), 0};
+        }
+        // Every direction from an umbilic reaches the antipodal umbilic with
+        // the same length.
+        if (opposite) {
+            ambiguous = true;
+        }
+        // Two converged lines of the same length with different headings are
+        // equally short geodesics.
+        if (!ambiguous && solutions.size() > 1) {
+            double period = umb1 ? 180 : 360;
+            for (Solution solution : solutions) {
+                if (solution == best || !(Math.abs(solution.s() - best.s()) <= 1e-13)) {
+                    continue;
+                }
+                double wrapped = Math.abs(solution.alpha() - best.alpha()) % period;
+                if (Math.min(wrapped, period - wrapped) > 1e-9) {
+                    ambiguous = true;
+                    break;
+                }
+            }
+        }
+        return new Inverse(best.s() * model.b, alp1, alp2, best.end().m() * model.b, best.end().M(),
+                best.end().dm(), ambiguous);
+    }
+
+    /** True when the point lies on the plane y = 0, which carries the umbilics. */
+    private static boolean onPlane(double[] bet, double[] omg) {
+        return bet[1] == 0 || omg[0] == 0;
+    }
+
+    /** -1 for sin(omega) &lt; 0, else +1. */
+    private static int side(double[] omg) {
+        return omg[0] < 0 ? -1 : 1;
     }
 
     private static Solution newton(Shape u, double[] bet1, double[] omg1, double[] P2,

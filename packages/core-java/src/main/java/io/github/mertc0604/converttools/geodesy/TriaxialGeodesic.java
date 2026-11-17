@@ -51,7 +51,9 @@ public final class TriaxialGeodesic {
 
     /**
      * Shortest geodesic between two points. Both headings are in [0, 360) and
-     * null for coincident points.
+     * null for coincident points. {@code ambiguous} is true when several
+     * shortest geodesics exist and the result is only one of them
+     * (docs/TRIAXIAL_VALIDATION.md); it is false for coincident points.
      */
     public record InverseResult(
             double distance,
@@ -59,7 +61,8 @@ public final class TriaxialGeodesic {
             Double finalAzimuthDegrees,
             double reducedLength,
             double geodesicScale12,
-            double geodesicScale21
+            double geodesicScale21,
+            boolean ambiguous
     ) {
     }
 
@@ -136,7 +139,8 @@ public final class TriaxialGeodesic {
                 defined ? heading(solution.alp2()) : null,
                 solution.m12() + 0.0,
                 solution.M12(),
-                solution.M21());
+                solution.M21(),
+                solution.ambiguous());
     }
 
     /** Direct problem: the end of the geodesic of the given length and initial heading. */

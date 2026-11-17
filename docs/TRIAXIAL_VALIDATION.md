@@ -51,7 +51,8 @@ sağlamlık, çift hassasiyete yakın doğruluk, kod boyu.
 JavaScript (`@convert-tools/core` ve `@convert-tools/core/geodesy`):
 `inverseTriaxialGeodesic(start, end, { ellipsoid: { a, b, c } })` →
 `distance`, `initialAzimuthDegrees`, `finalAzimuthDegrees` ([0, 360); çakışık
-noktalarda `null`), `reducedLength`, `geodesicScale12`, `geodesicScale21`;
+noktalarda `null`), `reducedLength`, `geodesicScale12`, `geodesicScale21`,
+`ambiguous` (bkz. "Eş uzunlukta jeodezikler ve umbilik yön kuralları");
 `directTriaxialGeodesic(start, azimuthDegrees, distance, { ellipsoid })` →
 `beta`, `omega`, `finalAzimuthDegrees`, `reducedLength`, `geodesicScale12`,
 `geodesicScale21`; `triaxialToCartesian`, `cartesianToTriaxial` (yüzey dışındaki
@@ -107,6 +108,60 @@ Tüm sayılar bu çalışmada çalıştırılan komutlardan; birim `b`.
   çıktı; taban 1e-13'e yakındır. Geod3Solve bu blokta 1e-11 düzeyinde
   hatalı olduğundan "2 × referans" kuralı orada daha geniştir; genel blokta
   taban 1e-13 geçerlidir.
+
+## Eş uzunlukta jeodezikler ve umbilik yön kuralları
+
+Bazı nokta çiftlerinde aynı uzunlukta birden çok en kısa jeodezik vardır;
+umbilik bir noktada da bir yönün iki azimut etiketi (α ve α + 180) bulunur.
+Kütüphane böyle durumlarda doğru bir cevap verir, ama GeographicLib'in
+(`Geod3Solve`) seçtiği cevabı her zaman vermez ve cevabın tek olmadığını
+söylemez. Aşağıdaki kurallar `Geod3Solve` 2.7'ye karşı CAYLEY, MILD ve EARTH3
+elipsoitlerinde 16 Kasım 2026'da ölçüldü ve her örnekle uyuştu. Kurallar en iyi
+çözüm seçildikten sonra `solveTriaxialInverse` içinde, bu sırayla uygulanır;
+açılar motorda `[sin, cos]` çiftleridir ve `alp1`, `alp2` döndürülen
+azimutlardır.
+
+Tanımlar: `umb1`, elipsoidin umbilik noktası varsa ve 1. nokta umbilikse
+(`cos β₁ = 0` ve `sin ω₁ = 0`) doğrudur; `umb2` 2. nokta için aynıdır.
+`onPlane(β, ω)`, nokta `y = 0` düzlemindeyse (`cos β = 0` veya `sin ω = 0`)
+doğrudur. `side(ω)`, `sin ω < 0` ise −1, değilse +1'dir. `opposite`, `umb1` ve
+`umb2` iken noktaların antipodal umbilikler olmasıdır
+(`sin β₂ = −sin β₁` ve `cos ω₂ = −cos ω₁`).
+
+- **R1 (iki nokta da β = 0 elipsinde).** `sin β₁ = sin β₂ = 0` ve
+  `cos α₁ > 0` ise `α₁` ve `α₂`'nin kosinüsü negatife çevrilir (z = 0
+  düzlemindeki yansıma); `s12`, `m12`, `M12`, `M21` değişmez. GeographicLib
+  her zaman negatif β'ya doğru yola çıkar.
+- **R2 (umbilik başlangıç).** `umb1`, `opposite` değil, 2. nokta `y = 0`
+  düzleminde ve `|cos α₁| ≤ 1e-9` ise
+  `α₁ = [sign(cos ω₁) · side(ω₂), 0]` olur.
+- **R3 (umbilik bitiş).** `umb2`, `opposite` değil, 1. nokta `y = 0`
+  düzleminde ve `|cos α₂| ≤ 1e-9` ise `α₂ = [sign(cos ω₂), 0]` (`umb1` iken)
+  ya da `α₂ = [−sign(cos ω₂) · side(ω₁), 0]` olur.
+
+Ters problem sonucundaki `ambiguous` alanı, aşağıdakilerden en az biri
+doğruysa `true`, değilse `false`'dur:
+
+1. R1'in noktalar için koşulu sağlanıyor ve `|cos α₁| > 1e-9` (jeodezik
+   düzlemden ayrılıyor; ayna görüntüsü de aynı uzunlukta);
+2. `opposite` (umbilikten her yön, karşı umbilike aynı uzunlukta varır);
+3. yakınsayan Newton çözümleri arasında, en iyiden uzunluğu en çok 1e-13
+   (b birimi) farklı ve başlangıç azimutu 1e-9 dereceden fazla farklı (360
+   modunda; 1. nokta umbilikse 180 modunda) başka bir çözüm var.
+
+Çakışık noktalarda (`s12 = 0`) `ambiguous` daima `false`'dur.
+
+Ölçülen örnekler (CAYLEY; `Geod3Solve` α₁, α₂): `(0, 58.974796) →
+(0, −43.642967)`: −119.768981, −56.063741 (R1). `(90, 180) → (20, 0)`:
+−90, −180; `(−90, 0) → (20, 180)`: 90, 0; `(90, 0) → (90, −163.205108)`:
+−90, −90 (R2). `(20, 0) → (90, 0)`: 0, −90; `(20, 180) → (90, 180)`: 0, 90;
+`(−90, −50.908837) → (90, 0)`: 90, 90; `(90, 0) → (−90, 0)`: 180, 90 (R3).
+
+Sözleşme vektörleri `contracts/test-vectors/triaxial-conventions.csv`
+dosyasındadır (212 satır, `Geod3Solve -i -t a b c -p 15`; 15 satırda
+`ambiguous = 1`): β = 0 elipsinde 40 CAYLEY ve 20 MILD çifti, umbilik
+başlangıç/bitiş çiftleri, antipodal olmayan umbilik çiftleri ve umbilikten
+küreye rastgele çiftler.
 
 ## Hold-out sonuçları
 

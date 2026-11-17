@@ -982,6 +982,102 @@ function triaxialShortestVectors() {
   });
 }
 
+// Pairs whose headings follow a convention of GeographicLib rather than the
+// geodesic equations: both points on the ellipse bet = 0, where a line that
+// leaves the ellipse is as short as its mirror image across z = 0, and
+// umbilical points, where one direction carries two heading labels. The
+// expected headings are what Geod3Solve prints. This section draws from its
+// own generator, so every other file stays byte-identical.
+const CONVENTION_SEED = 0xc0471;
+
+function triaxialConventionVectors() {
+  const next = mulberry32(CONVENTION_SEED);
+  const u = (min, max) => min + next() * (max - min);
+  const coin = () => next() < 0.5;
+  const umbilic = () => ({ bet: coin() ? 90 : -90, omg: coin() ? 0 : 180 });
+  // Plane points: 70% on the ellipse omg = 0 / 180 (bet free), the rest on
+  // the ellipse bet = +-90 away from the umbilics.
+  const planePoint = () =>
+    next() < 0.7
+      ? { bet: u(-89, 89), omg: coin() ? 0 : 180 }
+      : { bet: coin() ? 90 : -90, omg: (coin() ? -1 : 1) * u(1, 179) };
+  const spherePoint = () => ({ bet: (Math.asin(2 * next() - 1) * 180) / Math.PI, omg: u(-180, 180) });
+  const planePairs = (count) => Array.from({ length: count }, () => [umbilic(), planePoint()]);
+
+  const rows = [];
+  const add = (prefix, ellipsoid, equator, pairs) =>
+    pairs.forEach((pair, index) =>
+      rows.push({
+        id: `${prefix}${String(index).padStart(2, "0")}`,
+        ellipsoid,
+        equator,
+        bet1: dec(pair[0].bet, 6),
+        omg1: dec(pair[0].omg, 6),
+        bet2: dec(pair[1].bet, 6),
+        omg2: dec(pair[1].omg, 6),
+      }),
+    );
+  const CAYLEY = TRIAXIAL_ELLIPSOIDS.find((entry) => entry.id === "CAYLEY");
+  const MILD = TRIAXIAL_ELLIPSOIDS.find((entry) => entry.id === "MILD");
+  const equatorPairs = (count) => Array.from({ length: count }, () => [{ bet: 0, omg: u(-179, 179) }, { bet: 0, omg: u(-179, 179) }]);
+  add("CAYLEY-equator-", CAYLEY, true, equatorPairs(40));
+  add("MILD-equator-", MILD, true, equatorPairs(20));
+  add("CAYLEY-umbilic-start-", CAYLEY, false, planePairs(48));
+  // The same construction drawn afresh and reversed: plane point -> umbilic.
+  add("CAYLEY-umbilic-end-", CAYLEY, false, planePairs(48).map(([umb, point]) => [point, umb]));
+  const UMBILLICS = [
+    { bet: 90, omg: 0 },
+    { bet: 90, omg: 180 },
+    { bet: -90, omg: 0 },
+    { bet: -90, omg: 180 },
+  ];
+  const antipodal = (p, q) => p.bet === -q.bet && Math.abs(p.omg - q.omg) === 180;
+  const umbilicPairs = [];
+  for (const p of UMBILLICS) {
+    for (const q of UMBILLICS) {
+      if (p !== q && !antipodal(p, q)) umbilicPairs.push([p, q]);
+    }
+  }
+  add("CAYLEY-umbilic-pair-", CAYLEY, false, umbilicPairs);
+  add("CAYLEY-umbilic-random-", CAYLEY, false, [
+    ...Array.from({ length: 24 }, () => [umbilic(), spherePoint()]),
+    ...Array.from({ length: 24 }, () => [spherePoint(), umbilic()]),
+  ]);
+
+  const kept = rows.filter((row) => !(row.bet1 === row.bet2 && row.omg1 === row.omg2));
+  const output = new Array(kept.length);
+  const groups = new Map();
+  kept.forEach((row, index) => {
+    if (!groups.has(row.ellipsoid)) groups.set(row.ellipsoid, []);
+    groups.get(row.ellipsoid).push(index);
+  });
+  for (const [ellipsoid, indices] of groups) {
+    const axes = [ellipsoid.a, ellipsoid.b, ellipsoid.c].map(String);
+    const lines = indices.map((index) => `${kept[index].bet1} ${kept[index].omg1} ${kept[index].bet2} ${kept[index].omg2}`);
+    runTool(GEOD3SOLVE, ["-i", "-t", ...axes, "-p", "15"], lines).forEach((line, k) => {
+      output[indices[k]] = line;
+    });
+  }
+  const csvRows = [];
+  kept.forEach((row, index) => {
+    if (isError(output[index])) return;
+    const [alp1, alp2, s12] = output[index].split(/\s+/);
+    if (!(Number(s12) > 0)) throw new Error(`Geod3Solve inverse ${row.id}: ${output[index]}`);
+    // A line leaving the plane has an equally short mirror image.
+    const ambiguous = row.equator && Math.abs(Math.cos((Number(alp1) * Math.PI) / 180)) > 1e-9 ? "1" : "0";
+    const [a, b, c] = [row.ellipsoid.a, row.ellipsoid.b, row.ellipsoid.c].map(String);
+    csvRows.push([row.id, row.ellipsoid.id, a, b, c, row.bet1, row.omg1, row.bet2, row.omg2, alp1, alp2, s12, ambiguous]);
+  });
+  manifest.files.push({
+    ...writeCsv(
+      "triaxial-conventions.csv",
+      ["id", "ellipsoid", "a", "b", "c", "bet1", "omg1", "bet2", "omg2", "expected_alp1", "expected_alp2", "expected_s12", "ambiguous"],
+      csvRows,
+    ),
+    source: "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)",
+  });
+}
+
 // ------------------------------------------------------------------ run
 
 const forwardRows = utmUpsForward();
@@ -997,6 +1093,7 @@ garsVectors();
 georefVectors();
 triaxialVectors();
 triaxialShortestVectors();
+triaxialConventionVectors();
 
 manifest.skipped = skipped;
 manifest.files.sort((a, b) => a.name.localeCompare(b.name));

@@ -233,7 +233,7 @@ function traceRay(u, y0, P2, sMax) {
  * @param {number[]} omg2
  * @param {{ rays?: number, refineRays?: number }} [tuning]
  * @returns {{ s12: number, alp1: number[], alp2: number[], m12: number,
- *   M12: number, M21: number } | null}
+ *   M12: number, M21: number, ambiguous: boolean } | null}
  */
 export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2, tuning = {}) {
   const { rays = RAYS, refineRays = REFINE_RAYS } = tuning;
@@ -241,12 +241,13 @@ export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2, tuning = {})
   const P1 = ellipToCart(u, bet1, omg1);
   const P2 = ellipToCart(u, bet2, omg2);
   if (P1[0] === P2[0] && P1[1] === P2[1] && P1[2] === P2[2]) {
-    return { s12: 0, alp1: angle(0), alp2: angle(0), m12: 0, M12: 1, M21: 1 };
+    return { s12: 0, alp1: angle(0), alp2: angle(0), m12: 0, M12: 1, M21: 1, ambiguous: false };
   }
   // At an umbilical point the heading maps to the direction through 2 alp:
   // headings in [-90, 90) cover every direction once.
-  const umbilic = u.umbilical && bet1[1] === 0 && omg1[0] === 0;
-  const span = umbilic ? 180 : 360;
+  const umb1 = u.umbilical && bet1[1] === 0 && omg1[0] === 0;
+  const umb2 = u.umbilical && bet2[1] === 0 && omg2[0] === 0;
+  const span = umb1 ? 180 : 360;
   const spacing = span / rays;
   const sMax = Math.PI * u.a;
   const fan = [];
@@ -272,9 +273,12 @@ export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2, tuning = {})
     }
   }
   let best = null;
+  const solutions = [];
   for (const start of starts) {
     const solution = newton(u, bet1, omg1, P2, start.alpha, start.s, start.step);
-    if (solution && (best === null || solution.s < best.s)) best = solution;
+    if (solution === null) continue;
+    solutions.push(solution);
+    if (best === null || solution.s < best.s) best = solution;
   }
   if (refineRays > 0) {
     // Two local minima of the miss can sit closer together than one coarse
@@ -306,16 +310,55 @@ export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2, tuning = {})
     }
     for (const start of fineStarts) {
       const solution = newton(u, bet1, omg1, P2, start.alpha, start.s, fineSpacing);
-      if (solution && (best === null || solution.s < best.s)) best = solution;
+      if (solution === null) continue;
+      solutions.push(solution);
+      if (best === null || solution.s < best.s) best = solution;
     }
   }
   if (best === null) return null;
-  const alp2 = directionToHeading(u, bet2, omg2, best.end.V);
-  // At an umbilical point alpha and alpha + 180 give the same direction;
-  // report the heading by GeographicLib's rule (the heading on leaving).
-  const alp1 = umbilic
+  let alp2 = directionToHeading(u, bet2, omg2, best.end.V);
+  let alp1 = umb1
     ? directionToHeading(u, bet1, omg1, headingToDirection(u, bet1, omg1, angle(best.alpha)))
     : angle(best.alpha);
+  // GeographicLib's choice between equally short geodesics and between the
+  // two heading labels of a direction at an umbilical point
+  // (docs/TRIAXIAL_VALIDATION.md, "Eş uzunlukta jeodezikler ve umbilik yön
+  // kuralları"). The mirror image in the plane z = 0 and the heading label
+  // leave s12, m12, M12 and M21 unchanged.
+  const onPlane = (bet, omg) => bet[1] === 0 || omg[0] === 0;
+  const side = (omg) => (omg[0] < 0 ? -1 : 1);
+  const opposite = umb1 && umb2 && bet1[0] === -bet2[0] && omg1[1] === -omg2[1];
+  // A line leaving the plane bet = 0 has an equally short mirror image.
+  let ambiguous = bet1[0] === 0 && bet2[0] === 0 && Math.abs(alp1[1]) > 1e-9;
+  // R1: both points on the ellipse bet = 0; leave towards negative bet.
+  if (bet1[0] === 0 && bet2[0] === 0 && alp1[1] > 0) {
+    alp1 = [alp1[0], -alp1[1]];
+    alp2 = [alp2[0], -alp2[1]];
+  }
+  // R2: umbilical start, end on the plane y = 0.
+  if (umb1 && !opposite && onPlane(bet2, omg2) && Math.abs(alp1[1]) <= 1e-9) {
+    alp1 = [Math.sign(omg1[1]) * side(omg2), 0];
+  }
+  // R3: umbilical end, start on the plane y = 0.
+  if (umb2 && !opposite && onPlane(bet1, omg1) && Math.abs(alp2[1]) <= 1e-9) {
+    alp2 = umb1 ? [Math.sign(omg2[1]), 0] : [-Math.sign(omg2[1]) * side(omg1), 0];
+  }
+  // Every direction from an umbilic reaches the antipodal umbilic with the
+  // same length.
+  if (opposite) ambiguous = true;
+  // Two converged lines of the same length with different headings are
+  // equally short geodesics.
+  if (!ambiguous && solutions.length > 1) {
+    const period = umb1 ? 180 : 360;
+    for (const solution of solutions) {
+      if (solution === best || !(Math.abs(solution.s - best.s) <= 1e-13)) continue;
+      const wrapped = Math.abs(solution.alpha - best.alpha) % period;
+      if (Math.min(wrapped, period - wrapped) > 1e-9) {
+        ambiguous = true;
+        break;
+      }
+    }
+  }
   return {
     s12: best.s * model.b,
     alp1,
@@ -323,6 +366,7 @@ export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2, tuning = {})
     m12: best.end.m * model.b,
     M12: best.end.M,
     M21: best.end.dm,
+    ambiguous,
   };
 }
 

@@ -82,7 +82,9 @@ export function cartesianToTriaxial(pointValue, options) {
 
 /**
  * Inverse problem: the shortest geodesic between two points. For coincident
- * points the distance is 0 and both headings are null.
+ * points the distance is 0 and both headings are null. `ambiguous` is true
+ * when several shortest geodesics exist and the returned one is only one of
+ * them; see docs/TRIAXIAL_VALIDATION.md.
  * @param {import("../../types.js").TriaxialPoint} startValue
  * @param {import("../../types.js").TriaxialPoint} endValue
  * @param {import("../../types.js").TriaxialOptions} options
@@ -107,6 +109,7 @@ export function inverseTriaxialGeodesic(startValue, endValue, options) {
     reducedLength: 0 + solution.m12,
     geodesicScale12: solution.M12,
     geodesicScale21: solution.M21,
+    ambiguous: solution.ambiguous,
   });
 }
 

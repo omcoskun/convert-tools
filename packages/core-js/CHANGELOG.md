@@ -74,6 +74,13 @@ için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
   `docs/TRIAXIAL_VALIDATION.md`. Vektörler `triaxial-inverse.csv`,
   `triaxial-direct.csv` (Geod3Solve). Doğrulama araçları
   `validate-geod3test.mjs`, `Geod3TestFullSet`.
+- Üç eksenli ters problem sonucu (`inverseTriaxialGeodesic` ve Java
+  `InverseResult`, son bileşen) `ambiguous` alanını taşır: nokta çifti için
+  aynı uzunlukta birden çok en kısa jeodezik varsa `true`, yoksa ve çakışık
+  noktalarda `false`. Eş uzunluktaki jeodeziklerin seçimi ile umbilik
+  noktalardaki azimut etiketi artık GeographicLib (`Geod3Solve` 2.7) ile
+  aynıdır; kurallar `docs/TRIAXIAL_VALIDATION.md` içindedir. Sözleşme
+  vektörleri: `triaxial-conventions.csv` (212 satır, `ambiguous` sütunu).
 
 ### Düzeltilenler
 

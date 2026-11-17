@@ -38,6 +38,9 @@ public final class TriaxialGeodesicTest {
         Path vectors = Path.of(args.length > 0 ? args[0] : "contracts/test-vectors");
         inverseVectors(vectors);
         shortestVectors(vectors);
+        conventionVectors(vectors);
+        antipodalUmbilics();
+        genericNotAmbiguous();
         coincidentAndAntipodes();
         directVectors(vectors);
         symmetryAndClosure();
@@ -133,6 +136,40 @@ public final class TriaxialGeodesicTest {
             check(result.distance() - num(row, "expected_s12") <= 1e-13,
                     row.get("id") + ": distance " + result.distance());
         }
+    }
+
+    private static void conventionVectors(Path dir) throws IOException {
+        List<Map<String, String>> rows = read(dir, "triaxial-conventions.csv");
+        double degree = Math.toRadians(1e-7);
+        for (Map<String, String> row : rows) {
+            Axes axes = new Axes(num(row, "a"), num(row, "b"), num(row, "c"));
+            TriaxialGeodesic.InverseResult result = TriaxialGeodesic.inverse(
+                    new Point(num(row, "bet1"), num(row, "omg1")), new Point(num(row, "bet2"), num(row, "omg2")), axes);
+            check(Math.abs(result.distance() - num(row, "expected_s12")) <= 1e-13 * axes.b(),
+                    row.get("id") + ": distance " + result.distance() + " " + row.get("expected_s12"));
+            check(headingDifference(result.initialAzimuthDegrees(), num(row, "expected_alp1")) <= degree,
+                    row.get("id") + ": alp1 " + result.initialAzimuthDegrees() + " " + row.get("expected_alp1"));
+            check(headingDifference(result.finalAzimuthDegrees(), num(row, "expected_alp2")) <= degree,
+                    row.get("id") + ": alp2 " + result.finalAzimuthDegrees() + " " + row.get("expected_alp2"));
+            check(result.ambiguous() == row.get("ambiguous").equals("1"), row.get("id") + ": ambiguous");
+        }
+    }
+
+    private static void antipodalUmbilics() {
+        Point[][] pairs = {{new Point(90, 0), new Point(-90, 180)}, {new Point(-90, 180), new Point(90, 0)}};
+        for (Point[] pair : pairs) {
+            TriaxialGeodesic.InverseResult result = TriaxialGeodesic.inverse(pair[0], pair[1], CAYLEY);
+            check(result.ambiguous(), pair[0] + ": ambiguous");
+            TriaxialGeodesic.DirectResult reached = TriaxialGeodesic.direct(
+                    pair[0], result.initialAzimuthDegrees(), result.distance(), CAYLEY);
+            check(distance(TriaxialGeodesic.toCartesian(new Point(reached.beta(), reached.omega()), CAYLEY),
+                    TriaxialGeodesic.toCartesian(pair[1], CAYLEY)) <= 1e-12, pair[0] + ": closure");
+        }
+    }
+
+    private static void genericNotAmbiguous() {
+        TriaxialGeodesic.InverseResult result = TriaxialGeodesic.inverse(new Point(30, 40), new Point(-20, 100), CAYLEY);
+        check(!result.ambiguous(), "generic pair reported as ambiguous");
     }
 
     private static void coincidentAndAntipodes() {
@@ -363,7 +400,7 @@ public final class TriaxialGeodesicTest {
         Point scaled = TriaxialGeodesic.fromCartesian(new Cartesian(3 * R.x(), 3 * R.y(), 3 * R.z()), CAYLEY);
         check(Math.abs(scaled.beta() - 30) <= 1e-12 && Math.abs(scaled.omega() - 40) <= 1e-12, "scaled point");
         TriaxialGeodesic.InverseResult same = TriaxialGeodesic.inverse(new Point(30, 40), new Point(30, 40), CAYLEY);
-        check(same.equals(new TriaxialGeodesic.InverseResult(0, null, null, 0, 1, 1)), "coincident " + same);
+        check(same.equals(new TriaxialGeodesic.InverseResult(0, null, null, 0, 1, 1, false)), "coincident " + same);
         TriaxialGeodesic.DirectResult still = TriaxialGeodesic.direct(new Point(30, 40), 25, 0, CAYLEY);
         check(Math.abs(still.beta() - 30) <= 1e-13 && Math.abs(still.omega() - 40) <= 1e-13, "zero distance");
         check(Math.abs(still.finalAzimuthDegrees() - 25) <= 1e-12, "zero distance heading");

@@ -67,6 +67,49 @@ test("inverse finds the shortest geodesic in near-conjugate cases", () => {
   }
 });
 
+test("triaxial inverse matches Geod3Solve conventions on symmetric and umbilical pairs", () => {
+  const rows = readVectors("triaxial-conventions.csv");
+  const degree = (1e-7 * Math.PI) / 180;
+  for (const row of rows) {
+    const options = { ellipsoid: { a: Number(row.a), b: Number(row.b), c: Number(row.c) } };
+    const result = inverseTriaxialGeodesic({ beta: row.bet1, omega: row.omg1 }, { beta: row.bet2, omega: row.omg2 }, options);
+    assert.ok(
+      Math.abs(result.distance - Number(row.expected_s12)) <= 1e-13 * Number(row.b),
+      `${row.id}: distance ${result.distance} ${row.expected_s12}`,
+    );
+    assert.ok(
+      headingDifference(result.initialAzimuthDegrees, row.expected_alp1) <= degree,
+      `${row.id}: alp1 ${result.initialAzimuthDegrees} ${row.expected_alp1}`,
+    );
+    assert.ok(
+      headingDifference(result.finalAzimuthDegrees, row.expected_alp2) <= degree,
+      `${row.id}: alp2 ${result.finalAzimuthDegrees} ${row.expected_alp2}`,
+    );
+    assert.equal(result.ambiguous, row.ambiguous === "1", `${row.id}: ambiguous`);
+  }
+});
+
+test("antipodal umbilics are reported as ambiguous", () => {
+  const options = { ellipsoid: CAYLEY };
+  for (const [start, end] of [
+    [{ beta: 90, omega: 0 }, { beta: -90, omega: 180 }],
+    [{ beta: -90, omega: 180 }, { beta: 90, omega: 0 }],
+  ]) {
+    const result = inverseTriaxialGeodesic(start, end, options);
+    assert.equal(result.ambiguous, true, `${JSON.stringify(start)}: ambiguous`);
+    const reached = directTriaxialGeodesic(start, result.initialAzimuthDegrees, result.distance, options);
+    assert.ok(
+      cartesianDistance(triaxialToCartesian(reached, options), triaxialToCartesian(end, options)) <= 1e-12,
+      `${JSON.stringify(start)}: closure`,
+    );
+  }
+});
+
+test("a generic pair is not ambiguous", () => {
+  const result = inverseTriaxialGeodesic({ beta: 30, omega: 40 }, { beta: -20, omega: 100 }, { ellipsoid: CAYLEY });
+  assert.equal(result.ambiguous, false);
+});
+
 test("inverse still solves coincident points and exact antipodes", () => {
   const options = { ellipsoid: CAYLEY };
   const same = inverseTriaxialGeodesic({ beta: 30, omega: 40 }, { beta: 30, omega: 40 }, options);
@@ -255,6 +298,7 @@ test("triaxial coordinates round-trip and zero lengths are exact", () => {
     reducedLength: 0,
     geodesicScale12: 1,
     geodesicScale21: 1,
+    ambiguous: false,
   });
   const still = directTriaxialGeodesic({ beta: 30, omega: 40 }, 25, 0, options);
   assert.ok(Math.abs(still.beta - 30) <= 1e-13 && Math.abs(still.omega - 40) <= 1e-13);
