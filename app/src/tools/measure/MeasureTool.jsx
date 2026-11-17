@@ -23,9 +23,12 @@ import InverseMode, { InverseDetails } from "./InverseMode.jsx";
 import {
   LENGTH_UNITS,
   MEASURE_MODES,
+  angleCopy,
   callSnippet,
   checkModel,
+  cutAzimuthBound,
   displayAngle,
+  displayBound,
   displayDistance,
   lengthsOf,
   measureScene,
@@ -223,8 +226,12 @@ export default function MeasureTool() {
       options={LENGTH_UNITS.map((item) => ({ value: item.id, label: item.symbol }))}
     />
   );
-  const azimuthCell = (label, degrees, defined = true) =>
-    defined ? { label, value: displayAngle(degrees, language), copyValue: plainNumber(degrees) } : { label, value: "—" };
+  // An inverse result's azimuths come with an uncertainty: only the digits it
+  // leaves meaningful are shown and copied (displayAngle, angleCopy).
+  const azimuthCell = (label, degrees, defined = true, uncertainty = null) =>
+    defined
+      ? { label, value: displayAngle(degrees, language, uncertainty), copyValue: angleCopy(degrees, uncertainty) }
+      : { label, value: "—" };
 
   let hud;
   if (mode === "direct") {
@@ -264,8 +271,8 @@ export default function MeasureTool() {
       aside: unitSwitch,
       cells: inverse
         ? [
-            azimuthCell(text.initialAzimuth, inverse.initialBearingDegrees, inverse.azimuthDefined),
-            azimuthCell(text.finalAzimuth, inverse.finalBearingDegrees, inverse.azimuthDefined),
+            azimuthCell(text.initialAzimuth, inverse.initialBearingDegrees, inverse.azimuthDefined, inverse.bearingUncertaintyDegrees),
+            azimuthCell(text.finalAzimuth, inverse.finalBearingDegrees, inverse.azimuthDefined, inverse.bearingUncertaintyDegrees),
           ]
         : [],
     };
@@ -287,6 +294,10 @@ export default function MeasureTool() {
 
   const ambiguous =
     (mode === "inverse" && value?.inverse.ambiguous) || (mode === "route" && value?.polyline.segments.some((segment) => segment.ambiguous));
+  // Nearly antipodal ends: the azimuths shown with fewer decimals, and why.
+  let cutBound = null;
+  if (mode === "inverse" && value) cutBound = cutAzimuthBound([value.inverse]);
+  if (mode === "route" && value) cutBound = cutAzimuthBound(value.polyline.segments);
   const runSummary = { inverse: text.distanceInvalid, direct: text.directInvalid, route: text.distanceInvalid }[mode];
   const notices = [
     !modelCheck.ok && <ErrorMessage key="model" summary={text.modelInvalid} code={modelCheck.code} />,
@@ -294,6 +305,11 @@ export default function MeasureTool() {
     ambiguous && (
       <Notice key="ambiguous" tone="warn">
         {mode === "route" ? text.ambiguousRoute : text.ambiguousPath}
+      </Notice>
+    ),
+    cutBound !== null && (
+      <Notice key="imprecise" tone="warn">
+        {fill(mode === "route" ? text.impreciseRoute : text.imprecisePath, { degrees: displayBound(cutBound, language) })}
       </Notice>
     ),
   ].filter(Boolean);

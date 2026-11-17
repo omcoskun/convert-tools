@@ -12,6 +12,7 @@ import {
 } from "@convert-tools/core";
 import { attempt } from "../../lib/attempt.js";
 import { fixedDecimal, localeDecimal } from "../../lib/locale-decimal.js";
+import { boundText, meaningfulDecimals, roundedDecimal } from "../../lib/meaningful-digits.js";
 import { degreesText, plainNumber } from "../../lib/number-text.js";
 
 /** The three modes, in the order the mode switch shows them. */
@@ -219,14 +220,112 @@ export function squareKilometres(squareMetres, decimals) {
   return convertLength(once, "metre", "kilometre", decimals).value;
 }
 
+// Marks a value shown with fewer digits than usual because its last digits
+// mean nothing (a no-break space keeps the mark on the number's line).
+const APPROXIMATE = "≈\u00a0";
+// Azimuths: 4 decimals shown (about 1 cm at 10 km), at most 12 copied.
+const ANGLE_DECIMALS = 4;
+const ANGLE_COPY_DECIMALS = 12;
+// S12: 3 decimals of km² shown, at most 9 copied; m² beneath with 1.
+const AREA_DECIMALS = 3;
+const AREA_COPY_DECIMALS = 9;
+const SQUARE_METRE_DECIMALS = 1;
+
+const withoutTrailingZeros = (digits) => (digits.includes(".") ? digits.replace(/\.?0+$/, "") : digits);
+
 /**
- * An angle for display: 4 decimals (about 1 cm at 10 km) grouped for the
- * language, with a degree sign.
+ * An angle for display: 4 decimals grouped for the language, with a degree
+ * sign. With an uncertainty (an inverse result's bearingUncertaintyDegrees),
+ * only the decimals it leaves meaningful, at least whole degrees, marked ≈
+ * when fewer than 4.
+ * @param {number} degrees
+ * @param {string} language
+ * @param {number | null} [uncertainty] degrees
+ */
+export function displayAngle(degrees, language, uncertainty) {
+  const decimals = Math.max(0, meaningfulDecimals(uncertainty, ANGLE_DECIMALS));
+  const shown = `${localeDecimal(roundedDecimal(degrees, decimals), decimals, language)}°`;
+  return decimals < ANGLE_DECIMALS ? APPROXIMATE + shown : shown;
+}
+
+/**
+ * An angle as copied: without an uncertainty every digit (plainNumber);
+ * with one, the decimals it leaves meaningful (at most 12, at least whole
+ * degrees), without trailing zeros.
+ * @param {number} degrees
+ * @param {number | null} [uncertainty] degrees
+ */
+export function angleCopy(degrees, uncertainty) {
+  if (!(uncertainty > 0)) return plainNumber(degrees);
+  const decimals = Math.max(0, meaningfulDecimals(uncertainty, ANGLE_COPY_DECIMALS));
+  return withoutTrailingZeros(roundedDecimal(degrees, decimals));
+}
+
+/**
+ * The widest azimuth uncertainty among results whose azimuths are shown with
+ * fewer than 4 decimals (see displayAngle), or null when none is.
+ * @param {{ azimuthDefined: boolean, bearingUncertaintyDegrees?: number | null }[]} results
+ * @returns {number | null}
+ */
+export function cutAzimuthBound(results) {
+  let widest = null;
+  for (const result of results) {
+    const uncertainty = result.azimuthDefined ? result.bearingUncertaintyDegrees : null;
+    if (meaningfulDecimals(uncertainty, ANGLE_DECIMALS) < ANGLE_DECIMALS && (widest === null || uncertainty > widest)) {
+      widest = uncertainty;
+    }
+  }
+  return widest;
+}
+
+/**
+ * An angle bound for text, "0,0069": rounded up to two significant digits
+ * and grouped for the language.
  * @param {number} degrees
  * @param {string} language
  */
-export function displayAngle(degrees, language) {
-  return `${fixedDecimal(degrees, 4, language)}°`;
+export function displayBound(degrees, language) {
+  const bound = boundText(degrees, ANGLE_COPY_DECIMALS);
+  return localeDecimal(bound.text, Math.max(0, bound.decimals), language);
+}
+
+/** Square metres in square kilometres rounded to decimals (negative: tens of km², ...). */
+function kilometresRounded(squareMetres, decimals) {
+  return decimals >= 0 ? squareKilometres(squareMetres, decimals) : roundedDecimal(squareMetres / 1e6, decimals);
+}
+
+/**
+ * S12 for display: km² with 3 decimals, copied with 9, and m² with 1
+ * beneath. With an uncertainty (an inverse result's
+ * areaUncertaintySquareMetres), only the km² decimals it leaves meaningful
+ * (marked ≈ when fewer than 3; tens or thousands of km² when even whole km²
+ * mean nothing), the same for the copy, and m² as "value ± uncertainty".
+ * @param {number} squareMetres
+ * @param {number | null} [uncertainty] square metres
+ * @param {string} language
+ * @returns {{ value: string, approximate: boolean, copyValue: string, note: string }}
+ */
+export function areaDisplay(squareMetres, uncertainty, language) {
+  if (!(uncertainty > 0)) {
+    return {
+      value: localeDecimal(squareKilometres(squareMetres, AREA_DECIMALS), AREA_DECIMALS, language),
+      approximate: false,
+      copyValue: squareKilometres(squareMetres, AREA_COPY_DECIMALS),
+      note: `${fixedDecimal(squareMetres, SQUARE_METRE_DECIMALS, language)} m²`,
+    };
+  }
+  const squareKilometreUncertainty = uncertainty / 1e6;
+  const decimals = meaningfulDecimals(squareKilometreUncertainty, AREA_DECIMALS);
+  const approximate = decimals < AREA_DECIMALS;
+  const shown = localeDecimal(kilometresRounded(squareMetres, decimals), Math.max(0, decimals), language);
+  const bound = boundText(uncertainty, SQUARE_METRE_DECIMALS);
+  const metreDecimals = Math.max(0, bound.decimals);
+  return {
+    value: approximate ? APPROXIMATE + shown : shown,
+    approximate,
+    copyValue: kilometresRounded(squareMetres, meaningfulDecimals(squareKilometreUncertainty, AREA_COPY_DECIMALS)),
+    note: `${localeDecimal(roundedDecimal(squareMetres, bound.decimals), metreDecimals, language)} ± ${localeDecimal(bound.text, metreDecimals, language)} m²`,
+  };
 }
 
 /** A computed point as point-field text: "latitude, longitude". */

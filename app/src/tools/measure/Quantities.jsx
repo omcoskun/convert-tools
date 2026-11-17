@@ -1,15 +1,17 @@
 import DataList, { DataRow } from "../../components/DataList.jsx";
 import { useLanguage } from "../../context.js";
-import { fixedDecimal, localeDecimal } from "../../lib/locale-decimal.js";
+import { fixedDecimal } from "../../lib/locale-decimal.js";
 import { plainNumber } from "../../lib/number-text.js";
-import { squareKilometres } from "./measure.js";
+import { areaDisplay } from "./measure.js";
 
 /**
  * The five geodesic quantities of a core result (spec 8.1, GeographicLib's
  * names): a12 the arc length on the auxiliary sphere in degrees, m12 the
  * reduced length, M12 and M21 the geodesic scales, S12 the area between the
- * geodesic and the equator in km² (m² beneath). With showSolver, the solver
- * and its iterations follow. children: rows (DataRow) shown before them.
+ * geodesic and the equator in km² (m² beneath). An inverse result's S12 comes
+ * with an uncertainty: km² keeps only the digits it leaves meaningful (≈ when
+ * cut) and m² shows it as "± uncertainty" (areaDisplay). With showSolver, the
+ * solver and its iterations follow. children: rows (DataRow) shown before them.
  * @param {{
  *   result: {
  *     arcDegrees: number,
@@ -17,6 +19,7 @@ import { squareKilometres } from "./measure.js";
  *     geodesicScale12: number,
  *     geodesicScale21: number,
  *     areaSquareMetres: number,
+ *     areaUncertaintySquareMetres?: number | null,
  *     solver?: string,
  *     iterations?: number,
  *   },
@@ -27,7 +30,7 @@ import { squareKilometres } from "./measure.js";
 export default function Quantities({ result, showSolver = false, children }) {
   const { text, language } = useLanguage();
   const { arcDegrees, reducedLengthMetres, geodesicScale12, geodesicScale21, areaSquareMetres } = result;
-  const area = squareKilometres(areaSquareMetres, 3);
+  const area = areaDisplay(areaSquareMetres, result.areaUncertaintySquareMetres, language);
   return (
     <DataList>
       {children}
@@ -59,10 +62,10 @@ export default function Quantities({ result, showSolver = false, children }) {
       <DataRow
         label={text.area}
         symbol="S₁₂"
-        value={localeDecimal(area, 3, language)}
+        value={area.value}
         unit="km²"
-        copyValue={squareKilometres(areaSquareMetres, 9)}
-        note={`${fixedDecimal(areaSquareMetres, 1, language)} m²`}
+        copyValue={area.copyValue}
+        note={area.note}
       />
       {showSolver && result.solver != null && (
         <>

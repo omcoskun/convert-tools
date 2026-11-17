@@ -2,6 +2,7 @@
   "tr": {
     "text": {
       "ambiguousPath": "Bu iki nokta için en kısa yol tek değildir. Haritada kararlı bir temsil yolu gösterilir.",
+      "imprecisePath": "Bu iki nokta neredeyse antipodal: azimutlar girdinin son basamaklarına çok duyarlıdır ve en çok ±{degrees}° şaşabilir. Yalnız anlamlı basamaklar gösterilir (≈).",
       "areaSource": "GARS bir alan referansıdır; navigasyon veya hedefleme için kullanılmamalıdır.",
       "axisNote": "X/Y sırası kullanılır. EPSG:4326 için X = boylam, Y = enlem.",
       "cellSource": "Çıktılar, girdi hücresinin merkez noktasına aittir.",
@@ -29,7 +30,7 @@
       "longitude": "Boylam",
       "mapEnd": "Bitiş B",
       "mapLoading": "Harita yükleniyor…",
-      "mapProjection": "Harita Web Mercator gösterimdir; ölçüm için kullanılmaz.",
+      "mapProjection": "Harita yalnızca gösterimdir (uzaktan küre, yakında Web Mercator); ölçüm için kullanılmaz.",
       "mapStart": "Başlangıç A",
       "mapTitle": "Harita",
       "mapUnavailable": "Harita yüklenemedi. Mesafe hesaplama çalışmaya devam eder.",
@@ -157,6 +158,7 @@
       "pastedTruncated": "{dropped} nokta sığmadı; bir rota en çok {max} nokta alır.",
       "segmentsTitle": "Parçalar",
       "ambiguousRoute": "Bazı parçalarda en kısa yol tek değildir. Haritada kararlı bir temsil yolu gösterilir.",
+      "impreciseRoute": "Bazı parçaların uçları neredeyse antipodal: bu parçaların azimutları en çok ±{degrees}° şaşabilir. Yalnız anlamlı basamaklar gösterilir (≈).",
       "mapPickingPoint": "Haritaya tıklayın: nokta {point}",
       "mapPickingAdd": "Rotaya nokta eklemek için haritaya tıklayın",
       "allUnits": "Tüm birimler",
@@ -341,6 +343,7 @@
   "en": {
     "text": {
       "ambiguousPath": "The shortest path is not unique for these points. The map shows a stable representative path.",
+      "imprecisePath": "These points are nearly antipodal: the azimuths depend on the last digits of the input and may be off by up to ±{degrees}°. Only meaningful digits are shown (≈).",
       "areaSource": "GARS is an area reference and must not be used for navigation or targeting.",
       "axisNote": "X/Y order is used. For EPSG:4326, X = longitude and Y = latitude.",
       "cellSource": "Outputs refer to the center point of the input cell.",
@@ -368,7 +371,7 @@
       "longitude": "Longitude",
       "mapEnd": "End B",
       "mapLoading": "Loading the map…",
-      "mapProjection": "The map uses Web Mercator; it is not used for measuring.",
+      "mapProjection": "The map is for display only (a globe zoomed out, Web Mercator zoomed in); it is not used for measuring.",
       "mapStart": "Start A",
       "mapTitle": "Map",
       "mapUnavailable": "The map could not be loaded. Distance calculation keeps working.",
@@ -496,6 +499,7 @@
       "pastedTruncated": "{dropped} points did not fit; a route holds at most {max} points.",
       "segmentsTitle": "Segments",
       "ambiguousRoute": "The shortest path is not unique for some segments. The map shows a stable representative path.",
+      "impreciseRoute": "Some segments have nearly antipodal ends: their azimuths may be off by up to ±{degrees}°. Only meaningful digits are shown (≈).",
       "mapPickingPoint": "Click the map to place point {point}",
       "mapPickingAdd": "Click the map to add a point to the route",
       "allUnits": "All units",

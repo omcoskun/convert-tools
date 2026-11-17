@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import "./support/jsx-loader.mjs";
+import * as core from "@convert-tools/core";
 import { ERROR_CODES, directGeodesic, measureGeodesicPolyline } from "@convert-tools/core";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
@@ -350,6 +351,57 @@ test("the route mode counts 2 segments for three points and lists them", () => {
   for (const index of [0, 1, 2]) assert.match(html, new RegExp(`id="measure-point-${index}"`));
   assert.ok(text.includes("1 → 2") && text.includes("2 → 3"), "one row per segment");
   assert.ok(text.includes(lang.tr.text.segmentsTitle));
+});
+
+// GeodTest row 474500 (near-vertex block): the core reports an azimuth
+// uncertainty of 0.006898° (1e-7 m / m12, m12 = 8.3e-4 m).
+const NEAR_VERTEX_POINTS = ["56.796245515064, 0", "-56.796245515064519948, 179.668926360912281556"];
+
+/** config.json with the measure tool opening on an example of its own. */
+function measureOpeningOn(example) {
+  return { ...config, measure: { ...config.measure, examples: [example, ...config.measure.examples] } };
+}
+
+test("nearly antipodal points: azimuths and area show only meaningful digits, and a notice says why", () => {
+  const { inverseGeodesic } = core;
+  const [start, end] = NEAR_VERTEX_POINTS.map((text) => {
+    const [latitude, longitude] = text.split(", ");
+    return { latitude, longitude };
+  });
+  const inverse = inverseGeodesic(start, end);
+  assert.ok(Math.abs(inverse.bearingUncertaintyDegrees - 0.006898) < 1e-6, String(inverse.bearingUncertaintyDegrees));
+  for (const language of ["tr", "en"]) {
+    const { html, text } = renderTool("measure", {
+      language,
+      configuration: measureOpeningOn({ id: "near-vertex", mode: "inverse", points: NEAR_VERTEX_POINTS }),
+    });
+    const result = visibleText(element(html, 'data-widget="result"'));
+    // 90.0049028° and 89.9950972° to the one decimal 0.0069° leaves (the
+    // no-break space after ≈ reads as a space here).
+    const decimal = language === "tr" ? "," : ".";
+    assert.ok(result.includes(`≈ 90${decimal}0°`), result);
+    assert.ok(!result.includes(`90${decimal}0049`), result);
+    assert.ok(text.includes(fill(lang[language].text.imprecisePath, { degrees: `0${decimal}0069` })), language);
+    assert.ok(text.includes("±"), "S12 in m² with its uncertainty");
+  }
+});
+
+test("a route with a nearly antipodal segment cuts that segment's azimuths and says so", () => {
+  const { html, text } = renderTool("measure", {
+    configuration: measureOpeningOn({ id: "near-vertex-route", mode: "route", points: [...NEAR_VERTEX_POINTS, "0, 0"] }),
+  });
+  assert.ok(text.includes(fill(lang.tr.text.impreciseRoute, { degrees: "0,0069" })), text);
+  assert.ok(visibleText(html).includes(`${lang.tr.text.initialAzimuth} ≈ 90,0°`), "segment 1 → 2");
+});
+
+test("an ordinary line keeps four decimals of its azimuths and no notice", () => {
+  const { html, text } = renderTool("measure");
+  const result = visibleText(element(html, 'data-widget="result"'));
+  assert.ok(result.includes("291,1841°"), result);
+  assert.ok(!text.includes("≈"), "nothing is cut");
+  for (const key of ["imprecisePath", "impreciseRoute"]) {
+    assert.ok(!text.includes(lang.tr.text[key].split("{")[0]), key);
+  }
 });
 
 test("the details end with the exact library call", () => {

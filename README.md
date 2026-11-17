@@ -151,7 +151,7 @@ araç vardır; her biri kendi adresiyle açılır:
 
 | Araç | Adres | Ne gösterir |
 |---|---|---|
-| Ölçüm | `#measure` | İki nokta (ters problem), azimut + mesafe (düz problem) ve rota; WGS 84, GRS 80, küre veya özel (prolate dahil) model; bütün birimler ve jeodezik büyüklükler |
+| Ölçüm | `#measure` | İki nokta (ters problem), azimut + mesafe (düz problem) ve rota; WGS 84, GRS 80, küre veya özel (prolate dahil) model; bütün birimler ve jeodezik büyüklükler; neredeyse antipodal uçlarda azimut ve alan yalnız anlamlı basamaklarıyla (≈) ve belirsizliğiyle |
 | Konum | `#positions` | DD, DMS, DDM, MGRS, UTM/UPS, GARS ve GEOREF arasında çeviri; çıktı hassasiyetleri ve MGRS karesinin köşesi veya merkezi |
 | CRS | `#crs` | Desteklenen EPSG sistemleri arasında koordinat dönüşümü |
 | Uzunluk | `#length` | Kesin kesirli oranlarla birim çevirisi, 0–60 ondalık hassasiyet, kesin kesir ve bütün birimler |

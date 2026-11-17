@@ -115,7 +115,7 @@ export function RouteDetails({ segments, labels, unit }) {
     <Disclosure title={text.segmentsTitle}>
       {segments.map((segment, index) => {
         const azimuths = segment.azimuthDefined
-          ? `${text.initialAzimuth} ${displayAngle(segment.initialBearingDegrees, language)} · ${text.finalAzimuth} ${displayAngle(segment.finalBearingDegrees, language)}`
+          ? `${text.initialAzimuth} ${displayAngle(segment.initialBearingDegrees, language, segment.bearingUncertaintyDegrees)} · ${text.finalAzimuth} ${displayAngle(segment.finalBearingDegrees, language, segment.bearingUncertaintyDegrees)}`
           : `${text.initialAzimuth} — · ${text.finalAzimuth} —`;
         const lengths = lengthsOf(segment.distanceMetres);
         return (

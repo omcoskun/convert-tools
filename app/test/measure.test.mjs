@@ -11,7 +11,11 @@ import {
   LENGTH_UNITS,
   MAX_TAGGED_SEGMENTS,
   callSnippet,
+  angleCopy,
+  areaDisplay,
   checkModel,
+  cutAzimuthBound,
+  displayBound,
   directLinePoints,
   displayAngle,
   displayDistance,
@@ -244,6 +248,72 @@ test("sphericalComparison yields no comparison instead of an error", () => {
   assert.equal(sphericalComparison(points, undefined, 350000), null);
   assert.equal(sphericalComparison(points, 6371008.8, 0), null, "no percentage of zero");
   assert.equal(sphericalComparison([points[0], { latitude: "x", longitude: "1" }], 6371008.8, 350000), null);
+});
+
+// GeodTest row 474500 (near-vertex block): m12 = 8.3e-4 m, so the azimuths
+// may be off by 1e-7 m / m12 = 0.0069° and S12 by about 9800 km^2.
+const NEAR_VERTEX = [
+  { latitude: "56.796245515064", longitude: "0" },
+  { latitude: "-56.796245515064519948", longitude: "179.668926360912281556" },
+];
+
+test("an azimuth shows only the decimals its uncertainty leaves, marked ≈ when cut", () => {
+  const ordinary = inverseGeodesic(A, B);
+  assert.equal(displayAngle(ordinary.initialBearingDegrees, "tr", ordinary.bearingUncertaintyDegrees), "291,1841°");
+  assert.equal(displayAngle(291.18406101, "tr", 0.0069), "≈\u00a0291,2°");
+  assert.equal(displayAngle(291.18406101, "en", 0.0069), "≈\u00a0291.2°");
+  // Coarser than a degree: still whole degrees; the notice gives the bound.
+  assert.equal(displayAngle(291.18406101, "en", 7), "≈\u00a0291°");
+  const nearVertex = inverseGeodesic(...NEAR_VERTEX);
+  assert.ok(Math.abs(nearVertex.bearingUncertaintyDegrees - 0.0069) < 0.0001, String(nearVertex.bearingUncertaintyDegrees));
+  assert.match(displayAngle(nearVertex.initialBearingDegrees, "en", nearVertex.bearingUncertaintyDegrees), /^≈\u00a0-?\d+\.\d°$/);
+});
+
+test("a copied azimuth keeps the digits its uncertainty leaves, at most 12 decimals", () => {
+  // 1.6e-11°: ten decimals mean something (half a unit is 5e-11).
+  assert.equal(angleCopy(291.1840610099589, 1.6e-11), "291.18406101");
+  assert.equal(angleCopy(291.18406101, 0.0069), "291.2");
+  assert.equal(angleCopy(291.18406101, 7), "291");
+  assert.equal(angleCopy(-0.00001, 0.0069), "0");
+  assert.equal(angleCopy(10.1234567890123, 1e-14), "10.123456789012");
+});
+
+test("S12 shows the km² its uncertainty leaves and m² with the uncertainty", () => {
+  const ordinary = inverseGeodesic(A, B);
+  const area = areaDisplay(ordinary.areaSquareMetres, ordinary.areaUncertaintySquareMetres, "tr");
+  // 0.42 m^2: all three decimals of km^2, one of m^2, the bound rounded up.
+  assert.equal(area.approximate, false);
+  assert.equal(area.value, localeDecimal(squareKilometres(ordinary.areaSquareMetres, 3), 3, "tr"));
+  assert.equal(area.copyValue, squareKilometres(ordinary.areaSquareMetres, 6));
+  assert.equal(area.note, `${localeDecimal(ordinary.areaSquareMetres.toFixed(1), 1, "tr")} ± 0,5 m²`);
+
+  // 9800 km^2: rounded to 100 000 km^2 (half of it is 50 000 >= 9800).
+  const far = areaDisplay(-1780547722803.9531, 9.8e9, "en");
+  assert.equal(far.approximate, true);
+  assert.equal(far.value, "≈\u00a0−1,800,000");
+  assert.equal(far.copyValue, "-1800000");
+  assert.equal(far.note, "−1,780,500,000,000 ± 9,800,000,000 m²");
+});
+
+test("the notice names the widest azimuth uncertainty among azimuths shown cut", () => {
+  const ordinary = inverseGeodesic(A, B);
+  const nearVertex = inverseGeodesic(...NEAR_VERTEX);
+  const coincident = inverseGeodesic(A, A);
+  assert.equal(cutAzimuthBound([ordinary, coincident]), null);
+  assert.equal(cutAzimuthBound([ordinary, nearVertex, coincident]), nearVertex.bearingUncertaintyDegrees);
+  const route = measureGeodesicPolyline([...NEAR_VERTEX, { latitude: "0", longitude: "0" }]);
+  assert.equal(cutAzimuthBound(route.segments), route.segments[0].bearingUncertaintyDegrees);
+  // 0.006898°: two significant digits, rounded up.
+  assert.equal(displayBound(nearVertex.bearingUncertaintyDegrees, "tr"), "0,0069");
+  assert.equal(displayBound(180, "en"), "180");
+});
+
+test("S12 without an uncertainty (the direct problem) shows every decimal as before", () => {
+  const area = areaDisplay(-1780547722803.9531, undefined, "tr");
+  assert.equal(area.approximate, false);
+  assert.equal(area.value, "−1.780.547,723");
+  assert.equal(area.copyValue, "-1780547.722803953");
+  assert.equal(area.note, "−1.780.547.722.804,0 m²");
 });
 
 test("computed angles and points: display rounding per language, every digit when copied", () => {
