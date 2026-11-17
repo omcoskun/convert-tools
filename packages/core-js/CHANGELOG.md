@@ -100,6 +100,20 @@ için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
   yanlışlıkla `true` olabiliyordu: aynı hatta yakınsayan iki Newton
   çözümünün azimutları 1e-8° düzeyinde ayrılıyordu. Farklı jeodezik sayılmak
   için gereken azimut farkı 1e-9°'den 1e-6°'ye çıktı.
+- Üç eksenli ters problem, 1. noktanın cut locus'unda (β2 = −β1) eşlenik
+  noktaya yakın çiftlerde iki eş uzunluktaki en kısa jeodezikten birini
+  bulup öbürünü kaçırıyordu ve `ambiguous` `false` dönüyordu: iki en kısa hat
+  ile aralarındaki biraz daha uzun üçüncü hat 0,5°'den dar bir aralığa
+  sığıyordu (Geod3Test hold-out koşusunda 500 000 satırın 2'si). Birbirinden
+  iki kaba ışın aralığından az uzak her iki farklı çözüm artık birbirine göre
+  yansıyan azimutta Newton'a başlangıç verir. Vektörler:
+  `triaxial-cut-locus.csv` (32 satır, iki çiftin simetrik biçimleri).
+- Üç eksenli ters problemde eş uzunluktaki jeodezikler arasındaki seçim
+  artık yuvarlamaya bağlı değil: uzunlukları 1e-13 içinde eş olan farklı
+  hatlardan cos(α1)'i büyük olan, cos(α1) eşitse sin(α1)'i büyük olan döner
+  (umbilik uçlarda değişiklik yok; β = 0 elipsi kuralı R1 bundan sonra
+  uygulanır). Önceden JavaScript ve Java Geod3Test'in 120 satırında farklı,
+  ikisi de geçerli hatlar döndürüyordu.
 
 ### Değişenler
 

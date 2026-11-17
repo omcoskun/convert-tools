@@ -13,7 +13,14 @@
 //       about d / (a cos(lat)) near a pole and the inverse solvers fix alp1
 //       to about d / |m12|. 1e-8 m is ten times the measured endpoint noise;
 //       GeodSolve itself differs from GeodSolve -E by up to 2e4 m^2 on
-//       self-generated lines ending within metres of a pole;
+//       self-generated lines ending within metres of a pole. The inverse a12
+//       and m12 limits follow the rule of docs/GEODESIC_VALIDATION.md, ours <=
+//       max(2 * reference-binary maximum in the row's GeodTest block, floor),
+//       with the GeodSolve maxima of the full 500000-line run
+//       (REFERENCE_INVERSE). Only the near-vertex block (a12 = 180 - 1e-7
+//       deg, both quantities ill-conditioned there) lifts a limit above its
+//       floor; the direct a12 and m12 maxima of GeodSolve (8.53e-14 deg,
+//       8.40e-9 m) stay below half their floors in every block;
 //   (b) the triaxial inverse and direct solvers against geod3test-sample.csv
 //       (a = sqrt(2), b = 1, c = 1/sqrt(2)) with the floors of the full-set
 //       limits: inverse distance, direct position and inverse
@@ -51,6 +58,31 @@ const C2 = (() => {
   const e = Math.sqrt(F * (2 - F));
   return (A * A + (b * b * Math.atanh(e)) / e) / 2;
 })();
+// GeodTest blocks in line order (contracts/tools/validate-geodtest.mjs) with
+// GeodSolve's largest inverse a12 (deg) and m12 (m) error in each over all
+// 500000 lines (GeographicLib 2.7, run of 2026-11-17; near-vertex recomputed
+// at its worst line 459433, the others as printed to three digits).
+const REFERENCE_INVERSE = [
+  ["random", 100000, 5.68e-14, 4.19e-9],
+  ["antipodal", 50000, 1.14e-13, 2.66e-8],
+  ["short", 50000, 2.59e-14, 3.2e-9],
+  ["one-pole", 50000, 5.68e-14, 3.73e-9],
+  ["opposite-poles", 50000, 2.84e-14, 1.97e-9],
+  ["meridional", 50000, 2.84e-14, 3.73e-9],
+  ["equatorial", 50000, 5.68e-14, 4.66e-9],
+  ["vertex-to-vertex", 50000, 0, 3e-9],
+  ["near-vertex", 50000, 1.3617e-10, 4.537e-5],
+];
+
+/** The REFERENCE_INVERSE entry of the block holding GeodTest line `index`. */
+function referenceBlock(index) {
+  let first = 0;
+  for (const block of REFERENCE_INVERSE) {
+    if (index < first + block[1]) return block;
+    first += block[1];
+  }
+  throw new Error(`GeodTest line ${index} is past the last block`);
+}
 
 test("hold-out switch says enabled or disabled", () => {
   assert.ok(SWITCH === "enabled" || SWITCH === "disabled", `holdout.txt says ${JSON.stringify(SWITCH)}`);
@@ -81,9 +113,13 @@ if (SWITCH !== "enabled") {
       const m12 = Number(row.m12);
       const inverse = inverseGeodesic(start, { latitude: Number(row.lat2), longitude: Number(row.lon2) });
       const direct = directGeodesic(start, Number(row.azi1), Number(row.s12));
+      const [, , referenceA12, referenceM12] = referenceBlock(Number(row.id.replace(/^geodtest-/, "")));
       for (const [kind, result] of [["inverse", inverse], ["direct", direct]]) {
-        check(`${kind}A12`, Math.abs(result.arcDegrees - Number(row.a12)), 1e-7 / ((A * Math.PI) / 180), row.id);
-        check(`${kind}M12`, Math.abs(result.reducedLengthMetres - m12), 1e-7, row.id);
+        const a12Floor = 1e-7 / ((A * Math.PI) / 180);
+        const a12Limit = kind === "inverse" ? Math.max(2 * referenceA12, a12Floor) : a12Floor;
+        const m12Limit = kind === "inverse" ? Math.max(2 * referenceM12, 1e-7) : 1e-7;
+        check(`${kind}A12`, Math.abs(result.arcDegrees - Number(row.a12)), a12Limit, row.id);
+        check(`${kind}M12`, Math.abs(result.reducedLengthMetres - m12), m12Limit, row.id);
         const polar = 1 / (A * Math.cos((Number(row.lat1) * Math.PI) / 180)) + 1 / (A * Math.cos((Number(row.lat2) * Math.PI) / 180));
         const conditioning = kind === "inverse" ? polar + 1 / Math.abs(m12) : polar;
         const areaLimit = AREA_FLOOR + C2 * AREA_AZIMUTH_NOISE * conditioning;

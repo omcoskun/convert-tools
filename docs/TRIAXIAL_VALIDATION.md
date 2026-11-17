@@ -59,6 +59,19 @@ sağlamlık, çift hassasiyete yakın doğruluk, kod boyu.
      ayna simetrileri altındaki görüntülerini ve noktaları yer değiştirilmiş
      hallerini taşır (16 satır, `Geod3Solve -i -p 15`; eski arama 16'sında da
      0,6 b uzun hat veriyordu).
+  4. birbirinden en çok iki kaba ışın aralığı (4°) uzak, azimutları 1e-6°'den
+     fazla farklı her iki yakınsamış çözümden birinin öbürüne göre yansıması
+     (`2 α_b − α_a`, uzunluk `s_a`, azimut adımı `|α_a − α_b|`). 1. noktanın
+     cut locus'unda (β2 = −β1) eşlenik noktaya yakın çiftlerde iki eş uzunlukta
+     en kısa hat (α ve 180 − α) ile aralarında biraz daha uzun üçüncü bir hat
+     0,5°'den dar bir aralıktan çıkar; inceltme yelpazesi bunlardan ikisini
+     bulup üçüncüsünü kaçırabiliyordu. Ortadaki hat ile bir dış hat bulunmuşsa
+     öbür dış hat yansımadadır. Bulunan örnekler Geod3Test hold-out koşusunun
+     iki satırıdır (497448: `(−32, 102) → (32, −155)`, en kısa hatlar 89,7903° ve
+     90,2097°, ortadaki 90,00016° ve 8,6e-11 b daha uzun; 497603:
+     `(−55, −60) → (55, 44)`); `ambiguous` `false` dönüyordu. Sözleşme vektörü
+     `triaxial-cut-locus.csv` iki çifti 16'şar simetrik biçimiyle taşır (32
+     satır; eski arama 32'sinin hiçbirinde `ambiguous` vermiyordu).
 
   Newton `(α, s)` üzerinde çalışır: `Δs = r·V`, `Δα = r·W / m`, burada `W`
   azimut değişiminin Jacobi alanının birim yönüdür; azimut adımı başlangıcın
@@ -67,7 +80,9 @@ sağlamlık, çift hassasiyete yakın doğruluk, kod boyu.
   sürer; inemeyen başlangıç bırakılır. İkinci aşama doğru integratörle (GBS)
   kaçırma `1e-14 · a`'nın altına inene ya da üç yinelemede küçülmez olana kadar
   sürer. Her aşamanın en çok 40 yinelemesi vardır. Kaçırması 1e-12'nin altında
-  kalan çözümlerin en kısası döndürülür.
+  kalan çözümlerin en kısası döndürülür (eş uzunlukta çözümler arasındaki
+  seçim için "Eş uzunlukta jeodezikler ve umbilik yön kuralları" bölümüne
+  bakın).
 - **Bilinen sınır.** Yelpaze ayrıklığı nedeniyle çok yakın iki çözüm
   (eşlenik noktaya yakın durumlar) birleşebilir; inceltme yelpazesi ve işaret
   değişimi başlangıçları bunun içindir. `find-triaxial-misses.mjs` 20.000
@@ -154,8 +169,9 @@ umbilik bir noktada da bir yönün iki azimut etiketi (α ve α + 180) bulunur.
 Kütüphane böyle durumlarda doğru bir cevap verir, ama GeographicLib'in
 (`Geod3Solve`) seçtiği cevabı her zaman vermez ve cevabın tek olmadığını
 söylemez. Aşağıdaki kurallar `Geod3Solve` 2.7'ye karşı CAYLEY, MILD ve EARTH3
-elipsoitlerinde 16 Kasım 2026'da ölçüldü ve her örnekle uyuştu. Kurallar en iyi
-çözüm seçildikten sonra `solveTriaxialInverse` içinde, bu sırayla uygulanır;
+elipsoitlerinde 16 Kasım 2026'da ölçüldü ve her örnekle uyuştu (R0 hariç; R0
+17 Kasım 2026'da eklendi). R0 en iyi çözümü seçer; R1–R3 ondan sonra
+`solveTriaxialInverse` içinde, bu sırayla uygulanır;
 açılar motorda `[sin, cos]` çiftleridir ve `alp1`, `alp2` döndürülen
 azimutlardır.
 
@@ -166,6 +182,17 @@ doğrudur. `side(ω)`, `sin ω < 0` ise −1, değilse +1'dir. `opposite`, `umb1
 `umb2` iken noktaların antipodal umbilikler olmasıdır
 (`sin β₂ = −sin β₁` ve `cos ω₂ = −cos ω₁`).
 
+- **R0 (eş uzunlukta hatlar arasında seçim).** Yakınsamış çözümlerin en
+  kısasından uzunluğu en çok 1e-13 (b birimi) farklı ve azimutu 1e-6°'den
+  fazla farklı çözümler arasından `cos α₁`'i 1e-9'dan fazla büyük olan,
+  kosinüsler 1e-9 içinde eşitse `sin α₁`'i büyük olan seçilir; `umb1` ya da
+  `umb2` iken en kısa çözüm kalır. Bu kural GeographicLib'in seçimini
+  taklit etmez: cut-locus çiftlerinde `Geod3Solve`'un ve Geod3Test'in seçimi
+  β, ω işaretleriyle ya da `α₁`'in kosinüs/sinüsüyle açıklanamadı ve ikisi
+  aynı satırda farklı hatlar verebilir. Amacı JavaScript ile Java'nın
+  yuvarlamadan bağımsız olarak aynı hattı döndürmesidir (önceden
+  Geod3Test'in 120 satırında farklıydı). Bu satırlarda `ambiguous` (aşağıdaki
+  3. koşul) `true`'dur.
 - **R1 (iki nokta da β = 0 elipsinde).** `sin β₁ = sin β₂ = 0` ve
   `cos α₁ > 0` ise `α₁` ve `α₂`'nin kosinüsü negatife çevrilir (z = 0
   düzlemindeki yansıma); `s12`, `m12`, `M12`, `M21` değişmez. GeographicLib
@@ -218,8 +245,35 @@ göre değerlendirilir.
 
 | Ölçüt | Taban | JavaScript | Java |
 |---|---:|---|---|
-| Ters mesafe, doğrudan konum, `\|Δα1\|·\|m12\|` | 1e-13 | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
-| m12, M12, M21 (mutlak) | 1e-11 | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
+| Ters mesafe | 1e-13 | 1,87e-14 | 1,87e-14 |
+| Doğrudan konum | 1e-13 | 1,89e-14 | 1,89e-14 |
+| `\|Δα1\|·\|m12\|` | 1e-13 | 2,36e-14 | 2,12e-14 |
+| m12 | 1e-11 | 3,00e-14 | 3,00e-14 |
+| M12 | 1e-11 | 3,93e-14 | 4,31e-14 |
+| M21 | 1e-11 | 6,88e-14 | 6,88e-14 |
+| Başarısız satır / alternatif | 0 | 0 / 701 | 0 / 701 |
+
+Ölçüm 17 Kasım 2026, 500.000 satır, satır bazında kural (aşağıda); iki dilde
+aynı karar (`rows judged differently in the two languages: 0`) ve aynı
+başlangıç azimutu (1e-6°'den fazla farklı satır yok). Java 500.000 satırı
+153 s'de çözdü. "Alternatif", çözücünün `ambiguous` bildirdiği, veri setinden
+farklı ama aynı uzunlukta ve 2. noktada biten bir hat verdiği satırdır (β = 0
+elipsinde 214, genel blokta 487).
+
+İlk koşuda iki dilde de 2 satır kaldı (497448 ve 497603, `|Δα1|·|m12|`
+2,4e-7 ve 4,2e-6): 1. noktanın cut locus'unda (β2 = −β1), eşlenik noktaya
+yakın çiftlerdi; çözücü iki eş uzun hattan birini ve aradaki biraz daha uzun
+hattı bulup öbür en kısa hattı kaçırdı, `ambiguous` bildirmedi (yöntem, 4.
+başlangıç). Ayrıca 120 satırda JavaScript ve Java farklı (ikisi de geçerli,
+ikisi de `ambiguous`) eş uzun hatlar döndürdü; yuvarlama seçiyordu (R0 ile
+giderildi). Düzeltmeden sonra tam küme yeniden koşuldu (yukarıdaki tablo). Düzeltme
+hold-out sonucuna bakılarak yapıldığı için bu iki satır için yeniden koşu
+artık kör değildir: kör ölçüm ilk koşudur (500.000 satırın 499.998'i
+geçti).
+Kör sentetik set (test aşamasının kendi tohumu, 20.000 satır, `Geod3Solve`
+doğru kabul) düzeltmeden önce ve sonra iki dilde 0 başarısız satır verdi.
+Hız değişmedi (CAYLEY'de 1000 rastgele çiftte ortanca 4,35 ms; sonuçlar eski
+kodla en çok 7,4e-15 b farklı).
 
 ## Satır bazında doğrulama kuralı
 

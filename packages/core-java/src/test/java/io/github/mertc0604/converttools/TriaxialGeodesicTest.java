@@ -39,6 +39,7 @@ public final class TriaxialGeodesicTest {
         inverseVectors(vectors);
         shortestVectors(vectors);
         causticVectors(vectors);
+        cutLocusVectors(vectors);
         conventionVectors(vectors);
         umbilicFarVectors(vectors);
         antipodalUmbilics();
@@ -156,6 +157,29 @@ public final class TriaxialGeodesicTest {
                     row.get("id") + ": alp1");
             check(headingDifference(result.finalAzimuthDegrees(), num(row, "expected_alp2")) * m12 <= tolerance,
                     row.get("id") + ": alp2");
+        }
+    }
+
+    private static void cutLocusVectors(Path dir) throws IOException {
+        List<Map<String, String>> rows = read(dir, "triaxial-cut-locus.csv");
+        check(rows.size() == 32, "triaxial-cut-locus.csv rows " + rows.size());
+        for (Map<String, String> row : rows) {
+            Axes axes = new Axes(num(row, "a"), num(row, "b"), num(row, "c"));
+            TriaxialGeodesic.InverseResult result = TriaxialGeodesic.inverse(
+                    new Point(num(row, "bet1"), num(row, "omg1")), new Point(num(row, "bet2"), num(row, "omg2")), axes);
+            double tolerance = num(row, "tolerance");
+            double m12 = Math.abs(result.reducedLength());
+            double alp1 = num(row, "expected_alp1");
+            double alp2 = num(row, "expected_alp2");
+            check(Math.abs(result.distance() - num(row, "expected_s12")) <= tolerance,
+                    row.get("id") + ": distance " + result.distance());
+            // The other shortest line leaves with heading 180 - alp1.
+            boolean same = headingDifference(result.initialAzimuthDegrees(), alp1) * m12 <= tolerance
+                    && headingDifference(result.finalAzimuthDegrees(), alp2) * m12 <= tolerance;
+            boolean mirror = headingDifference(result.initialAzimuthDegrees(), 180 - alp1) * m12 <= tolerance
+                    && headingDifference(result.finalAzimuthDegrees(), 180 - alp2) * m12 <= tolerance;
+            check(same || mirror, row.get("id") + ": alp1 " + result.initialAzimuthDegrees());
+            check(result.ambiguous(), row.get("id") + ": ambiguous");
         }
     }
 

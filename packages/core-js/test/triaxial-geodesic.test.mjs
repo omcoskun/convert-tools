@@ -81,6 +81,26 @@ test("inverse finds the shortest geodesic near a caustic (contracts/test-vectors
   }
 });
 
+test("inverse finds both shortest geodesics on the cut locus (contracts/test-vectors/triaxial-cut-locus.csv)", () => {
+  const rows = readVectors("triaxial-cut-locus.csv");
+  assert.equal(rows.length, 32);
+  for (const row of rows) {
+    const options = { ellipsoid: { a: Number(row.a), b: Number(row.b), c: Number(row.c) } };
+    const result = inverseTriaxialGeodesic({ beta: row.bet1, omega: row.omg1 }, { beta: row.bet2, omega: row.omg2 }, options);
+    const tolerance = Number(row.tolerance);
+    const m12 = Math.abs(result.reducedLength);
+    const alp1 = Number(row.expected_alp1);
+    const alp2 = Number(row.expected_alp2);
+    const matches = (a1, a2) =>
+      headingDifference(result.initialAzimuthDegrees, a1) * m12 <= tolerance &&
+      headingDifference(result.finalAzimuthDegrees, a2) * m12 <= tolerance;
+    assert.ok(Math.abs(result.distance - Number(row.expected_s12)) <= tolerance, `${row.id}: distance ${result.distance}`);
+    // The other shortest line leaves with heading 180 - alp1.
+    assert.ok(matches(alp1, alp2) || matches(180 - alp1, 180 - alp2), `${row.id}: alp1 ${result.initialAzimuthDegrees}`);
+    assert.equal(result.ambiguous, true, `${row.id}: ambiguous`);
+  }
+});
+
 test("triaxial inverse matches Geod3Solve conventions on symmetric and umbilical pairs", () => {
   const rows = readVectors("triaxial-conventions.csv");
   const degree = (1e-7 * Math.PI) / 180;

@@ -698,20 +698,77 @@ final class TriaxialEngine {
                 }
             }
         }
-        Solution best = null;
         List<Solution> solutions = new ArrayList<>();
         for (Start start : starts) {
             Solution solution = newton(u, bet1, omg1, P2, start.alpha(), start.s(), start.step());
-            if (solution == null) {
-                continue;
-            }
-            solutions.add(solution);
-            if (best == null || solution.s() < best.s()) {
-                best = solution;
+            if (solution != null) {
+                solutions.add(solution);
             }
         }
-        if (best == null) {
+        // Near a conjugate point three lines through P2 can leave within a
+        // fraction of a degree of each other: two equally short ones on either
+        // side of a slightly longer middle one, closer together than the fine
+        // fan resolves. Every two distinct converged lines less than two coarse
+        // spacings apart seed Newton at the reflection of each about the other,
+        // with their separation as step limit: when the pair is the middle line
+        // and one outer line, the other outer line lies there.
+        double period = umb1 ? 180 : 360;
+        List<Solution> distinct = new ArrayList<>();
+        for (Solution solution : solutions) {
+            boolean isNew = true;
+            for (Solution other : distinct) {
+                if (!(headingGap(other.alpha(), solution.alpha(), period) > AMBIGUOUS_HEADING)) {
+                    isNew = false;
+                    break;
+                }
+            }
+            if (isNew) {
+                distinct.add(solution);
+            }
+        }
+        for (Solution a : distinct) {
+            for (Solution b : distinct) {
+                double d = (b.alpha() - a.alpha()) % period;
+                if (d > period / 2) {
+                    d -= period;
+                } else if (d < -period / 2) {
+                    d += period;
+                }
+                double gap = Math.abs(d);
+                if (!(gap > AMBIGUOUS_HEADING && gap <= 2 * spacing)) {
+                    continue;
+                }
+                Solution solution = newton(u, bet1, omg1, P2, b.alpha() + d, a.s(), gap);
+                if (solution != null) {
+                    solutions.add(solution);
+                }
+            }
+        }
+        if (solutions.isEmpty()) {
             return null;
+        }
+        // The shortest line; between lines whose lengths agree within 1e-13 and
+        // whose headings differ (equally short geodesics, reported as ambiguous
+        // below) the one with the larger cos(alp1), then the larger sin(alp1),
+        // so that round-off does not decide which one is returned. Umbilical
+        // ends keep the shortest line: rules R2 and R3 below fix their labels.
+        Solution shortest = solutions.get(0);
+        for (Solution solution : solutions) {
+            if (solution.s() < shortest.s()) {
+                shortest = solution;
+            }
+        }
+        Solution best = shortest;
+        for (Solution solution : solutions) {
+            if (umb1 || umb2 || !(Math.abs(solution.s() - shortest.s()) <= 1e-13)) {
+                continue;
+            }
+            if (!(headingGap(solution.alpha(), best.alpha(), period) > AMBIGUOUS_HEADING)) {
+                continue;
+            }
+            if (preferredHeading(solution.alpha(), best.alpha())) {
+                best = solution;
+            }
         }
         double[] alp2 = directionToHeading(u, bet2, omg2, best.end().V());
         double[] alp1 = umb1
@@ -747,13 +804,11 @@ final class TriaxialEngine {
         // Two converged lines of the same length with different headings are
         // equally short geodesics.
         if (!ambiguous && solutions.size() > 1) {
-            double period = umb1 ? 180 : 360;
             for (Solution solution : solutions) {
                 if (solution == best || !(Math.abs(solution.s() - best.s()) <= 1e-13)) {
                     continue;
                 }
-                double wrapped = Math.abs(solution.alpha() - best.alpha()) % period;
-                if (Math.min(wrapped, period - wrapped) > AMBIGUOUS_HEADING) {
+                if (headingGap(solution.alpha(), best.alpha(), period) > AMBIGUOUS_HEADING) {
                     ambiguous = true;
                     break;
                 }
@@ -771,6 +826,22 @@ final class TriaxialEngine {
     /** -1 for sin(omega) &lt; 0, else +1. */
     private static int side(double[] omg) {
         return omg[0] < 0 ? -1 : 1;
+    }
+
+    /** The angle between two headings in degrees, headings being periodic. */
+    private static double headingGap(double alpha, double other, double period) {
+        double wrapped = Math.abs(alpha - other) % period;
+        return Math.min(wrapped, period - wrapped);
+    }
+
+    /** Whether heading alpha wins the tie with heading other (both in degrees). */
+    private static boolean preferredHeading(double alpha, double other) {
+        double ca = Math.cos(alpha * (Math.PI / 180));
+        double co = Math.cos(other * (Math.PI / 180));
+        if (Math.abs(ca - co) > 1e-9) {
+            return ca > co;
+        }
+        return Math.sin(alpha * (Math.PI / 180)) > Math.sin(other * (Math.PI / 180));
     }
 
     /** The state after arc length s, by fixed RK4 steps of at most u.step / 4. */

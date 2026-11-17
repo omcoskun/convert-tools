@@ -1191,6 +1191,61 @@ function triaxialCausticVectors() {
   });
 }
 
+// Two point pairs on the cut locus of point 1 (bet2 = -bet1) next to its
+// conjugate point: two equally short lines leave with headings alp and
+// 180 - alp, about 0.2-0.7 degrees from 90, and a slightly longer third line
+// leaves between them. They are Geod3Test rows 497448 and 497603, where the
+// first hold-out run (17 November 2026) found the middle line and one outer
+// line but not the other, and so did not report `ambiguous`. Each pair is
+// written in its 16 symmetric forms, as for the caustic pair; Geod3Solve may
+// return either shortest line, and the tests accept both.
+const TRIAXIAL_CUT_LOCUS = [
+  [-32, 102, 32, -155],
+  [-55, -60, 55, 44],
+];
+
+function triaxialCutLocusVectors() {
+  const ellipsoid = TRIAXIAL_ELLIPSOIDS.find((entry) => entry.id === "CAYLEY");
+  const axes = [ellipsoid.a, ellipsoid.b, ellipsoid.c].map(String);
+  const wrap = (omega) => (omega > 180 ? omega - 360 : omega <= -180 ? omega + 360 : omega);
+  const omegaMaps = [(omega) => omega, (omega) => -omega, (omega) => wrap(180 - omega), (omega) => wrap(omega + 180)];
+  const pairs = [];
+  for (const [bet1, omg1, bet2, omg2] of TRIAXIAL_CUT_LOCUS) {
+    for (const swap of [false, true]) {
+      for (const sign of [1, -1]) {
+        for (const map of omegaMaps) {
+          const [b1, o1, b2, o2] = swap ? [bet2, omg2, bet1, omg1] : [bet1, omg1, bet2, omg2];
+          pairs.push({ bet1: dec(sign * b1, 15), omg1: dec(map(o1), 15), bet2: dec(sign * b2, 15), omg2: dec(map(o2), 15) });
+        }
+      }
+    }
+  }
+  const inverse = runTool(GEOD3SOLVE, ["-i", "-t", ...axes, "-p", "15"], pairs.map((p) => `${p.bet1} ${p.omg1} ${p.bet2} ${p.omg2}`));
+  const rows = pairs.map((pair, index) => {
+    const [alp1, alp2, s12] = inverse[index].split(/\s+/);
+    if (!(Number(s12) > 0)) throw new Error(`Geod3Solve inverse CAYLEY-cut-locus-${index}: ${inverse[index]}`);
+    return [`CAYLEY-cut-locus-${String(index).padStart(2, "0")}`, ellipsoid.id, ...axes, pair.bet1, pair.omg1, pair.bet2, pair.omg2, alp1, alp2, s12, "1e-13"];
+  });
+  manifest.files.push({
+    ...writeCsv("triaxial-cut-locus.csv", [...TRIAXIAL_HEADER, "bet2", "omg2", "expected_alp1", "expected_alp2", "expected_s12", "tolerance"], rows),
+    source: "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)",
+  });
+}
+
+// geod3test-sample.csv is written by contracts/tools/build-geod3test-sample.mjs
+// from Karney's Geod3Test-v1.txt, which is not distributed with this
+// repository. As for geodtest-sample.csv, its manifest entry is recorded here
+// so that running this script does not drop it.
+function geod3testSample() {
+  manifest.files.push({
+    name: "geod3test-sample.csv",
+    rows: 1000,
+    sha256: "7f57f282768d83fca3fb41f96dd31ec5c183e23ffea782da579e0a33a45e5078",
+    source: "Karney's Geod3Test-v1.txt, DOI 10.5281/zenodo.12510796, CC0-1.0, MD5 495983cb4d8128d1543a22ebd26617d6",
+    selection: "awk 'BEGIN{print \"id,bet1,omg1,alp1,bet2,omg2,alp2,s12,m12,M12,M21\"} (NR-1)%500==0 {printf \"geod3test-%06d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\\n\", NR-1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' Geod3Test-v1.txt",
+  });
+}
+
 // ------------------------------------------------------------------ run
 
 const forwardRows = utmUpsForward();
@@ -1210,6 +1265,8 @@ triaxialConventionVectors();
 triaxialUmbilicFarVectors();
 triaxialDirectAccuracyVectors();
 triaxialCausticVectors();
+triaxialCutLocusVectors();
+geod3testSample();
 
 manifest.skipped = skipped;
 manifest.files.sort((a, b) => a.name.localeCompare(b.name));

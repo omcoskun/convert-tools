@@ -21,6 +21,13 @@
       "source": "GeographicLib GARS::Forward(lat, lon, PRECISION) and GARS::Reverse(centerp=true) via geographiclib-helper"
     },
     {
+      "name": "geod3test-sample.csv",
+      "rows": 1000,
+      "sha256": "7f57f282768d83fca3fb41f96dd31ec5c183e23ffea782da579e0a33a45e5078",
+      "source": "Karney's Geod3Test-v1.txt, DOI 10.5281/zenodo.12510796, CC0-1.0, MD5 495983cb4d8128d1543a22ebd26617d6",
+      "selection": "awk 'BEGIN{print \"id,bet1,omg1,alp1,bet2,omg2,alp2,s12,m12,M12,M21\"} (NR-1)%500==0 {printf \"geod3test-%06d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\\n\", NR-1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' Geod3Test-v1.txt"
+    },
+    {
       "name": "geodesic-direct-ellipsoids.csv",
       "rows": 760,
       "sha256": "4b4b4fa73f40394318b88cb50f89980e0440231133379e6b3c23e79c5457bdb4",
@@ -79,6 +86,12 @@
       "name": "triaxial-conventions.csv",
       "rows": 212,
       "sha256": "26bccafba60b588c87dd68a9e727142c722839761a3f9d9829899a55bcad171f",
+      "source": "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)"
+    },
+    {
+      "name": "triaxial-cut-locus.csv",
+      "rows": 32,
+      "sha256": "ed5b662252c6ac949dc68c5773451db30a96c94ba8450da28a6e6ead1ed21a61",
       "source": "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)"
     },
     {

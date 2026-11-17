@@ -434,15 +434,50 @@ export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2, tuning = {})
       }
     }
   }
-  let best = null;
   const solutions = [];
   for (const start of starts) {
     const solution = newton(u, bet1, omg1, P2, start.alpha, start.s, start.step);
-    if (solution === null) continue;
-    solutions.push(solution);
-    if (best === null || solution.s < best.s) best = solution;
+    if (solution !== null) solutions.push(solution);
   }
-  if (best === null) return null;
+  // Near a conjugate point three lines through P2 can leave within a fraction
+  // of a degree of each other: two equally short ones on either side of a
+  // slightly longer middle one, closer together than the fine fan resolves.
+  // Every two distinct converged lines less than two coarse spacings apart
+  // seed Newton at the reflection of each about the other, with their
+  // separation as step limit: when the pair is the middle line and one outer
+  // line, the other outer line lies there.
+  const period = umb1 ? 180 : 360;
+  const distinct = [];
+  for (const solution of solutions) {
+    if (distinct.every((other) => headingGap(other.alpha, solution.alpha, period) > AMBIGUOUS_HEADING)) {
+      distinct.push(solution);
+    }
+  }
+  for (const a of distinct) {
+    for (const b of distinct) {
+      let d = (b.alpha - a.alpha) % period;
+      if (d > period / 2) d -= period;
+      else if (d < -period / 2) d += period;
+      const gap = Math.abs(d);
+      if (!(gap > AMBIGUOUS_HEADING && gap <= 2 * spacing)) continue;
+      const solution = newton(u, bet1, omg1, P2, b.alpha + d, a.s, gap);
+      if (solution !== null) solutions.push(solution);
+    }
+  }
+  if (solutions.length === 0) return null;
+  // The shortest line; between lines whose lengths agree within 1e-13 and
+  // whose headings differ (equally short geodesics, reported as ambiguous
+  // below) the one with the larger cos(alp1), then the larger sin(alp1), so
+  // that round-off does not decide which one is returned. Umbilical ends keep
+  // the shortest line: rules R2 and R3 below fix their labels.
+  let shortest = solutions[0];
+  for (const solution of solutions) if (solution.s < shortest.s) shortest = solution;
+  let best = shortest;
+  for (const solution of solutions) {
+    if (umb1 || umb2 || !(Math.abs(solution.s - shortest.s) <= 1e-13)) continue;
+    if (!(headingGap(solution.alpha, best.alpha, period) > AMBIGUOUS_HEADING)) continue;
+    if (preferredHeading(solution.alpha, best.alpha)) best = solution;
+  }
   let alp2 = directionToHeading(u, bet2, omg2, best.end.V);
   let alp1 = umb1
     ? directionToHeading(u, bet1, omg1, headingToDirection(u, bet1, omg1, angle(best.alpha)))
@@ -476,11 +511,9 @@ export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2, tuning = {})
   // Two converged lines of the same length with different headings are
   // equally short geodesics.
   if (!ambiguous && solutions.length > 1) {
-    const period = umb1 ? 180 : 360;
     for (const solution of solutions) {
       if (solution === best || !(Math.abs(solution.s - best.s) <= 1e-13)) continue;
-      const wrapped = Math.abs(solution.alpha - best.alpha) % period;
-      if (Math.min(wrapped, period - wrapped) > AMBIGUOUS_HEADING) {
+      if (headingGap(solution.alpha, best.alpha, period) > AMBIGUOUS_HEADING) {
         ambiguous = true;
         break;
       }
@@ -495,6 +528,20 @@ export function solveTriaxialInverse(model, bet1, omg1, bet2, omg2, tuning = {})
     M21: best.end.dm,
     ambiguous,
   };
+}
+
+/** The angle between two headings in degrees, headings being periodic. */
+function headingGap(alpha, other, period) {
+  const wrapped = Math.abs(alpha - other) % period;
+  return Math.min(wrapped, period - wrapped);
+}
+
+/** Whether heading alpha wins the tie with heading other (both in degrees). */
+function preferredHeading(alpha, other) {
+  const ca = Math.cos(alpha * (Math.PI / 180));
+  const co = Math.cos(other * (Math.PI / 180));
+  if (Math.abs(ca - co) > 1e-9) return ca > co;
+  return Math.sin(alpha * (Math.PI / 180)) > Math.sin(other * (Math.PI / 180));
 }
 
 /** The state after arc length s, by fixed RK4 steps of at most u.step / 4. */

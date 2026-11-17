@@ -30,15 +30,50 @@ import java.util.Map;
  * M12, M21 1e-11; a point pair listed more than once is judged against its
  * best-matching row, and a pair whose other shortest lines are not in the
  * sample passes the azimuth check when the line of our azimuth and length
- * reaches point 2 within 1e-13.
+ * reaches point 2 within 1e-13. The inverse a12 and m12 limits follow the
+ * rule of docs/GEODESIC_VALIDATION.md, ours &lt;= max(2 * reference-binary
+ * maximum in the row's GeodTest block, floor), with the GeodSolve maxima of
+ * {@link #REFERENCE_INVERSE}; only the near-vertex block lifts a limit above
+ * its floor.
  */
 public final class HoldoutTest {
     private static final double A = 6378137;
     private static final double F = 1 / 298.257223563;
     private static final double AREA_FLOOR = 0.25;
     private static final double AREA_AZIMUTH_NOISE = 1e-8;
+    /**
+     * GeodTest blocks in line order (contracts/tools/validate-geodtest.mjs):
+     * line count, GeodSolve's largest inverse a12 (deg) and m12 (m) error in
+     * the block over all 500000 lines (GeographicLib 2.7, run of 2026-11-17;
+     * near-vertex recomputed at its worst line 459433, the others as printed
+     * to three digits). Blocks: random, antipodal, short, one-pole,
+     * opposite-poles, meridional, equatorial, vertex-to-vertex, near-vertex.
+     */
+    private static final double[][] REFERENCE_INVERSE = {
+            {100000, 5.68e-14, 4.19e-9},
+            {50000, 1.14e-13, 2.66e-8},
+            {50000, 2.59e-14, 3.2e-9},
+            {50000, 5.68e-14, 3.73e-9},
+            {50000, 2.84e-14, 1.97e-9},
+            {50000, 2.84e-14, 3.73e-9},
+            {50000, 5.68e-14, 4.66e-9},
+            {50000, 0, 3e-9},
+            {50000, 1.3617e-10, 4.537e-5},
+    };
 
     private HoldoutTest() {
+    }
+
+    /** The {@link #REFERENCE_INVERSE} entry of the block holding GeodTest line {@code index}. */
+    private static double[] referenceBlock(int index) {
+        int first = 0;
+        for (double[] block : REFERENCE_INVERSE) {
+            if (index < first + block[0]) {
+                return block;
+            }
+            first += (int) block[0];
+        }
+        throw new IllegalArgumentException("GeodTest line " + index + " is past the last block");
     }
 
     public static void main(String[] args) throws IOException {
@@ -80,8 +115,10 @@ public final class HoldoutTest {
                     Double.parseDouble(v[8]), m12, Double.parseDouble(v[10]),
                     Double.parseDouble(v[8]), m12, Double.parseDouble(v[10]),
             };
+            double[] reference = referenceBlock(Integer.parseInt(id.replaceFirst("^geodtest-", "")));
             double[] limits = {
-                    1e-7 / (A * Math.PI / 180), 1e-7, AREA_FLOOR + c2 * AREA_AZIMUTH_NOISE * (polar + 1 / Math.abs(m12)),
+                    Math.max(2 * reference[1], 1e-7 / (A * Math.PI / 180)), Math.max(2 * reference[2], 1e-7),
+                    AREA_FLOOR + c2 * AREA_AZIMUTH_NOISE * (polar + 1 / Math.abs(m12)),
                     1e-7 / (A * Math.PI / 180), 1e-7, AREA_FLOOR + c2 * AREA_AZIMUTH_NOISE * polar,
             };
             for (int k = 0; k < names.length; k++) {

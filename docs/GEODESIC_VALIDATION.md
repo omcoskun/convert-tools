@@ -259,7 +259,8 @@ npm run test:java
   doğrudan sonuçlarda `arcDegrees`, `reducedLengthMetres`, `geodesicScale12`,
   `geodesicScale21` ve `areaSquareMetres` döndürür (GeographicLib `Lengths`,
   C4 alan serisi, `GenPosition`). Bu sütunların `GeodTest` üzerindeki doğruluğu
-  bu belgede **henüz ölçülmedi**: aşağıdaki "Hold-out" bölümüne bakın.
+  17 Kasım 2026'daki hold-out koşusunda ölçüldü: aşağıdaki "Hold-out"
+  bölümüne bakın.
 
 - **Yüzey mesafesi.** Bu sonuçlar WGS 84 elipsoit yüzey mesafesi içindir. Arazi
   yüksekliği, jeoit, 3B eğik mesafe, rhumb line, UTM grid mesafesi, sensör
@@ -284,13 +285,45 @@ değerimiz ≤ max(2 × referans ikili dosyanın en büyük hatası, taban).
 
 | Ölçüt | Taban | JavaScript | Java |
 |---|---:|---|---|
-| GeodTest ters mesafe ve doğrudan konum | 5e-8 m | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
-| GeodTest `\|Δazi1\|·\|m12\|` | 1e-7 m | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
-| GeodTest a12 | 5e-13° | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
-| GeodTest m12 | 5e-8 m | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
-| GeodTest S12 | 0,05 m² | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
-| Geod3Test mesafe, konum, `\|Δα1\|·\|m12\|` | 1e-13 | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
-| Geod3Test m12/M12/M21 (mutlak) | 1e-11 | ölçülmedi (hold-out) | ölçülmedi (hold-out) |
+| GeodTest ters mesafe | 5e-8 m | 1,12e-8 m | 1,12e-8 m |
+| GeodTest doğrudan konum | 5e-8 m | 1,00e-8 m | 1,42e-8 m |
+| GeodTest `\|Δazi1\|·\|m12\|` | 1e-7 m | 7,53e-8 m (yakın tepe; sınır 1,51e-7) | 7,53e-8 m |
+| GeodTest a12, ters | 5e-13° | 1,36e-10° (yakın tepe; sınır 2,72e-10) | 1,14e-10° |
+| GeodTest a12, doğrudan | 5e-13° | 8,53e-14° | 8,53e-14° |
+| GeodTest m12, ters | 5e-8 m | 4,54e-5 m (yakın tepe; sınır 9,07e-5) | 3,79e-5 m |
+| GeodTest m12, doğrudan | 5e-8 m | 8,29e-9 m | 8,29e-9 m |
+| GeodTest S12, ters | 0,05 m² | 2,55e10 m² (yakın tepe; sınır 5,11e10) | 2,55e10 m² |
+| GeodTest S12, doğrudan | 0,05 m² | 1,24e4 m² (karşı kutuplar; sınır 2,48e4) | 1,24e4 m² |
+| Geod3Test mesafe, konum, `\|Δα1\|·\|m12\|` | 1e-13 | 1,87e-14; 1,89e-14; 2,36e-14 | 1,87e-14; 1,89e-14; 2,12e-14 |
+| Geod3Test m12/M12/M21 (mutlak) | 1e-11 | 3,00e-14; 3,93e-14; 6,88e-14 | 3,00e-14; 4,31e-14; 6,88e-14 |
+
+Geod3Test sonuçları ve ilk koşuda bulunan iki cut-locus satırı
+[TRIAXIAL_VALIDATION.md](TRIAXIAL_VALIDATION.md) "Hold-out sonuçları"
+bölümündedir.
+
+GeodTest ölçümü 17 Kasım 2026'da yapıldı (500.000 satır, referans
+GeographicLib 2.7 `GeodSolve`; `validate-geodtest.mjs` son satırı
+`PASS: all limits met`). Her blokta ve her ölçütte iki dil de sınırın
+altındadır. Tabanı aşan bütün değerler referansın aynı bloktaki hatası
+düzeyindedir, çoğu aynı satırda ve aynı değerdedir: yakın tepe bloğunda
+(satır 450000–499999) ters a12 ve m12'nin en büyüğü JavaScript'te de
+`GeodSolve`'da da satır 459433'te 1,36e-10° ve 4,54e-5 m'dir. Bu blok a12 ≈
+180 − 1e-7° olan neredeyse antipodal çiftlerden oluşur; ters a12, m12 ve S12
+orada girdinin son bitlerine karşı kötü koşulludur.
+
+`geodtest-sample.csv` (1000 satır) üzerindeki hold-out testi
+(`holdout.test.mjs`, `HoldoutTest.java`) ilk koşuda yakın tepe bloğunun 100
+örnek satırının 68'inde ters a12 (en çok 1,75e-11°), 85'inde ters m12 (en çok
+5,83e-6 m) için kaldı (JavaScript 153, Java 155 kontrol). Test yalnız
+tabanları (a12 1e-7 m / (a · 1°) ≈ 8,98e-13°, m12 1e-7 m) uyguluyordu,
+yukarıdaki kuralın "2 × referans" terimini uygulamıyordu. `GeodSolve` aynı
+örnek satırlarda tabanları aynı en büyük değerlerle aşar. Test, kuralı blok
+başına `GeodSolve` en büyükleriyle (`REFERENCE_INVERSE`; yakın tepe değerleri
+en kötü satırda yeniden hesaplandı: 1,3617e-10°, 4,537e-5 m) uygulayacak
+şekilde düzeltildi. Tabanlar değişmedi; yalnız yakın tepe bloğunda ters a12
+ve m12 sınırı tabanın üstüne çıkar (2,72e-10°, 9,07e-5 m). Doğrudan a12 ve
+m12 için `GeodSolve` en büyükleri (8,53e-14°, 8,40e-9 m) her blokta tabanın
+yarısının altındadır; o sınırlar değişmez.
 
 ### Geliştirme kanıtı (GeodSolve, kendi girdilerimiz)
 
