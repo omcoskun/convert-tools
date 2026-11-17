@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { sampleGeodesicPath } from "@convert-tools/core";
 import {
+  GLOBE_MAX_ZOOM,
   LINE_WIDTHS,
   MAP_PROJECTION,
   MERCATOR_LATITUDE_LIMIT,
@@ -140,17 +141,28 @@ const rect = (left, top, width, height) => ({ left, top, width, height, right: l
 test("the map's centre may reach the Mercator edge, so a fit can bring edge pins below the top bar", () => {
   const range = { minZoom: 0, maxZoom: 20 };
   assert.deepEqual(constrainView({ lng: 45, lat: 84 }, 3, range), { longitude: 45, latitude: 84, zoom: 3 });
-  // Longitude is free (world copies); latitude stops at the edge; zoom stays in range.
-  assert.deepEqual(constrainView({ lng: 190, lat: 89 }, 25, range), {
-    longitude: 190,
+  // Longitude is free; zoom stays in range.
+  assert.deepEqual(constrainView({ lng: 190, lat: 60 }, 25, range), { longitude: 190, latitude: 60, zoom: 20 });
+  // Zoomed in (Web Mercator from zoom 12) the centre stops at the edge.
+  assert.deepEqual(constrainView({ lng: 10, lat: 89 }, 14, range, 14), {
+    longitude: 10,
     latitude: MERCATOR_LATITUDE_LIMIT,
-    zoom: 20,
+    zoom: 14,
   });
-  assert.deepEqual(constrainView({ lng: -10, lat: -88 }, -1, range), {
-    longitude: -10,
-    latitude: -MERCATOR_LATITUDE_LIMIT,
-    zoom: 0,
-  });
+});
+
+test("on the globe the centre goes past the Mercator edge, up to the pole", () => {
+  // MapLibre's globe is a sphere up to zoom 11: there the centre may be over
+  // a pole, so polar pins can be centred and zoomed in on.
+  assert.equal(GLOBE_MAX_ZOOM, 11);
+  const range = { minZoom: -2, maxZoom: 20 };
+  assert.deepEqual(constrainView({ lng: 190, lat: 89 }, 5, range), { longitude: 190, latitude: 89, zoom: 5 });
+  assert.deepEqual(constrainView({ lng: -10, lat: -88 }, -3, range), { longitude: -10, latitude: -88, zoom: -2 });
+  assert.deepEqual(constrainView({ lng: 0, lat: 90 }, 11, range), { longitude: 0, latitude: 89.999999, zoom: 11 });
+  // Zooming in over a pole stops at the globe's last zoom (Mercator cannot
+  // show it) instead of jumping the centre back to the edge.
+  assert.deepEqual(constrainView({ lng: 10, lat: 89 }, 14, range, 11), { longitude: 10, latitude: 89, zoom: 11 });
+  assert.deepEqual(constrainView({ lng: 10, lat: -89.5 }, 12, range, 10.5), { longitude: 10, latitude: -89.5, zoom: 11 });
 });
 
 test("fits keep the scene clear of the floating widgets", () => {

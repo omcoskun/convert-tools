@@ -217,9 +217,9 @@ test("a pin goes on the copy of the world its line is drawn on", () => {
 test("a fit tries the middle of the scene's first line, and nearer the equator when that is near a pole", () => {
   // The owner's route over the pole: its middle is near the pole, where the
   // globe shows both ends; the middle of its bounds (60.7°N, 205°E) is on
-  // the far side of the Pacific from both. MapLibre's camera stops at
-  // ±85.05° and its globe grows as 1 / cos(latitude) of the centre, so a
-  // fit on a phone may show more from a centre further south.
+  // the far side of the Pacific from both. The globe grows as
+  // 1 / cos(latitude) of the centre (up to ±85.05°), so a fit on a phone may
+  // show more from a centre further south.
   const path = sampleGeodesicPath(
     { latitude: "36.36341", longitude: "115.56606" },
     { latitude: "44.902554", longitude: "-65.212542" },
@@ -227,10 +227,24 @@ test("a fit tries the middle of the scene's first line, and nearer the equator w
   const polar = sceneOf({ pins: [pin("a", 36.36341, 115.56606)], lines: [{ id: "inverse", points: path.points }] });
   const targets = fitTargets(polar);
   for (const [longitude] of targets) assert.ok(Math.abs(longitude - 121.2497) < 1e-3, `longitude ${longitude}`);
+  // The middle itself is beyond the Mercator edge: on the globe the view can
+  // be centred there.
+  assert.ok(Math.abs(targets[0][1] - 85.7313) < 1e-3, `the route's middle: ${targets[0][1]}`);
   assert.deepEqual(
-    targets.map(([, latitude]) => latitude),
-    [EDGE, 80, 75, 70, 65, 60],
+    targets.slice(1).map(([, latitude]) => latitude),
+    [80, 75, 70, 65, 60],
   );
+  // Two points 16 km apart near the pole: the middle of their line, at
+  // their own latitude rather than the edge, comes first.
+  const nearPole = sampleGeodesicPath({ latitude: "89.9", longitude: "0" }, { latitude: "89.9", longitude: "90" });
+  const [first, ...rest] = fitTargets(sceneOf({ lines: [{ id: "inverse", points: nearPole.points }] }));
+  assert.ok(first[1] >= 89.9 - 1e-9, `near-pole middle ${first[1]}`);
+  assert.deepEqual(
+    rest.map(([, latitude]) => latitude),
+    [85, 80, 75, 70, 65, 60],
+  );
+  // Pins alone near a pole: their own latitude, not the edge.
+  assert.deepEqual(fitTargets(sceneOf({ pins: [pin("a", 89.95, 10)] }))[0], [10, 89.95]);
   // The south too; a middle at 60° or nearer the equator is the only target.
   assert.deepEqual(
     fitTargets(sceneOf({ lines: [line("south", [-70, 10], [-72, 10])] })).map(([, latitude]) => latitude),

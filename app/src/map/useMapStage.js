@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  GLOBE_MAX_ZOOM,
   LINE_COLORS,
   LINE_WIDTHS,
   LINE_WIDTH_ZOOMS,
+  MERCATOR_LATITUDE_LIMIT,
   PIN_SHAPE,
   WORLD_VIEW_LATITUDE,
   constrainView,
@@ -61,12 +63,16 @@ const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce
 const animation = (ms) => (reducedMotion() ? 0 : ms);
 const lineWidth = ([low, high]) => ["interpolate", ["linear"], ["zoom"], LINE_WIDTH_ZOOMS[0], low, LINE_WIDTH_ZOOMS[1], high];
 
-/** Decimals that resolve one screen pixel at the centre of the map (on the globe its corners may be space). */
+/**
+ * Decimals that resolve one screen pixel at the centre of the map (on the
+ * globe its corners may be space), measured in latitude: the longitude a
+ * pixel spans grows without bound towards a pole, where the centre may be.
+ */
 function pickDecimals(map) {
   const { clientWidth, clientHeight } = map.getCanvas();
   const centre = map.unproject([clientWidth / 2, clientHeight / 2]);
-  const next = map.unproject([clientWidth / 2 + 1, clientHeight / 2]);
-  return decimalsForResolution(Math.abs(next.lng - centre.lng));
+  const next = map.unproject([clientWidth / 2, clientHeight / 2 + 1]);
+  return decimalsForResolution(Math.abs(next.lat - centre.lat));
 }
 
 /**
@@ -97,11 +103,16 @@ const FIT_POINTS = 120;
 // Halvings of the zoom range a fit makes: 22 levels / 2^12 is 0.005.
 const FIT_STEPS = 12;
 
-/** The globe's radius in px at the current view: how large the map is drawn. */
+/**
+ * The globe's radius in px at the current view: how large the map is drawn.
+ * Measured over one degree of the centre's meridian, kept a degree away from
+ * the poles (the centre may be over one).
+ */
 function globeRadius(map) {
   const { lng, lat } = map.getCenter();
-  const north = map.project([lng, lat + 0.5]);
-  const south = map.project([lng, lat - 0.5]);
+  const middle = Math.max(-89, Math.min(89, lat));
+  const north = map.project([lng, middle + 0.5]);
+  const south = map.project([lng, middle - 0.5]);
   return Math.abs(south.y - north.y) * DEGREES_PER_RADIAN;
 }
 
@@ -168,8 +179,8 @@ function worldCamera(map, scene, padding) {
  * scenePoint inside the padding, on the visible side of the globe; of these
  * the camera that draws the globe largest is taken. MapLibre's own fitBounds
  * is not used: on the globe it may centre a long line on the far side of
- * the globe from its ends, and its camera stops at ±85.05°, short of points
- * nearer a pole. Each camera is tried with jumpTo and the view put back
+ * the globe from its ends, and its camera eases back to ±85.05° from about
+ * zoom 4, short of points nearer a pole. Each camera is tried with jumpTo and the view put back
  * before a frame is drawn.
  */
 function fitCamera(map, scene, bounds, { padding, maxZoom }) {
@@ -190,7 +201,9 @@ function fitCamera(map, scene, bounds, { padding, maxZoom }) {
   let best = null;
   try {
     for (const target of targets) {
-      const camera = largestZoom(map, target, padding, [minZoom, maxZoom], () => points.every(inView));
+      // Past the Mercator edge only the globe can centre a target.
+      const highest = Math.abs(target[1]) > MERCATOR_LATITUDE_LIMIT ? Math.min(maxZoom, GLOBE_MAX_ZOOM) : maxZoom;
+      const camera = largestZoom(map, target, padding, [minZoom, highest], () => points.every(inView));
       if (!camera) {
         // Nothing shows it all from here: the widest view, if no target does better.
         best ??= { camera: placeAt(map, target, minZoom, padding), radius: -1 };
@@ -570,10 +583,11 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
           maplibreLogo: false,
           renderWorldCopies: true,
           ...ZOOM_RANGE,
-          // The centre may reach the Mercator edge, as far as MapLibre's
-          // camera goes (see constrainView).
+          // On the globe the centre may go up to the pole; zoomed in, up to
+          // the Mercator edge (see constrainView). `map` is unset while the
+          // constructor fits the first view.
           transformConstrain: (lngLat, zoom) => {
-            const view = constrainView(lngLat, zoom, ZOOM_RANGE);
+            const view = constrainView(lngLat, zoom, ZOOM_RANGE, map ? map.getZoom() : zoom);
             return { center: new maplibregl.LngLat(view.longitude, view.latitude), zoom: view.zoom };
           },
           maxPitch: 0,

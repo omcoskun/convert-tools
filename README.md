@@ -229,7 +229,9 @@ Değişmeyen kurallar:
   görseldir; ölçümü her zaman çekirdek yapar. Kutup yakınındaki noktalar ve
   kutbun üstünden geçen hatlar kürede gerçek yerlerinde çizilir (MapLibre'nin
   GeoJSON karoları ±85,05°'de bittiği için bu parça haritanın üstüne ayrıca
-  çizilir). Antimeridyeni geçen hat tek parça çizilir.
+  çizilir). Kürede görünüm kutbun üstüne ortalanabilir ve 11. düzeye kadar
+  yakınlaşılabilir; ±85,05°'nin ötesinde karo olmadığı için orası kenarın
+  rengiyle düz boyanır. Antimeridyeni geçen hat tek parça çizilir.
 - Altlık OpenFreeMap "positron" stilidir (`config.json` → `map.style`). Uydu
   görüntüsü ve gölgeli rölyef yoktur: `src/map/map-adapter.js` stildeki bütün
   raster kaynakları atar. Atıflar haritanın sağ altında görünür. Altlık

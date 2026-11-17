@@ -210,8 +210,9 @@ const FIT_TARGET_STEP = 5;
  * Where a fit may centre the view, best guess first: the middle of the
  * scene's first drawn line (on the globe the middle of a long line shows
  * both its ends; the middle of its bounds may be on the far side of the
- * globe from both), else the middle of the bounds; within ±85.05°, where
- * MapLibre's camera stops. A target beyond ±60° is followed by the same
+ * globe from both), else the middle of the scene's points; at their real
+ * latitude (markerLatitude), past ±85.05° too, where the globe's centre may
+ * go (constrainView). A target beyond ±60° is followed by the same
  * longitude every 5° nearer the equator down to ±60°: MapLibre's globe
  * grows as 1 / cos(latitude) of the centre, so from nearer a pole it may not
  * zoom out far enough to show a long line, on a phone. [] for an empty scene.
@@ -223,15 +224,16 @@ export function fitTargets(scene) {
   for (const line of scene.lines) {
     const middle = routeMidpoint(line.points);
     if (middle) {
-      target = [middle[0], displayLatitude(middle[1])];
+      target = [middle[0], markerLatitude(middle[1])];
       break;
     }
   }
   if (!target) {
     const bounds = sceneBounds(scene);
     if (!bounds) return [];
-    const [[west, south], [east, north]] = bounds;
-    target = [(west + east) / 2, (south + north) / 2];
+    const [[west], [east]] = bounds;
+    const latitudes = scenePoints(scene, bounds).map(([, latitude]) => latitude);
+    target = [(west + east) / 2, (Math.min(...latitudes) + Math.max(...latitudes)) / 2];
   }
   const [longitude, latitude] = target;
   const targets = [target];

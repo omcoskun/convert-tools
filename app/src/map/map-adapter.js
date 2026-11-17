@@ -68,19 +68,36 @@ export function displayLatitude(latitude) {
 }
 
 /**
+ * The last zoom of MapLibre's globe (MAP_PROJECTION): a sphere up to 11,
+ * blending into Web Mercator, which ends at ±85.05°, by 12.
+ */
+export const GLOBE_MAX_ZOOM = 11;
+
+/**
  * The view constraint of the workspace map (MapLibre's transformConstrain).
- * MapLibre's own keeps the Mercator edge at the top or bottom of the
- * viewport (zoomed in), where the glass top bar would hide what is drawn
- * near it; here the centre may go up to the edge, as far as MapLibre's
- * camera goes, on the globe too. Longitude is free (world copies); zoom
- * stays in range.
+ * On the globe (zoom up to GLOBE_MAX_ZOOM) the centre may be anywhere, up to
+ * the pole (markerLatitude), so polar pins and lines can be centred and
+ * zoomed in on; there are no tiles past ±85.05°, and MapLibre fills that cap
+ * evenly in the colour of its edge. Zooming in further over the cap stops at
+ * GLOBE_MAX_ZOOM (Web Mercator cannot show it) rather than jumping the centre
+ * back to the edge. Zoomed in on the flat map the centre may go up to the
+ * edge; MapLibre's own constraint would keep the edge at the top or bottom of
+ * the viewport, where the glass top bar hides what is drawn near it.
+ * Longitude is free; zoom stays in range.
  * @param {{ lng: number, lat: number }} center
- * @param {number} zoom
+ * @param {number} zoom the zoom asked for
  * @param {{ minZoom: number, maxZoom: number }} range
+ * @param {number} [currentZoom] the map's zoom now (the zoom asked for if omitted)
  * @returns {{ longitude: number, latitude: number, zoom: number }}
  */
-export function constrainView(center, zoom, { minZoom, maxZoom }) {
-  return { longitude: center.lng, latitude: displayLatitude(center.lat), zoom: Math.min(maxZoom, Math.max(minZoom, zoom)) };
+export function constrainView(center, zoom, { minZoom, maxZoom }, currentZoom = zoom) {
+  const ranged = Math.min(maxZoom, Math.max(minZoom, zoom));
+  const latitude = markerLatitude(center.lat);
+  if (Math.abs(latitude) <= MERCATOR_LATITUDE_LIMIT || ranged <= GLOBE_MAX_ZOOM) {
+    return { longitude: center.lng, latitude, zoom: ranged };
+  }
+  if (currentZoom <= GLOBE_MAX_ZOOM) return { longitude: center.lng, latitude, zoom: GLOBE_MAX_ZOOM };
+  return { longitude: center.lng, latitude: displayLatitude(latitude), zoom: ranged };
 }
 
 /**
