@@ -164,7 +164,9 @@ araç vardır; her biri kendi adresiyle açılır:
   daraltılabilir. "Ayrıntılar" düğmesi şeridin üstünde bir çekmece açar:
   bütün birimler, ek büyüklükler, model ve kütüphane çağrısı oradadır. Sağdaki
   denetimler yakınlaştırır, sonuca sığdırır, tüm dünyayı gösterir ve haritayı
-  büyütür. Büyütülmüş haritada paneller gizlenir. Telefonda (760 px'in altı)
+  büyütür. 2D/3D seçici düz harita ile küre/perspektif arasında geçiş yapar;
+  pusula kuzeye döndürüp eğimi sıfırlar. 3D görünümde sağ tuşla sürükleme
+  eğim ve yönü değiştirir. Büyütülmüş haritada paneller gizlenir. Telefonda (760 px'in altı)
   panel ve şerit ekranın altındaki bir sayfaya taşınır. Sayfanın tepesinde
   ana değeri gösteren koyu bir şerit vardır ve sayfa tutamaçla büyütülüp
   küçültülür.
@@ -224,7 +226,12 @@ Değişmeyen kurallar:
 - Üretim derlemesi göreli URL kullanır (GitHub Pages alt yolunda da çalışır)
   ve Content-Security-Policy meta etiketi taşır.
 - Harita, MapLibre GL JS 6 ile çizilen bir vektör haritasıdır: uzaktan
-  bakınca küre, yakınlaşınca (12. düzeyden sonra) Web Mercator. Çekirdeğin
+  bakınca küre, yakınlaşınca (12. düzeyden sonra) Web Mercator; 2D modu
+  her ölçekte düz Web Mercator kullanır. Yıldızlı uzay arka planı yerel bir
+  canvas üzerinde ekran çözünürlüğüne göre çizilir; sürekli animasyon veya
+  ek görsel isteği yoktur. Kürenin kenarında atmosfer efekti bulunur.
+  Uzaklaşma sınırı ekranın panellerden kalan alanına ve enleme göre
+  hesaplanır; dünya bu alana sığdığında daha fazla uzaklaşılamaz. Çekirdeğin
   örneklediği jeodezik hattı ve noktaları gösterir. Harita yalnız bir
   görseldir; ölçümü her zaman çekirdek yapar. Kutup yakınındaki noktalar ve
   kutbun üstünden geçen hatlar kürede gerçek yerlerinde çizilir (MapLibre'nin

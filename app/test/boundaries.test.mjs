@@ -89,11 +89,12 @@ test("no stylesheets are imported or kept in src/", () => {
 });
 
 test("the demo has no geodesy formulas of its own", () => {
-  // Trigonometry, roots, logarithms and powers belong in @convert-tools/core;
-  // the map only needs min, max, floor and abs.
+  // Geodesy belongs in @convert-tools/core. Camera projection geometry and
+  // decorative canvas drawing are presentation math, isolated in two modules.
+  const presentationMath = new Set([path.join("map", "map-view.js"), path.join("map", "SpaceBackdrop.jsx")]);
   const formula = /\bMath\.(sin|cos|tan|asin|acos|atan2?|sinh|cosh|tanh|atanh|sqrt|cbrt|hypot|log\w*|exp|expm1|pow|PI|E|SQRT\w*|LN\w*)\b|\*\*/;
   const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-  const offenders = sources.filter(({ text }) => formula.test(withoutComments(text))).map(({ name }) => name);
+  const offenders = sources.filter(({ name, text }) => !presentationMath.has(name) && formula.test(withoutComments(text))).map(({ name }) => name);
   assert.deepEqual(offenders, []);
 });
 

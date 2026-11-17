@@ -251,3 +251,9 @@ test("number comparisons in basemap filters read a missing property as failing, 
   const tuned = tuneBasemapStyle({ sources: {}, layers: [{ id: "shield", type: "symbol", filter }] }, "tr");
   assert.deepEqual(tuned.layers[0].filter, guardFilter(filter));
 });
+
+test("2D clamps polar centers to the Mercator edge even at world zoom", () => {
+  const range = { minZoom: -1, maxZoom: 20 };
+  assert.equal(constrainView({ lng: 12, lat: 90 }, 0, range, 0, "2d").latitude, MERCATOR_LATITUDE_LIMIT);
+  assert.equal(constrainView({ lng: 12, lat: -90 }, 16, range, 0, "2d").zoom, 16);
+});

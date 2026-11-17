@@ -88,10 +88,12 @@ export const GLOBE_MAX_ZOOM = 11;
  * @param {number} zoom the zoom asked for
  * @param {{ minZoom: number, maxZoom: number }} range
  * @param {number} [currentZoom] the map's zoom now (the zoom asked for if omitted)
+ * @param {"2d" | "3d"} [mode] flat views always stop at the Mercator edge
  * @returns {{ longitude: number, latitude: number, zoom: number }}
  */
-export function constrainView(center, zoom, { minZoom, maxZoom }, currentZoom = zoom) {
+export function constrainView(center, zoom, { minZoom, maxZoom }, currentZoom = zoom, mode = "3d") {
   const ranged = Math.min(maxZoom, Math.max(minZoom, zoom));
+  if (mode === "2d") return { longitude: center.lng, latitude: displayLatitude(center.lat), zoom: ranged };
   const latitude = markerLatitude(center.lat);
   if (Math.abs(latitude) <= MERCATOR_LATITUDE_LIMIT || ranged <= GLOBE_MAX_ZOOM) {
     return { longitude: center.lng, latitude, zoom: ranged };

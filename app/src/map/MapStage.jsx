@@ -4,6 +4,7 @@ import { useLanguage } from "../context.js";
 import { BAR_HEIGHT, COLORS, MONO_FONT, MOTION, PHONE, RADIUS, SHADOW, TYPE, UI_FONT, WORKSPACE } from "../theme.js";
 import { Box, visuallyHidden } from "../ui/index.js";
 import { PIN_SHAPE } from "./map-adapter.js";
+import SpaceBackdrop from "./SpaceBackdrop.jsx";
 import useMapStage from "./useMapStage.js";
 
 const TONES = {
@@ -39,7 +40,9 @@ const stageSx = {
   minWidth: 0,
   minHeight: 0,
   overflow: "hidden",
-  bgcolor: "#e9e7e0",
+  bgcolor: "#030711",
+  "& > .map-space": { position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" },
+  "& > .map-canvas.maplibregl-map": { background: "transparent" },
   fontFamily: UI_FONT,
   "& > .map-canvas": { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
   "& > .map-canvas .maplibregl-canvas:focus-visible": { outline: `3px solid ${COLORS.focus}`, outlineOffset: "-3px" },
@@ -167,7 +170,7 @@ const stageSx = {
   },
 };
 
-function ControlButton({ label, icon, onClick, disabled, pressed }) {
+function ControlButton({ label, icon, onClick, disabled, pressed, children }) {
   return (
     <Box
       component="button"
@@ -195,7 +198,7 @@ function ControlButton({ label, icon, onClick, disabled, pressed }) {
         [PHONE]: { width: 40, height: 40 },
       }}
     >
-      <Icon name={icon} size={18} />
+      {children ?? <Icon name={icon} size={18} />}
     </Box>
   );
 }
@@ -254,7 +257,7 @@ export default function MapStage({
 }) {
   const { language, text } = useLanguage();
   const labels = useMemo(() => ({ mapCanvas: `${text.mapTitle}. ${text.mapPanHint}` }), [text]);
-  const { containerRef, cursorRef, status, basemap, retry, zoomIn, zoomOut, fitScene, showWorld } = useMapStage({
+  const { containerRef, cursorRef, status, basemap, retry, zoomIn, zoomOut, fitScene, showWorld, viewMode, setMode, resetNorth, canZoomIn, canZoomOut, bearing } = useMapStage({
     styleUrl,
     language,
     labels,
@@ -297,6 +300,7 @@ export default function MapStage({
       aria-label={text.mapTitle}
       sx={stageSx}
     >
+      <SpaceBackdrop />
       <div className="map-canvas" ref={containerRef} />
 
       {/* Shown while picking with keyboard focus on the canvas: Enter places the point here. */}
@@ -305,8 +309,8 @@ export default function MapStage({
         sx={{
           display: "none",
           position: "absolute",
-          left: "50%",
-          top: "50%",
+          left: "var(--map-center-x, 50%)",
+          top: "var(--map-center-y, 50%)",
           zIndex: 2,
           width: 40,
           height: 40,
@@ -325,7 +329,7 @@ export default function MapStage({
           position: "absolute",
           top: top(expanded, WORKSPACE.inset),
           left: expanded ? 76 : `calc(${WORKSPACE.inputWidth} + ${2 * WORKSPACE.inset}px)`,
-          right: 76,
+          right: 168,
           zIndex: 4,
           display: "flex",
           flexDirection: "column",
@@ -333,7 +337,7 @@ export default function MapStage({
           gap: 1,
           pointerEvents: "none",
           "& > *": { pointerEvents: "auto" },
-          [PHONE]: { top: top(expanded, 10), left: 10, right: 60 },
+          [PHONE]: { top: top(expanded, 62), left: 10, right: 60 },
         }}
       >
         {picking && (
@@ -365,7 +369,7 @@ export default function MapStage({
                 component="span"
                 sx={{
                   display: "none",
-                  color: COLORS.muted,
+                  color: "#c6d4e8",
                   fontSize: TYPE.meta,
                   ".map-canvas.is-keyboard-focus ~ * &": { display: "block" },
                   [PHONE]: { display: "none !important" },
@@ -382,7 +386,7 @@ export default function MapStage({
                   px: "5px",
                   border: `1px solid ${COLORS.rule2}`,
                   borderRadius: "5px",
-                  color: COLORS.muted,
+                  color: "#c6d4e8",
                   fontFamily: MONO_FONT,
                   fontSize: TYPE.label,
                   lineHeight: "16px",
@@ -426,6 +430,20 @@ export default function MapStage({
         {picking?.label ?? ""}
       </Box>
 
+      <Box role="group" aria-label={text.mapViewMode} sx={{
+        ...glassSurface, position: "absolute", zIndex: 3,
+        right: 76, top: top(expanded, WORKSPACE.inset), display: "flex", gap: "2px", p: "3px",
+        borderRadius: `${RADIUS.card}px`,
+        [PHONE]: { right: 66, top: top(expanded, 10) },
+      }}>
+        <ControlButton label={text.map2D} onClick={() => setMode("2d")} disabled={!ready} pressed={viewMode === "2d"}>
+          <Box component="span" sx={{ fontSize: 12, fontWeight: 750 }}>2D</Box>
+        </ControlButton>
+        <ControlButton label={text.map3D} onClick={() => setMode("3d")} disabled={!ready} pressed={viewMode === "3d"}>
+          <Box component="span" sx={{ fontSize: 12, fontWeight: 750 }}>3D</Box>
+        </ControlButton>
+      </Box>
+
       <Box
         role="group"
         aria-label={text.mapControls}
@@ -442,8 +460,12 @@ export default function MapStage({
           [PHONE]: { top: top(expanded, 10), right: 10 },
         }}
       >
-        <ControlButton label={text.mapZoomIn} icon="plus" onClick={zoomIn} disabled={!ready} />
-        <ControlButton label={text.mapZoomOut} icon="minus" onClick={zoomOut} disabled={!ready} />
+        <ControlButton label={text.mapZoomIn} icon="plus" onClick={zoomIn} disabled={!ready || !canZoomIn} />
+        <ControlButton label={text.mapZoomOut} icon="minus" onClick={zoomOut} disabled={!ready || !canZoomOut} />
+        <Separator />
+        <ControlButton label={text.mapNorth} onClick={resetNorth} disabled={!ready}>
+          <Box component="span" sx={{ display: "grid", placeItems: "center", transform: `rotate(${-bearing}deg)` }}><Icon name="compass" size={20} /></Box>
+        </ControlButton>
         <Separator />
         <ControlButton label={text.mapFit} icon="focus" onClick={fitScene} disabled={!ready || !canFit} />
         <ControlButton label={text.mapWorld} icon="world" onClick={showWorld} disabled={!ready} />
@@ -494,7 +516,7 @@ export default function MapStage({
             placeContent: "center",
             justifyItems: "center",
             gap: 1.25,
-            color: COLORS.muted,
+            color: "#c6d4e8",
             fontSize: TYPE.body,
             fontWeight: 650,
             pointerEvents: "none",
@@ -507,7 +529,7 @@ export default function MapStage({
               width: 26,
               height: 26,
               border: `3px solid ${COLORS.rule2}`,
-              borderTopColor: COLORS.ink,
+              borderTopColor: "#c6d4e8",
               borderRadius: "50%",
               animation: "convertSpin 800ms linear infinite",
               "@keyframes convertSpin": { to: { transform: "rotate(360deg)" } },

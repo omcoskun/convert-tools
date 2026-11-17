@@ -41,6 +41,7 @@ const PATHS = {
       <path d="m10.4 12.9 3.2-1.8" />
     </>
   ),
+  compass: <><path d="m12 3 6 17-6-4-6 4 6-17Z" /><path d="M12 3v13" /></>,
   world: (
     <>
       <circle cx="12" cy="12" r="9" />

@@ -10,6 +10,7 @@ import {
   constrainView,
   coordinateFromLngLat,
   decimalsForResolution,
+  displayLatitude,
   fallbackStyle,
   gradientColor,
   isLocalizedLabelLayer,
@@ -21,6 +22,7 @@ import {
   screenRuns,
   tuneBasemapStyle,
 } from "./map-adapter.js";
+import { SPACE_SKY, worldMinZoom } from "./map-view.js";
 import { loadMapLibre, webgl2Available } from "./maplibre.js";
 import {
   fitTargets,
@@ -54,9 +56,7 @@ const DOUBLE_CLICK_GUARD_PX = 10;
 const CURSOR_DECIMALS = 5;
 // The view of an empty scene: the whole inhabited world.
 const START_VIEW = Object.freeze({ center: [24, 30], zoom: 1.6 });
-// MapLibre's globe grows as 1 / cos(latitude) of the centre, and its camera
-// stops at ±85.05°: seen from there a line over a pole needs a zoom below 0
-// to fit on a phone. -2 is the lowest MapLibre allows.
+// Absolute library limits; transformConstrain applies the viewport-aware floor.
 const ZOOM_RANGE = Object.freeze({ minZoom: -2, maxZoom: 20 });
 
 const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -69,9 +69,9 @@ const lineWidth = ([low, high]) => ["interpolate", ["linear"], ["zoom"], LINE_WI
  * pixel spans grows without bound towards a pole, where the centre may be.
  */
 function pickDecimals(map) {
-  const { clientWidth, clientHeight } = map.getCanvas();
-  const centre = map.unproject([clientWidth / 2, clientHeight / 2]);
-  const next = map.unproject([clientWidth / 2, clientHeight / 2 + 1]);
+  const centre = map.getCenter();
+  const point = map.project(centre);
+  const next = map.unproject([point.x, point.y + 1]);
   return decimalsForResolution(Math.abs(next.lat - centre.lat));
 }
 
@@ -82,6 +82,8 @@ function pickDecimals(map) {
  */
 function lngLatOnMap(map, point) {
   const lngLat = map.unproject([point.x, point.y]);
+  if (map.getProjection()?.type === "mercator" &&
+      (Math.abs(lngLat.lat) > MERCATOR_LATITUDE_LIMIT || (!map.getRenderWorldCopies() && Math.abs(lngLat.lng) > 180))) return null;
   const back = map.project(lngLat);
   return Math.abs(back.x - point.x) + Math.abs(back.y - point.y) < 1 ? lngLat : null;
 }
@@ -118,15 +120,10 @@ function globeRadius(map) {
 
 /**
  * The view with `target` in the middle of the part of the map the widgets
- * leave free, at `zoom` (in the middle of the map where the globe is too
- * small to move it so).
+ * leave free, at `zoom`, using camera padding to position the globe itself.
  */
 function placeAt(map, target, zoom, padding) {
-  const { clientWidth: width, clientHeight: height } = map.getCanvas();
-  const free = { x: (padding.left + width - padding.right) / 2, y: (padding.top + height - padding.bottom) / 2 };
-  map.jumpTo({ center: target, zoom });
-  const shifted = lngLatOnMap(map, { x: width - free.x, y: height - free.y });
-  if (shifted) map.jumpTo({ center: shifted, zoom });
+  map.jumpTo({ center: target, zoom, padding, pitch: 0, bearing: 0 });
   return { center: map.getCenter(), zoom: map.getZoom() };
 }
 
@@ -156,20 +153,21 @@ function largestZoom(map, target, padding, [low, high], fits) {
  * largest zoom at which its radius takes at most 45 % of the free width or
  * height.
  */
-function worldCamera(map, scene, padding) {
-  const { clientWidth: width, clientHeight: height } = map.getCanvas();
-  const room = 0.45 * Math.min(width - padding.left - padding.right, height - padding.top - padding.bottom);
+function worldCamera(map, scene, padding, mode) {
   const [facing] = fitTargets(scene);
-  const target = [facing ? facing[0] : map.getCenter().lng, WORLD_VIEW_LATITUDE];
-  const start = { center: map.getCenter(), zoom: map.getZoom() };
-  try {
-    return (
-      largestZoom(map, target, padding, [map.getMinZoom(), 6], () => globeRadius(map) <= room) ??
-      placeAt(map, target, map.getMinZoom(), padding)
-    );
-  } finally {
-    map.jumpTo(start);
-  }
+  const latitude = mode === "2d" ? 0 : WORLD_VIEW_LATITUDE;
+  return {
+    center: [mode === "2d" ? 0 : facing ? facing[0] : map.getCenter().lng, latitude],
+    zoom: minimumZoom(map, latitude, padding, mode),
+    padding,
+    pitch: 0,
+    bearing: 0,
+  };
+}
+
+function minimumZoom(map, latitude, padding, mode) {
+  const canvas = map.getCanvas();
+  return worldMinZoom({ width: canvas.clientWidth, height: canvas.clientHeight, latitude, padding, mode, fov: map.getVerticalFieldOfView() });
 }
 
 /**
@@ -197,7 +195,7 @@ function fitCamera(map, scene, bounds, { padding, maxZoom }) {
     return isOnVisibleSide(map, lngLat);
   };
   const minZoom = map.getMinZoom();
-  const start = { center: map.getCenter(), zoom: map.getZoom() };
+  const start = { center: map.getCenter(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing(), padding: map.getPadding() };
   let best = null;
   try {
     for (const target of targets) {
@@ -216,7 +214,7 @@ function fitCamera(map, scene, bounds, { padding, maxZoom }) {
   } finally {
     map.jumpTo(start);
   }
-  return best.camera;
+  return best ? { ...best.camera, pitch: 0, bearing: 0, padding } : null;
 }
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -446,6 +444,12 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
   const basemapRef = useRef({ remote: true, styleLoaded: false, tileErrors: 0, localizedLayers: [] });
   const reloadBasemapRef = useRef(null);
   const fitSeenRef = useRef({ owner, fitRequest: scene.fitRequest });
+  const modeRef = useRef("3d");
+  const navigatedRef = useRef(false);
+  const worldOverviewRef = useRef(false);
+  const syncViewRef = useRef(null);
+  const [viewMode, setViewMode] = useState("3d");
+  const [navigation, setNavigation] = useState({ canZoomIn: true, canZoomOut: true, bearing: 0 });
   const [status, setStatus] = useState("loading");
   const [basemap, setBasemap] = useState("loading");
   const [styleRevision, setStyleRevision] = useState(0);
@@ -472,25 +476,68 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     const bounds = sceneBounds(latest.scene);
     if (!bounds) return;
     const padding = latest.getPadding();
+    worldOverviewRef.current = false;
     // One point keeps a closer zoom, if the map has one.
     const single = isSinglePoint(bounds);
-    const camera = fitCamera(map, latest.scene, bounds, { padding, maxZoom: single ? Math.max(map.getZoom(), 12) : 15 });
+    const maxZoom = single ? Math.max(map.getZoom(), 12) : 15;
+    const camera = modeRef.current === "2d"
+      ? map.cameraForBounds(bounds, { padding, absolutePadding: true, maxZoom, bearing: 0 })
+      : fitCamera(map, latest.scene, bounds, { padding, maxZoom });
     if (!camera) return;
-    if (single) map.easeTo({ ...camera, duration: animate ? animation(600) : 0 });
-    else map.flyTo({ ...camera, duration: animate ? animation(700) : 0 });
+    if (single) map.easeTo({ ...camera, padding, pitch: 0, bearing: 0, duration: animate ? animation(600) : 0 });
+    else map.flyTo({ ...camera, padding, pitch: 0, bearing: 0, duration: animate ? animation(700) : 0 });
     map.once("moveend", () => placePinsOnRef.current?.());
   }, []);
 
   const showWorld = useCallback(() => {
+    navigatedRef.current = true;
+    worldOverviewRef.current = true;
     const map = mapRef.current;
     const latest = latestRef.current;
-    if (map) map.flyTo({ ...worldCamera(map, latest.scene, latest.getPadding()), duration: animation(700) });
+    if (map) map.flyTo({ ...worldCamera(map, latest.scene, latest.getPadding(), modeRef.current), duration: animation(700) });
   }, []);
 
   const zoomBy = useCallback((delta) => {
+    navigatedRef.current = true;
+    if (delta > 0) worldOverviewRef.current = false;
     const map = mapRef.current;
     if (map) map.easeTo({ zoom: map.getZoom() + delta, duration: animation(250) });
   }, []);
+
+  const setMode = useCallback((mode) => {
+    const map = mapRef.current;
+    if (!map || modeRef.current === mode) return;
+    navigatedRef.current = true;
+    map.stop();
+    worldOverviewRef.current = false;
+    modeRef.current = mode;
+    setViewMode(mode);
+    map.setProjection({ type: mode === "3d" ? "globe" : "mercator" });
+    map.setSky(mode === "3d" ? SPACE_SKY : undefined);
+    map.setMaxPitch(mode === "3d" ? 60 : 0);
+    if (mode === "3d") {
+      map.dragRotate.enable();
+      map.touchZoomRotate.enableRotation();
+      map.touchPitch.enable();
+      map.keyboard.enableRotation();
+    } else {
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+      map.touchPitch.disable();
+      map.keyboard.disableRotation();
+    }
+    const center = map.getCenter();
+    map.jumpTo({ center: [center.lng, mode === "2d" ? Math.max(-MERCATOR_LATITUDE_LIMIT, Math.min(MERCATOR_LATITUDE_LIMIT, center.lat)) : center.lat] });
+    map.easeTo({ pitch: mode === "3d" && map.getZoom() >= 5 ? 45 : 0, bearing: 0, duration: animation(500) });
+    syncViewRef.current?.();
+  }, []);
+
+  const resetNorth = useCallback(() => {
+    mapRef.current?.easeTo({ bearing: 0, pitch: 0, duration: animation(400) });
+  }, []);
+
+  // Keep camera padding in step with floating widgets and expanded mode.
+  useEffect(() => { syncViewRef.current?.(); });
 
   // A dragged pin reports its position once per frame and at the drop.
   const flushMove = useCallback(() => {
@@ -587,13 +634,16 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
           // the Mercator edge (see constrainView). `map` is unset while the
           // constructor fits the first view.
           transformConstrain: (lngLat, zoom) => {
-            const view = constrainView(lngLat, zoom, ZOOM_RANGE, map ? map.getZoom() : zoom);
+            const mode = modeRef.current;
+            const padding = latestRef.current.getPadding();
+            const minZoom = worldMinZoom({ width: container.clientWidth, height: container.clientHeight, latitude: lngLat.lat, mode, padding });
+            const view = constrainView(lngLat, zoom, { ...ZOOM_RANGE, minZoom }, map ? map.getZoom() : zoom, mode);
             return { center: new maplibregl.LngLat(view.longitude, view.latitude), zoom: view.zoom };
           },
-          maxPitch: 0,
-          dragRotate: false,
-          pitchWithRotate: false,
-          touchPitch: false,
+          maxPitch: 60,
+          dragRotate: true,
+          pitchWithRotate: true,
+          touchPitch: true,
           // Wheel, trackpad and pinch zoom without a modifier key.
           cooperativeGestures: false,
           clickTolerance: 4,
@@ -608,8 +658,30 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       mapRef.current = map;
       libraryRef.current = maplibregl;
       polarRef.current = createPolarOverlay(map);
-      map.touchZoomRotate.disableRotation();
-      map.keyboard.disableRotation();
+      const updateNavigation = () => {
+        const centerPoint = map.project(map.getCenter());
+        container.parentElement.style.setProperty("--map-center-x", `${centerPoint.x}px`);
+        container.parentElement.style.setProperty("--map-center-y", `${centerPoint.y}px`);
+        // Only the explicit north-up world overview suppresses wrapped tiles.
+        // Free navigation and scene fits need them for date-line crossings.
+        const copies = modeRef.current === "3d" || !worldOverviewRef.current;
+        if (map.getRenderWorldCopies() !== copies) map.setRenderWorldCopies(copies);
+        const floor = minimumZoom(map, map.getCenter().lat, latestRef.current.getPadding(), modeRef.current);
+        const next = { canZoomIn: map.getZoom() < map.getMaxZoom() - 0.01, canZoomOut: map.getZoom() > floor + 0.01, bearing: Math.round(map.getBearing()) };
+        setNavigation((current) => Object.keys(next).every((key) => next[key] === current[key]) ? current : next);
+      };
+      const syncView = () => {
+        const padding = latestRef.current.getPadding();
+        const previous = map.getPadding();
+        if (Object.keys(padding).some((key) => padding[key] !== previous[key])) map.setPadding(padding);
+        const minZoom = minimumZoom(map, map.getCenter().lat, padding, modeRef.current);
+        if (map.getZoom() < minZoom) map.jumpTo({ zoom: minZoom });
+        updateNavigation();
+      };
+      syncViewRef.current = syncView;
+      map.on("move", updateNavigation);
+      map.on("resize", syncView);
+      syncView();
       // Bottom-right controls stack upwards: the scale bar sits above the attribution.
       map.addControl(new maplibregl.AttributionControl({ compact: false }), "bottom-right");
       map.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 96 }), "bottom-right");
@@ -621,10 +693,13 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       // fitted again once the map has loaded, unless the user has moved it.
       let userMoved = false;
       map.on("movestart", (event) => {
-        if (event.originalEvent) userMoved = true;
+        if (event.originalEvent) {
+          userMoved = true;
+          worldOverviewRef.current = false;
+        }
       });
       map.once("load", () => {
-        if (!userMoved && initialBounds) fitScene(false);
+        if (!userMoved && !navigatedRef.current && initialBounds) fitScene(false);
       });
       // One point has no bounds to give the constructor: centre it in the free
       // part of the map now, without waiting for "load" (which a background
@@ -637,7 +712,10 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
           window.clearTimeout(styleTimer);
           setBasemap("ready");
         }
+        map.setProjection({ type: modeRef.current === "3d" ? "globe" : "mercator" });
+        map.setSky(modeRef.current === "3d" ? SPACE_SKY : undefined);
         installLineLayers(map);
+        syncView();
         setStatus("ready");
         setStyleRevision((value) => value + 1);
       });
@@ -748,6 +826,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       mapRef.current = null;
       libraryRef.current = null;
       reloadBasemapRef.current = null;
+      syncViewRef.current = null;
     };
     // styleUrl comes from config.json and does not change while the app runs.
   }, [initAttempt, transformStyle, handlersRef]);
@@ -777,7 +856,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
   // (Web Mercator, zoomed in; the globe has one copy).
   const pinLngLat = useCallback((pin, bounds) => {
     const longitude = bounds ? longitudeWithin(pin.longitude, bounds) : pin.longitude;
-    return [longitude, markerLatitude(pin.latitude)];
+    return [longitude, modeRef.current === "2d" ? displayLatitude(pin.latitude) : markerLatitude(pin.latitude)];
   }, []);
 
   const { pins: scenePins } = scene;
@@ -809,7 +888,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       entry.marker.remove();
       pins.delete(id);
     }
-  }, [scenePins, styleRevision, createPinEntry, pinLngLat]);
+  }, [scenePins, styleRevision, viewMode, createPinEntry, pinLngLat]);
 
   // MapLibre keeps a marker on the copy of the world nearest where it was on
   // screen, so a pin that moved far (the end of a 30 000 km line) can stay on
@@ -848,13 +927,13 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     const features = sceneFeatures({ lines });
     map.getSource(LINE_SOURCE)?.setData(features);
     syncGradientPieces(map, features.features);
-    polarRef.current?.setStretches(polarStretches({ lines }));
+    polarRef.current?.setStretches(viewMode === "2d" ? [] : polarStretches({ lines }));
     const tags = tagsRef.current;
     const present = new Set();
     for (const line of lines) {
       const middle = line.tag ? routeMidpoint(line.points) : null;
       if (!middle) continue;
-      const midpoint = [middle[0], markerLatitude(middle[1])];
+      const midpoint = [middle[0], viewMode === "2d" ? displayLatitude(middle[1]) : markerLatitude(middle[1])];
       present.add(line.id);
       let marker = tags.get(line.id);
       if (!marker) {
@@ -872,7 +951,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       marker.remove();
       tags.delete(id);
     }
-  }, [lines, styleRevision]);
+  }, [lines, styleRevision, viewMode]);
 
   // ---- Language: map labels and the canvas name -------------------------
   useEffect(() => {
@@ -925,5 +1004,5 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
   const zoomIn = useCallback(() => zoomBy(1), [zoomBy]);
   const zoomOut = useCallback(() => zoomBy(-1), [zoomBy]);
 
-  return { containerRef, cursorRef, status, basemap, retry, zoomIn, zoomOut, fitScene, showWorld };
+  return { containerRef, cursorRef, status, basemap, retry, zoomIn, zoomOut, fitScene, showWorld, viewMode, setMode, resetNorth, ...navigation };
 }
