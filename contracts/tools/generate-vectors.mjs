@@ -1078,6 +1078,51 @@ function triaxialConventionVectors() {
   });
 }
 
+// Pairs whose first point is an umbilic and whose second point lies within 1
+// degree of the antipodal umbilic. There the reduced length is small and the
+// Newton iteration of the inverse problem converges slowly, so the distance is
+// the quantity to hold to 5e-14; the headings are ill-conditioned and are not
+// compared. This section draws from its own generator, so every other file
+// stays byte-identical.
+function triaxialUmbilicFarVectors() {
+  const ellipsoid = TRIAXIAL_ELLIPSOIDS.find((entry) => entry.id === "CAYLEY");
+  const axes = [ellipsoid.a, ellipsoid.b, ellipsoid.c].map(String);
+  const next = mulberry32(0x0b111c);
+  const u = (min, max) => min + next() * (max - min);
+  const coin = () => next() < 0.5;
+  const pairs = [];
+  for (let index = 0; index < 100; index += 1) {
+    const bet1 = coin() ? 90 : -90;
+    const omg1 = coin() ? 0 : 180;
+    const d1 = u(0, 1);
+    const d2 = u(-1, 1);
+    // The antipodal umbilic (-bet1, omg1 + 180), with bet2 moved towards 0 by
+    // d1 and omg2 back inside (-180, 180].
+    let omg2 = omg1 + 180 + d2;
+    if (omg2 > 180) omg2 -= 360;
+    if (omg2 <= -180) omg2 += 360;
+    pairs.push({
+      id: `CAYLEY-umbilic-far-${String(index).padStart(2, "0")}`,
+      bet1: dec(bet1, 6),
+      omg1: dec(omg1, 6),
+      bet2: dec(-bet1 + Math.sign(bet1) * d1, 6),
+      omg2: dec(omg2, 6),
+    });
+  }
+  const inverse = runTool(GEOD3SOLVE, ["-i", "-t", ...axes, "-p", "15"], pairs.map((p) => `${p.bet1} ${p.omg1} ${p.bet2} ${p.omg2}`));
+  const rows = [];
+  pairs.forEach((pair, index) => {
+    if (isError(inverse[index])) return;
+    const [alp1, alp2, s12] = inverse[index].split(/\s+/);
+    if (!(Number(s12) > 0)) throw new Error(`Geod3Solve inverse ${pair.id}: ${inverse[index]}`);
+    rows.push([pair.id, ellipsoid.id, ...axes, pair.bet1, pair.omg1, pair.bet2, pair.omg2, alp1, alp2, s12, "5e-14"]);
+  });
+  manifest.files.push({
+    ...writeCsv("triaxial-umbilic-far.csv", [...TRIAXIAL_HEADER, "bet2", "omg2", "expected_alp1", "expected_alp2", "expected_s12", "tolerance"], rows),
+    source: "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)",
+  });
+}
+
 // ------------------------------------------------------------------ run
 
 const forwardRows = utmUpsForward();
@@ -1094,6 +1139,7 @@ georefVectors();
 triaxialVectors();
 triaxialShortestVectors();
 triaxialConventionVectors();
+triaxialUmbilicFarVectors();
 
 manifest.skipped = skipped;
 manifest.files.sort((a, b) => a.name.localeCompare(b.name));

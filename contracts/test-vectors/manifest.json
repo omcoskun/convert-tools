@@ -94,6 +94,12 @@
       "source": "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)"
     },
     {
+      "name": "triaxial-umbilic-far.csv",
+      "rows": 100,
+      "sha256": "bbb846833b5c4288daabf72f48b6e333b5d79d0bf5fbf11e3727a6fcbb586e76",
+      "source": "Geod3Solve -i -t a b c -p 15 (alp1, alp2, s12)"
+    },
+    {
       "name": "utm-ups-forward.csv",
       "rows": 5806,
       "sha256": "75e1a4733ded020c694877e0f1cc21f8ee352b14598f944f078154c485976599",

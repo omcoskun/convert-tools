@@ -39,6 +39,7 @@ public final class TriaxialGeodesicTest {
         inverseVectors(vectors);
         shortestVectors(vectors);
         conventionVectors(vectors);
+        umbilicFarVectors(vectors);
         antipodalUmbilics();
         genericNotAmbiguous();
         coincidentAndAntipodes();
@@ -153,6 +154,20 @@ public final class TriaxialGeodesicTest {
                     row.get("id") + ": alp2 " + result.finalAzimuthDegrees() + " " + row.get("expected_alp2"));
             check(result.ambiguous() == row.get("ambiguous").equals("1"), row.get("id") + ": ambiguous");
         }
+    }
+
+    private static void umbilicFarVectors(Path dir) throws IOException {
+        List<Map<String, String>> rows = read(dir, "triaxial-umbilic-far.csv");
+        double worst = 0;
+        for (Map<String, String> row : rows) {
+            Axes axes = new Axes(num(row, "a"), num(row, "b"), num(row, "c"));
+            TriaxialGeodesic.InverseResult result = TriaxialGeodesic.inverse(
+                    new Point(num(row, "bet1"), num(row, "omg1")), new Point(num(row, "bet2"), num(row, "omg2")), axes);
+            worst = Math.max(worst, Math.abs(result.distance() - num(row, "expected_s12")));
+            check(Math.abs(result.distance() - num(row, "expected_s12")) <= 5e-14,
+                    row.get("id") + ": distance " + result.distance() + " " + row.get("expected_s12"));
+        }
+        System.out.printf(Locale.ROOT, "triaxial-umbilic-far.csv distance: max %.3e b over %d rows%n", worst, rows.size());
     }
 
     private static void antipodalUmbilics() {

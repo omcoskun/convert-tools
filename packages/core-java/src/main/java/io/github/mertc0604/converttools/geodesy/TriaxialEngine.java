@@ -609,6 +609,7 @@ final class TriaxialEngine {
         double alpha = alpha0;
         double s = s0;
         Solution best = null;
+        int lastBest = 0;
         boolean umbilic = u.umbilical && bet1[1] == 0 && omg1[0] == 0;
         double speed = umbilic ? 2 : 1;
         double[] R1 = ellipToCart(u, bet1, omg1);
@@ -627,11 +628,16 @@ final class TriaxialEngine {
             double miss = Math.sqrt(dot(r, r));
             if (best == null || miss < best.miss()) {
                 best = new Solution(alpha, s, end, miss);
+                lastBest = iteration;
             }
-            if (miss <= 1e-15 * u.a) {
+            // Near an umbilic the reduced length is small and the iteration
+            // converges slowly: keep going until the miss itself is well below
+            // the distance tolerance, or for three iterations after the last
+            // improvement.
+            if (miss <= 1e-14 * u.a) {
                 break;
             }
-            if (iteration > 4 && miss > best.miss() * 0.5 && best.miss() < 1e-13) {
+            if (iteration - lastBest >= 3) {
                 break;
             }
             double[] W = cross(unitNormal(u, end.R()), end.V());

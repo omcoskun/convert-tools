@@ -89,6 +89,22 @@ test("triaxial inverse matches Geod3Solve conventions on symmetric and umbilical
   }
 });
 
+test("umbilical inverse distance agrees with Geod3Solve to 5e-14", () => {
+  const rows = readVectors("triaxial-umbilic-far.csv");
+  let worst = 0;
+  let worstId = "";
+  for (const row of rows) {
+    const options = { ellipsoid: { a: Number(row.a), b: Number(row.b), c: Number(row.c) } };
+    const result = inverseTriaxialGeodesic({ beta: row.bet1, omega: row.omg1 }, { beta: row.bet2, omega: row.omg2 }, options);
+    const miss = Math.abs(result.distance - Number(row.expected_s12));
+    if (miss > worst) {
+      worst = miss;
+      worstId = row.id;
+    }
+  }
+  assert.ok(worst <= 5e-14, `umbilic-far distance: max ${worst.toExponential(3)} at ${worstId} over ${rows.length} rows`);
+});
+
 test("antipodal umbilics are reported as ambiguous", () => {
   const options = { ellipsoid: CAYLEY };
   for (const [start, end] of [

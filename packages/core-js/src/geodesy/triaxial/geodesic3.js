@@ -375,6 +375,7 @@ function newton(u, bet1, omg1, P2, alpha0, s0, spacing) {
   let alpha = alpha0;
   let s = s0;
   let best = null;
+  let lastBest = 0;
   for (let iteration = 0; iteration < NEWTON_ITERATIONS; iteration += 1) {
     const start = angle(alpha);
     const V1 = headingToDirection(u, bet1, omg1, start);
@@ -388,9 +389,15 @@ function newton(u, bet1, omg1, P2, alpha0, s0, spacing) {
     const end = finish(u, integrate(u, [R1[0], R1[1], R1[2], V1[0], V1[1], V1[2], 0, 1, 1, 0], s));
     const r = [P2[0] - end.R[0], P2[1] - end.R[1], P2[2] - end.R[2]];
     const miss = Math.sqrt(dot(r, r));
-    if (best === null || miss < best.miss) best = { alpha, s, end, miss };
-    if (miss <= 1e-15 * u.a) break;
-    if (iteration > 4 && miss > best.miss * 0.5 && best.miss < 1e-13) break;
+    if (best === null || miss < best.miss) {
+      best = { alpha, s, end, miss };
+      lastBest = iteration;
+    }
+    // Near an umbilic the reduced length is small and the iteration converges
+    // slowly: keep going until the miss itself is well below the distance
+    // tolerance, or for three iterations after the last improvement.
+    if (miss <= 1e-14 * u.a) break;
+    if (iteration - lastBest >= 3) break;
     const W = cross(unitNormal(u, end.R), end.V);
     const ds = dot(r, end.V);
     let dalpha = (sense * dot(r, W)) / (end.m * speed) / (Math.PI / 180);
