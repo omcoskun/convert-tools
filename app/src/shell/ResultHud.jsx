@@ -17,6 +17,14 @@ import { useWidgetRef, useWorkspace } from "./workspace-context.js";
 // remaining cells and the details flow into the sheet after the input
 // widget. The parts are placed with CSS only (order, display: contents),
 // so the details are rendered once.
+
+// From 1100 px the input widget sits beside the card: the card never reaches
+// it, and is centred on the window when that clears it, else just right of it.
+const besideInput = (px) => {
+  const width = `min(${px}px, calc(100% - ${WORKSPACE.inputWidth} - 64px))`;
+  return { width, left: `max(50%, calc(${WORKSPACE.inputWidth} + ${2 * WORKSPACE.inset}px + ${width} / 2))` };
+};
+
 const desktop = {
   position: "absolute",
   left: "50%",
@@ -28,22 +36,17 @@ const desktop = {
   gap: 0.75,
   pointerEvents: "none",
   "& > *": { pointerEvents: "auto" },
-  "@media (min-width: 1100px)": {
-    left: `calc(50% + (${WORKSPACE.inputWidth} + ${WORKSPACE.inset}px) / 2)`,
-    width: `min(640px, calc(100% - ${WORKSPACE.inputWidth} - 64px))`,
-  },
+  "@media (min-width: 1100px)": besideInput(640),
 };
 
-// compact is false or the width of the smaller card in px.
+// compact is false or the width in px of the one-row card of a lone figure.
 const hudSx = (expanded, compact) => ({
   ...desktop,
   ...(compact && {
-    bottom: 24,
+    // Just above the credits strip, so the opened credits never run under it.
+    bottom: WORKSPACE.strip,
     width: `min(${compact}px, calc(100% - 48px))`,
-    "@media (min-width: 1100px)": {
-      ...desktop["@media (min-width: 1100px)"],
-      width: `min(${compact}px, calc(100% - ${WORKSPACE.inputWidth} - 64px))`,
-    },
+    "@media (min-width: 1100px)": besideInput(compact),
   }),
   "& .hud-notices": { display: "flex", flexDirection: "column", gap: 1, "& > *": { boxShadow: SHADOW.float } },
   "& .hud-box": {
@@ -67,17 +70,32 @@ const hudSx = (expanded, compact) => ({
   },
   "& .hud-drawer[data-open='true']": { display: "block" },
   "& .hud-main": { display: "flex", flexDirection: "column", gap: 0.5, p: "12px 16px 8px", color: COLORS.onInk },
-  ...(compact && {
-    "& .hud-main": { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "2px 12px", p: "8px 12px", color: COLORS.onInk },
-  }),
-  "& .hud-head": { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, minHeight: 24, ...(compact && { gridColumn: "1 / -1" }) },
+  "& .hud-head": { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, minHeight: 24 },
   // A value too long to share the row with its cells (a coordinate pair)
   // sends the cells to a second line instead of breaking or overlapping.
-  "& .hud-row": { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 1.5, rowGap: 0.5, minHeight: compact ? 32 : 40, minWidth: 0 },
+  "& .hud-row": { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 1.5, rowGap: 0.5, minHeight: 40, minWidth: 0 },
   "& .hud-cells-sheet": { display: "none" },
   "& .hud-toggle-sheet": { display: "none" },
   "& .hud-actions-sheet": { display: "none", flexWrap: "wrap", gap: 1 },
-  "& .hud-foot": { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, minHeight: 28, ...(compact && { alignSelf: "center" }) },
+  "& .hud-foot": { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, minHeight: 28 },
+  // The compact card is one row: the label over the figure, then the aside
+  // (the unit switch) and the foot (the details toggle) beside them.
+  ...(compact && {
+    "& .hud-main": {
+      display: "grid",
+      gridTemplateColumns: "minmax(0, 1fr) auto auto",
+      alignItems: "center",
+      columnGap: 2,
+      rowGap: 0,
+      p: "6px 10px 6px 16px",
+      color: COLORS.onInk,
+    },
+    "& .hud-head": { display: "contents" },
+    "& .hud-head > p": { gridColumn: 1, gridRow: 1, pt: "2px" },
+    "& .hud-head > :not(p)": { gridColumn: 2, gridRow: "1 / 3" },
+    "& .hud-row": { gridColumn: 1, gridRow: 2, display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 2, minWidth: 0 },
+    "& .hud-foot": { gridColumn: 3, gridRow: "1 / 3", display: "flex", alignItems: "center", gap: 1 },
+  }),
   "& .hud-actions": { display: "flex", flexWrap: "wrap", gap: 0.5, ml: "auto" },
   "& .hud-action": {
     display: "inline-flex",
@@ -159,7 +177,8 @@ const hudSx = (expanded, compact) => ({
         "& .hud-drawer[data-open='true']": { display: "block" },
         ...(compact && {
           "@media (max-width: 359.98px)": {
-            "& .hud-main": { display: "flex" },
+            // A column of full-width rows: the one-row card's centring does not apply.
+            "& .hud-main": { display: "flex", alignItems: "stretch" },
             // Only a label beside the unit switch gives up room for it.
             "& .hud-head": { display: "flex", "& > p:not(:only-child)": { maxWidth: 160 } },
           },
@@ -171,7 +190,7 @@ const hudSx = (expanded, compact) => ({
 // only at its spaces.
 // The smaller card of a single figure (compact), unless a coordinate pair
 // (valueSize "md") needs a wider one, given as compact's width.
-const COMPACT_WIDTH = 380;
+const COMPACT_WIDTH = 560;
 const compactFigure = { fontSize: 24, [PHONE]: { fontSize: 24 } };
 
 const mediumFigure = {
@@ -216,7 +235,7 @@ const mediumFigure = {
  *   size, so it fits beside its cells and breaks only between its parts.
  *   actions are buttons that act on the value (hand it to another tool),
  *   shown with a value only, at the foot of the ink bar. compact makes a
- *   smaller card lower on the map for a lone figure: true for 380 px, or
+ *   one-row card lower on the map for a lone figure: true for 560 px, or
  *   its width in px.
  */
 export default function ResultHud({

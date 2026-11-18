@@ -1,6 +1,8 @@
 // The map's scale bar: an Apple-style bar of two alternating segments with
-// the round length that fits in 96 px (scale.js). It shows while the map zooms
-// and fades out 1.5 s later; it stays while hovered, focused or pinned, and a
+// the round length that fits in 96 px (scale.js). Its numbers sit centred on
+// the ticks, the unit hangs after the last one, and the middle number drops
+// out when the bar is too short for it. It shows while the map zooms and
+// fades out 1.5 s later; it stays while hovered, focused or pinned, and a
 // click cycles metric, nautical and imperial. The camera moves every frame,
 // so the widths and labels are written to the DOM through refs, never to
 // React state. The parent positions it.
@@ -12,6 +14,10 @@ import { SCALE_UNITS, niceScale } from "./scale.js";
 
 const MAX_PX = 96;
 const FADE_DELAY_MS = 1500;
+// A digit of the 11 px monospace labels, rounded up, and the least room
+// between two labels.
+const CHAR_PX = 7;
+const LABEL_GAP = 6;
 
 // The bar sits on the map, not on a surface, so its colours follow the map's
 // tone and not the interface palette.
@@ -47,9 +53,10 @@ export default function ScaleBar({ subscribeView, measureScale, unit, onUnitChan
   const trackRef = useRef(null);
   const midRef = useRef(null);
   const endRef = useRef(null);
+  const unitRef = useRef(null);
   const readingRef = useRef(null);
   const timerRef = useRef(0);
-  const lastRef = useRef({ empty: false, width: "", end: "" });
+  const lastRef = useRef({ empty: false, width: "", end: "", tight: false });
   const shownRef = useRef(false);
   const heldRef = useRef(false);
   const pinnedRef = useRef(pinned);
@@ -69,15 +76,24 @@ export default function ScaleBar({ subscribeView, measureScale, unit, onUnitChan
     if (scale == null) return;
     // Most frames change neither the width nor the length: no DOM write then.
     const width = `${Math.round(scale.widthPx)}px`;
-    const end = `${formatter.format(scale.end)} ${scale.unit}`;
+    const endNumber = formatter.format(scale.end);
+    const mid = formatter.format(scale.mid);
+    const end = `${endNumber} ${scale.unit}`;
+    // The middle number needs half the bar for half of itself and half of the end number.
+    const tight = scale.widthPx / 2 < ((mid.length + endNumber.length) * CHAR_PX) / 2 + LABEL_GAP;
     if (width !== shown.width) {
       shown.width = width;
       trackRef.current.style.width = width;
     }
+    if (tight !== shown.tight) {
+      shown.tight = tight;
+      root.classList.toggle("is-tight", tight);
+    }
     if (end !== shown.end) {
       shown.end = end;
-      midRef.current.textContent = formatter.format(scale.mid);
-      endRef.current.textContent = end;
+      midRef.current.textContent = mid;
+      endRef.current.textContent = endNumber;
+      unitRef.current.textContent = scale.unit;
       readingRef.current.textContent = end;
     }
   }, [measureScale, unit, formatter]);
@@ -153,7 +169,8 @@ export default function ScaleBar({ subscribeView, measureScale, unit, onUnitChan
       onClick={cycle}
       sx={{
         display: "block",
-        p: "6px 28px 6px 12px",
+        // Even sides keep the bar centred; the unit hangs into the right one.
+        p: "6px 28px",
         border: 0,
         bgcolor: "transparent",
         font: "inherit",
@@ -169,6 +186,7 @@ export default function ScaleBar({ subscribeView, measureScale, unit, onUnitChan
         transition: `opacity ${MOTION.base} ${MOTION.ease}`,
         "&.is-visible": { opacity: 1, pointerEvents: "auto" },
         "&.is-empty": { visibility: "hidden" },
+        "&.is-tight .scale-mid": { visibility: "hidden" },
         "&:focus-visible": { outline: `2px solid ${COLORS.focus}`, outlineOffset: 0, borderRadius: `${RADIUS.control}px` },
         "@media (prefers-reduced-motion: reduce)": { transition: "none" },
         [PHONE]: { p: "10px 28px 10px 12px" },
@@ -178,8 +196,12 @@ export default function ScaleBar({ subscribeView, measureScale, unit, onUnitChan
       <Box component="span" ref={trackRef} sx={{ position: "relative", display: "block", width: 48 }}>
         <Box component="span" sx={{ position: "relative", display: "block", height: 14, mb: "2px" }}>
           <Box component="span" sx={{ ...labelSx, left: 0 }}>0</Box>
-          <Box component="span" ref={midRef} sx={{ ...labelSx, left: "50%" }} />
-          <Box component="span" ref={endRef} sx={{ ...labelSx, left: "100%" }} />
+          <Box component="span" ref={midRef} className="scale-mid" sx={{ ...labelSx, left: "50%" }} />
+          {/* Centred on its tick by the number alone; the unit hangs after it. */}
+          <Box component="span" sx={{ ...labelSx, left: "100%" }}>
+            <span ref={endRef} />
+            <Box component="span" ref={unitRef} sx={{ position: "absolute", left: "100%", bottom: 0, pl: "3px" }} />
+          </Box>
         </Box>
         <Box
           component="span"

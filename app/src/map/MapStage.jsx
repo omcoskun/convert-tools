@@ -40,6 +40,10 @@ const glassSurface = {
   backdropFilter: "blur(12px) saturate(1.4)",
 };
 
+// Half the widest scale bar (96 px and its 28 px sides), for keeping it clear
+// of the input widget.
+const SCALE_HALF_WIDTH = 76;
+
 // Map controls and the hint column start below the glass bar, or at the top
 // of the enlarged map.
 const top = (expanded, gap) => (expanded ? gap : `calc(var(--ct-bar-height, ${BAR_HEIGHT}px) + ${gap}px)`);
@@ -251,7 +255,7 @@ const textButton = {
  * The one map of the workspace: the MapLibre canvas drawing the scene, the
  * picking hint, one column of map controls (layers, 3D, zoom, fit, my
  * location, enlarge, and a compass while the map is turned), the scale bar
- * and the credits in the bottom-right corner, the pointer readout, the point
+ * at the top, the credits in the bottom-right corner, the pointer readout, the point
  * menu and the loading, basemap and error states. Rendered once by
  * WorkspaceLayout and kept for the life of the app.
  * @param {{
@@ -593,7 +597,34 @@ export default function MapStage({
         />
       </Box>
 
-      {/* The scale bar over the credits, in the strip under the result widget. */}
+      {/* The scale bar, as on Apple Maps: top centre of the window, or just
+          right of the input widget when the centre would reach it; top left
+          on a phone, above the hint column. It catches the pointer only
+          while shown (ScaleBar). */}
+      {ready && (
+        <Box
+          sx={{
+            position: "absolute",
+            top: top(expanded, WORKSPACE.inset / 2),
+            left: expanded ? "50%" : `max(50%, calc(${WORKSPACE.inputWidth} + ${2 * WORKSPACE.inset}px + ${SCALE_HALF_WIDTH}px))`,
+            transform: "translateX(-50%)",
+            zIndex: 3,
+            pointerEvents: "none",
+            [PHONE]: { left: 0, transform: "none" },
+          }}
+        >
+          <ScaleBar
+            subscribeView={map.subscribeView}
+            measureScale={map.measureScale}
+            unit={scaleUnit}
+            onUnitChange={changeScaleUnit}
+            pinned={scalePinned}
+            tone={loaded.tone}
+          />
+        </Box>
+      )}
+
+      {/* The credits, in the strip under the result widget. */}
       <Box
         sx={{
           position: "absolute",
@@ -612,16 +643,6 @@ export default function MapStage({
           [PHONE]: { bottom: 22, flexDirection: "column", alignItems: "flex-end", gap: "2px" },
         }}
       >
-        {ready && (
-          <ScaleBar
-            subscribeView={map.subscribeView}
-            measureScale={map.measureScale}
-            unit={scaleUnit}
-            onUnitChange={changeScaleUnit}
-            pinned={scalePinned}
-            tone={loaded.tone}
-          />
-        )}
         <Attribution credits={credits} revision={map.styleRevision} />
       </Box>
 

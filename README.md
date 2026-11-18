@@ -260,7 +260,8 @@ Değişmeyen kurallar:
   barındırılabilir.
 - Katmanlar (varsayılan kapalı): enlem/boylam ızgarası (aralığı yakınlaştırma
   düzeyini izler) ve MGRS ızgara bölgeleri.
-- Ölçek çubuğu Apple tarzıdır: yakınlaşırken görünür, sonra silinir; tıklayınca
+- Ölçek çubuğu Apple tarzıdır ve haritanın üst ortasında durur (telefonda
+  sol üstte): yakınlaşırken görünür, sonra silinir; tıklayınca
   metrik, deniz mili ve imperial arasında döner; katman panelinden sabitlenebilir.
 - Atıflar sağ altta bir ⓘ düğmesinin arkasındadır; altlık yüklendikten sonra
   5 saniye açık kalır, sonra kapanır (OSMF atıf yönergeleri buna izin verir).

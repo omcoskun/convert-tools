@@ -236,7 +236,7 @@ export default function MeasureTool() {
       copyLabel: text.directLabel,
       valueSize: "md",
       // Wide enough for a coordinate pair beside "Ayrıntılar".
-      compact: 480,
+      compact: 520,
     };
   } else if (mode === "route") {
     const polyline = value?.polyline;
@@ -253,6 +253,8 @@ export default function MeasureTool() {
             { label: text.routePoints, value: String(points.length) },
           ]
         : [],
+      // Room for the two counts beside the figure.
+      compact: 640,
     };
   } else {
     const inverse = value?.inverse;
