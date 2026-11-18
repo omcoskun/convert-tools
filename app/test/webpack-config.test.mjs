@@ -79,8 +79,9 @@ test("production pages carry the Content-Security-Policy meta tag, development p
   assert.match(CONTENT_SECURITY_POLICY, /script-src 'self'(;|$)/);
   assert.doesNotMatch(CONTENT_SECURITY_POLICY, /unsafe-eval/);
   // No image host: tiles and imagery are fetched, then decoded from blobs.
-  assert.match(CONTENT_SECURITY_POLICY, /img-src 'self' data: blob:(;|$)/);
   assert.deepEqual(MAP_ORIGINS, ["https://tiles.maps.eox.at", "https://tiles.openfreemap.org"]);
+  // Raster tiles arrive as images, so the same origins are allowed there.
+  assert.match(CONTENT_SECURITY_POLICY, new RegExp(`img-src 'self' data: blob: ${MAP_ORIGINS.join(" ")}(;|$)`));
   assert.match(CONTENT_SECURITY_POLICY, new RegExp(`connect-src 'self' ${MAP_ORIGINS.join(" ")}(;|$)`));
   assert.match(CONTENT_SECURITY_POLICY, /worker-src 'self'(;|$)/);
   assert.doesNotMatch(CONTENT_SECURITY_POLICY, /arcgis|unsafe-eval/);

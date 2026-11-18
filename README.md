@@ -266,8 +266,9 @@ Değişmeyen kurallar:
   uygulamanın sunucusuna gönderilmez.
 - Açık, koyu ya da sistem teması üst çubuktan seçilir ve `localStorage`'da
   saklanır.
-- CSP `connect-src`, derleme sırasında `config.json` → `map` içindeki her
-  adresin kaynağından kurulur (`webpack.config.js` → `mapOrigins`). Bu yüzden
+- CSP `connect-src` ve `img-src` (raster karolar resim olarak yüklenir),
+  derleme sırasında `config.json` → `map` içindeki her adresin kaynağından
+  kurulur (`webpack.config.js` → `mapOrigins`). Bu yüzden
   altlık sunucusunu değiştirmek, diğer ayarların aksine, yeniden derleme ister.
 - MapLibre ayrı bir parça olarak, yalnız bir çalışma alanı aracı açıldığında
   yüklenir (`src/map/maplibre.js`). Araç bağlantısının üzerine gelinince ya da

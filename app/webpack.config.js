@@ -78,7 +78,8 @@ export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  // MapLibre loads raster tiles (satellite imagery, relief) as images.
+  `img-src 'self' data: blob: ${MAP_ORIGINS.join(" ")}`,
   `connect-src 'self' ${MAP_ORIGINS.join(" ")}`,
   "worker-src 'self'",
   "font-src 'self'",
