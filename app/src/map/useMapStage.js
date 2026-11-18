@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { inverseGeodesic } from "@convert-tools/core";
 import { readPref, writePref } from "../lib/prefs.js";
-import { TONE_COLORS, basemapSource, findBasemap, pruneTileSamples, satelliteStyle, tileSample, tilesFailing } from "./basemaps.js";
+import {
+  CONTINENT_SOURCE,
+  NIGHT_SOURCE,
+  TONE_COLORS,
+  basemapSource,
+  continentFeatures,
+  findBasemap,
+  firstLayerAboveImagery,
+  pruneTileSamples,
+  satelliteStyle,
+  tileSample,
+  tilesFailing,
+} from "./basemaps.js";
 import { graticuleCovers, graticuleFeatures, graticuleInterval } from "./graticule.js";
 import { accuracyRing, locationErrorKey } from "./location.js";
 import {
@@ -29,6 +41,7 @@ import {
 } from "./map-adapter.js";
 import { SPACE_SKY, worldMinZoom } from "./map-view.js";
 import { loadMapLibre, webgl2Available } from "./maplibre.js";
+import { createNightLayer } from "./night-layer.js";
 import { mgrsZoneFeatures } from "./mgrs-zones.js";
 import {
   fitTargets,
@@ -561,6 +574,9 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
   const pinsRef = useRef(new Map());
   const tagsRef = useRef(new Map());
   const polarRef = useRef(null);
+  // The satellite map's live night side (night-layer.js), made the first
+  // time the satellite basemap loads and kept for its lights.
+  const nightRef = useRef(null);
   const dragRef = useRef({ id: null, frame: 0, pending: null });
   const latestRef = useRef(null);
   const basemapRef = useRef({ remote: true, styleLoaded: false, tileSamples: [], partial: false, localizedLayers: [] });
@@ -603,7 +619,11 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
   const transformStyle = useCallback((previous, next) => {
     const current = sourceRef.current;
     let tuned = tuneBasemapStyle(next, latestRef.current?.language ?? "tr", { palette: current.palette, keepRaster: current.keepRaster });
-    if (current.raster) tuned = satelliteStyle(tuned, current.raster);
+    if (current.raster) {
+      const latest = latestRef.current;
+      const continents = continentFeatures(current.continents ?? [], latest?.labels?.continents ?? {}, latest?.language ?? "tr");
+      tuned = satelliteStyle(tuned, current.raster, { continents });
+    }
     basemapRef.current.localizedLayers = (tuned?.layers ?? []).filter(isLocalizedLabelLayer).map((layer) => layer.id);
     return tuned;
   }, []);
@@ -1071,6 +1091,12 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
         map.setProjection({ type: modeRef.current === "3d" ? "globe" : "mercator" });
         map.setSky(modeRef.current === "3d" ? SPACE_SKY : undefined);
         installLineLayers(map, colorsRef.current);
+        if (basemapState.remote && current.night) {
+          nightRef.current ??= createNightLayer(current.night, libraryRef.current);
+          nightRef.current.attach(map, firstLayerAboveImagery(map.getStyle().layers));
+        } else {
+          nightRef.current?.detach();
+        }
         gridRef.current = null;
         syncOverlays();
         drawLocation();
@@ -1094,6 +1120,9 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
       // requests) are noise, a real share of failures is not.
       const recordTileSample = (event) => {
         if (disposed || !basemapState.remote || !basemapState.styleLoaded) return;
+        // The night side's tiles are drawn here, not fetched: not a sign of
+        // the basemap's health.
+        if (event?.sourceId === NIGHT_SOURCE) return;
         const sample = tileSample(event);
         if (!sample) return;
         const now = performance.now();
@@ -1246,6 +1275,7 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
       tags.clear();
       polarRef.current?.remove();
       polarRef.current = null;
+      nightRef.current?.detach();
       locationRef.current.marker?.remove();
       locationRef.current.marker = null;
       map?.remove();
@@ -1412,6 +1442,7 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
     for (const id of basemapRef.current.localizedLayers) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "text-field", localizedNameExpression(language));
     }
+    map.getSource(CONTINENT_SOURCE)?.setData(continentFeatures(sourceRef.current.continents ?? [], labels.continents ?? {}, language));
   }, [language, labels, styleRevision]);
 
   // ---- Picking: no double-click zoom while something is being placed -----

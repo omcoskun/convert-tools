@@ -151,8 +151,7 @@
         ],
         "attribution": [
           { "text": "Sentinel-2 cloudless 2025 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2025), CC BY-NC-SA 4.0", "href": "https://s2maps.eu" },
-          { "text": "NASA Blue Marble (GIBS)", "href": "https://earthdata.nasa.gov/gibs" },
-          { "text": "NASA Black Marble (GIBS)", "href": "https://earthdata.nasa.gov/gibs" },
+          { "text": "NASA Blue Marble & Black Marble (GIBS)", "href": "https://earthdata.nasa.gov/gibs" },
           { "text": "OpenFreeMap", "href": "https://openfreemap.org" },
           { "text": "© OpenMapTiles", "href": "https://www.openmaptiles.org/" },
           { "text": "© OpenStreetMap", "href": "https://www.openstreetmap.org/copyright" }

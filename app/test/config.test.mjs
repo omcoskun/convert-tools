@@ -141,6 +141,9 @@ test("the basemaps are https styles with structured attributions; the satellite 
       assert.equal(new URL(basemap[key]).protocol, "https:", `${basemap.id}.${key}`);
     }
     assert.ok(basemap.attribution.length > 0, basemap.id);
+    // The credits are keyed by their link (Attribution.jsx).
+    const links = basemap.attribution.map(({ href }) => href);
+    assert.equal(new Set(links).size, links.length, `${basemap.id}: one credit per link`);
     for (const { text, href } of basemap.attribution) {
       assert.equal(typeof text, "string");
       assert.equal(new URL(href).protocol, "https:", text);

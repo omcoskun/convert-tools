@@ -288,7 +288,21 @@ export default function MapStage({
 }) {
   const { language, text } = useLanguage();
   const { mode } = useThemeMode();
-  const labels = useMemo(() => ({ mapCanvas: `${text.mapTitle}. ${text.mapPanHint}` }), [text]);
+  const labels = useMemo(
+    () => ({
+      mapCanvas: `${text.mapTitle}. ${text.mapPanHint}`,
+      continents: {
+        northAmerica: text.mapContinentNorthAmerica,
+        southAmerica: text.mapContinentSouthAmerica,
+        europe: text.mapContinentEurope,
+        africa: text.mapContinentAfrica,
+        asia: text.mapContinentAsia,
+        oceania: text.mapContinentOceania,
+        antarctica: text.mapContinentAntarctica,
+      },
+    }),
+    [text],
+  );
   const map = useMapStage({ basemaps, defaultBasemap, mode, language, labels, scene, owner, handlersRef, getPadding });
   const { status, basemapStatus, retry, viewMode, setMode, loaded, location } = map;
   const ready = status === "ready";
