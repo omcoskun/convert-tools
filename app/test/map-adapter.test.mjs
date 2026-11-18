@@ -25,6 +25,7 @@ import {
   routeMidpoint,
   screenRuns,
   tuneBasemapStyle,
+  calmLabels,
   unwrapPath,
   wrapLongitude,
 } from "../src/map/map-adapter.js";
@@ -274,4 +275,58 @@ test("2D keeps the Mercator edge at the edge of the map, so nothing beyond it sh
   near(constrainView({ lng: 0, lat: 80 }, 1, range, 1, "2d", fitted).latitude, 33.13755119234614);
   // A world shorter than the map (below the zoom floor) stays centred.
   near(constrainView({ lng: 0, lat: 60 }, 0, range, 0, "2d", { height: 1024 }).latitude, 0);
+});
+
+const fakeLabel = (id, sourceLayer, layout = {}, paint = {}) => ({
+  id,
+  type: "symbol",
+  source: "openmaptiles",
+  "source-layer": sourceLayer,
+  layout: { "text-field": "{name}", "text-font": ["Noto Sans Bold"], "text-transform": "uppercase", "icon-image": "circle", ...layout },
+  paint: { "text-color": "#000", ...paint },
+});
+const calmStyle = () => ({
+  sources: { openmaptiles: { type: "vector" } },
+  layers: [
+    fakeLabel("label_country_1", "place"),
+    fakeLabel("label_city", "place"),
+    fakeLabel("label_village", "place"),
+    fakeLabel("water_name_point_label", "water_name", { "text-font": ["Noto Sans Italic"] }),
+  ],
+});
+
+test("calm labels: minimum zooms grow from country to village", () => {
+  const [country, city, village] = tuneBasemapStyle(calmStyle(), "tr").layers;
+  assert.equal(country.minzoom, 1.5);
+  assert.equal(city.minzoom, 5.5);
+  assert.equal(village.minzoom, 11);
+});
+
+test("calm labels: cities are mixed case, regular and without dots; countries keep small caps", () => {
+  const [country, city] = tuneBasemapStyle(calmStyle(), "tr").layers;
+  assert.equal(city.layout["text-transform"], "none");
+  assert.equal(country.layout["text-transform"], "uppercase");
+  assert.deepEqual(city.layout["text-font"], ["Noto Sans Regular"]);
+  assert.equal(city.layout["icon-image"], undefined);
+  assert.equal(city.layout["text-size"][0], "interpolate");
+});
+
+test("calm labels: colours follow the palette and none leaves them alone", () => {
+  assert.equal(tuneBasemapStyle(calmStyle(), "en", { palette: "positron" }).layers[1].paint["text-color"], "#5f6670");
+  const dark = tuneBasemapStyle(calmStyle(), "en", { palette: "dark" }).layers;
+  assert.equal(dark[1].paint["text-color"], "#aab3be");
+  assert.equal(dark[1].paint["text-halo-color"], "#1c222a");
+  assert.equal(dark[3].paint["text-color"], "#5d7a99");
+  const none = tuneBasemapStyle(calmStyle(), "en", { palette: "none" }).layers;
+  assert.equal(none[1].paint["text-color"], "#000");
+  assert.equal(none[1].layout["text-transform"], "none");
+  assert.equal(none[1].minzoom, 5.5);
+});
+
+test("calm labels keep the localized text field and ignore other layers", () => {
+  const tuned = tuneBasemapStyle(calmStyle(), "tr").layers;
+  assert.deepEqual(tuned[1].layout["text-field"][1], ["get", "name:tr"]);
+  assert.deepEqual(tuned[3].layout["text-field"][1], ["get", "name:tr"]);
+  const fill = { id: "water", type: "fill", "source-layer": "water" };
+  assert.equal(calmLabels(fill), fill);
 });

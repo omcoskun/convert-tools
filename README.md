@@ -245,7 +245,12 @@ Değişmeyen kurallar:
   (seçim hatırlanır): "standart" OpenFreeMap "positron"dur ve açık/koyu
   temayı izler (koyuda OpenFreeMap "dark" stili); "ayrıntılı" OpenFreeMap
   "liberty"dir (gölgeli rölyef ile); "uydu" EOX Sentinel-2 cloudless 2017
-  görüntüsüdür (CC BY 4.0) ve sınırlar ile yer adları vektör stilinden gelir.
+  görüntüsüdür (CC BY 4.0); altında NASA GIBS Blue Marble (kamu malı, en çok
+  8. düzey) kaba bir yedek olarak çizilir, böylece EOX karosu gelmediğinde
+  boşluk yerine kaba görüntü görünür. Sınırlar ile yer adları vektör
+  stilinden gelir. Altlığın "bazı parçalar yüklenemedi" uyarısı, son 10
+  saniyedeki karo yüklemelerinin en az dörtte biri (ve en az 3'ü) başarısız
+  olunca çıkar; yakınlaştırırken iptal edilen istekler sayılmaz.
   Raster kaynaklar yalnız bu kataloğun girdileridir; `src/map/map-adapter.js`
   stildeki başka raster kaynakları atar. Altlık yüklenemezse harita istek
   yapmayan çevrimdışı bir ızgaraya döner ve "Yeniden dene" düğmesi

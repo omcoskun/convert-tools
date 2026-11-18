@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { inverseGeodesic } from "@convert-tools/core";
 import { readPref, writePref } from "../lib/prefs.js";
-import { TONE_COLORS, basemapSource, findBasemap, satelliteStyle } from "./basemaps.js";
+import { TONE_COLORS, basemapSource, findBasemap, pruneTileSamples, satelliteStyle, tileSample, tilesFailing } from "./basemaps.js";
 import { graticuleCovers, graticuleFeatures, graticuleInterval } from "./graticule.js";
 import { accuracyRing, locationErrorKey } from "./location.js";
 import {
@@ -81,7 +81,6 @@ const LONG_PRESS_MS = 600;
 // Half the ground line the scale bar measures, in px either side of the centre.
 const SCALE_PROBE_PX = 40;
 const LOCATION_ERROR_MS = 6000;
-const TILE_ERROR_THRESHOLD = 3;
 const DOUBLE_CLICK_GUARD_MS = 450;
 const DOUBLE_CLICK_GUARD_PX = 10;
 // The pointer readout shows about one metre.
@@ -564,7 +563,7 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
   const polarRef = useRef(null);
   const dragRef = useRef({ id: null, frame: 0, pending: null });
   const latestRef = useRef(null);
-  const basemapRef = useRef({ remote: true, styleLoaded: false, tileErrors: 0, localizedLayers: [] });
+  const basemapRef = useRef({ remote: true, styleLoaded: false, tileSamples: [], partial: false, localizedLayers: [] });
   const reloadBasemapRef = useRef(null);
   const fitSeenRef = useRef({ owner, fitRequest: scene.fitRequest });
   const modeRef = useRef("3d");
@@ -880,7 +879,8 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
     const loadRemoteStyle = () => {
       basemapState.remote = true;
       basemapState.styleLoaded = false;
-      basemapState.tileErrors = 0;
+      basemapState.tileSamples = [];
+      basemapState.partial = false;
       setBasemapStatus("loading");
       window.clearTimeout(styleTimer);
       styleTimer = window.setTimeout(() => {
@@ -1084,9 +1084,25 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
           switchToFallback();
           return;
         }
-        basemapState.tileErrors += 1;
-        if (basemapState.tileErrors >= TILE_ERROR_THRESHOLD) setBasemapStatus("partial");
+        recordTileSample(event);
       });
+
+      // Tile loads and failures of the last seconds decide whether the
+      // basemap is "partial": a few failures among many loads (or cancelled
+      // requests) are noise, a real share of failures is not.
+      const recordTileSample = (event) => {
+        if (disposed || !basemapState.remote || !basemapState.styleLoaded) return;
+        const sample = tileSample(event);
+        if (!sample) return;
+        const now = performance.now();
+        basemapState.tileSamples = [...pruneTileSamples(basemapState.tileSamples, now), { at: now, ok: sample.ok }];
+        const failing = tilesFailing(basemapState.tileSamples, now);
+        if (failing !== basemapState.partial) {
+          basemapState.partial = failing;
+          setBasemapStatus(failing ? "partial" : "ready");
+        }
+      };
+      map.on("data", recordTileSample);
 
       map.on("click", (event) => {
         if (!latestRef.current?.scene.picking) return;

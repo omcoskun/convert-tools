@@ -98,7 +98,7 @@ export const COLORS = Object.freeze(Object.fromEntries(Object.keys(PALETTES.ligh
 export const ACCENT_HEX = Object.freeze({ a: PALETTES.light.a, b: PALETTES.light.b, ink: "#16191c" });
 
 /** Type sizes in px. Text uses two weights, 400 and 650; 700 is for the brand and letter badges. */
-export const TYPE = Object.freeze({ label: 11, meta: 12, small: 13, body: 14, title: 16, heading: 22, readout: 32 });
+export const TYPE = Object.freeze({ label: 11, meta: 12, small: 13, body: 14, title: 16, heading: 22, readout: 28 });
 
 /** The small uppercase label (readouts, chip rows, the library call, indexes); colour is set by the caller. */
 export const LABEL_CAPS = Object.freeze({ fontSize: TYPE.label, fontWeight: 650, letterSpacing: "0.08em", textTransform: "uppercase" });
@@ -136,10 +136,11 @@ export const BAR_HEIGHT = 52;
  * and the result bar, without its drawer) leave to the map (spec 11).
  */
 export const WORKSPACE = Object.freeze({
-  inputWidth: "clamp(340px, 27vw, 400px)",
-  hudWidth: "min(760px, calc(100% - 48px))",
+  inputWidth: "clamp(320px, 25vw, 344px)",
+  hudWidth: "min(640px, calc(100% - 48px))",
   inset: 16,
-  hudBottom: 20,
+  strip: 40,
+  hudBottom: 44,
   mapShare: 0.6,
 });
 

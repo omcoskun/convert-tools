@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { encodeMgrs } from "@convert-tools/core";
 import { readJson } from "./support/files.mjs";
-import { SATELLITE_SOURCE, TONE_COLORS, basemapSource, findBasemap, satelliteStyle } from "../src/map/basemaps.js";
+import { SATELLITE_FALLBACK_SOURCE, SATELLITE_SOURCE, TONE_COLORS, basemapSource, findBasemap, pruneTileSamples, satelliteStyle, tileSample, tilesFailing } from "../src/map/basemaps.js";
 import { GRATICULE_INTERVALS, graticuleCovers, graticuleFeatures, graticuleInterval, graticuleLabel } from "../src/map/graticule.js";
 import { PALETTE_OVERRIDES, tuneBasemapStyle } from "../src/map/map-adapter.js";
 import { mgrsZoneCells, mgrsZoneFeatures } from "../src/map/mgrs-zones.js";
@@ -164,4 +164,34 @@ test("the scale bar shows the longest 1-2-5 length that fits, in the chosen unit
   assert.equal(niceScale(Number.NaN, 120, "metric"), null);
   assert.equal(niceScale(0, 120, "metric"), null);
   assert.equal(niceScale(Infinity, 120, "metric"), null);
+});
+
+test("a fallback imagery source sits under the sharp imagery", () => {
+  const raster = { tiles: "https://imagery.example/{z}/{y}/{x}.jpg", maxzoom: 14, fallback: { tiles: "https://coarse.example/{z}/{y}/{x}.jpeg", maxzoom: 8 } };
+  const style = satelliteStyle(VECTOR_STYLE, raster);
+  assert.deepEqual(style.layers.map((layer) => layer.id).slice(0, 3), ["background", "convert-satellite-fallback", SATELLITE_SOURCE]);
+  assert.deepEqual(style.sources[SATELLITE_FALLBACK_SOURCE], { type: "raster", tiles: [raster.fallback.tiles], tileSize: 256, maxzoom: 8 });
+});
+
+test("tile events become samples; cancelled requests are ignored", () => {
+  assert.deepEqual(tileSample({ type: "data", dataType: "source", tile: { state: "loaded" } }), { ok: true });
+  assert.equal(tileSample({ type: "data", dataType: "source", tile: { state: "loading" } }), null);
+  assert.equal(tileSample({ type: "data", dataType: "style" }), null);
+  assert.deepEqual(tileSample({ type: "error", error: new Error("Not Found") }), { ok: false });
+  const abort = new Error("aborted");
+  abort.name = "AbortError";
+  assert.equal(tileSample({ type: "error", error: abort }), null);
+  assert.equal(tileSample(undefined), null);
+});
+
+test("the basemap is partial only when a real share of recent tiles failed", () => {
+  const at = (t, ok) => ({ at: t, ok });
+  const many = [...Array.from({ length: 40 }, (_, i) => at(1000 + i, true)), at(1100, false), at(1101, false), at(1102, false)];
+  assert.equal(tilesFailing(many, 2000), false, "3 failures among 43 tiles is noise");
+  const bad = [...Array.from({ length: 6 }, (_, i) => at(1000 + i, true)), at(1100, false), at(1101, false), at(1102, false)];
+  assert.equal(tilesFailing(bad, 2000), true, "3 of 9 failed");
+  assert.equal(tilesFailing([at(1000, false), at(1001, false)], 2000), false, "fewer than 3 failures");
+  assert.equal(tilesFailing(bad, 20000), false, "old samples expire");
+  assert.deepEqual(pruneTileSamples(bad, 11050).length, 3);
+  assert.equal(tilesFailing([], 0), false);
 });

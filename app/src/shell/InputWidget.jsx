@@ -79,17 +79,17 @@ export default function InputWidget({ title, subtitle, icon, actions, children }
             alignItems: "center",
             gap: 1,
             flex: "none",
-            minHeight: 52,
-            pl: 2,
-            pr: 1,
+            minHeight: 44,
+            pl: 1.5,
+            pr: 0.5,
             borderBottom: collapsed ? 0 : `1px solid ${COLORS.rule}`,
             color: COLORS.ink,
             "& > svg": { color: COLORS.ink2 },
             [PHONE]: { minHeight: 44, pr: 2, borderBottom: 0 },
           }}
         >
-          {icon && <Box sx={{ display: "grid", placeItems: "center", width: 32, height: 32, borderRadius: 1, bgcolor: COLORS.aSoft, color: COLORS.aInk }}><Icon name={icon} size={18} /></Box>}
-          <Box sx={{ flex: 1, minWidth: 0, py: 1.5 }}>
+          {icon && <Box sx={{ display: "grid", placeItems: "center", width: 28, height: 28, borderRadius: 1, bgcolor: COLORS.aSoft, color: COLORS.aInk }}><Icon name={icon} size={16} /></Box>}
+          <Box sx={{ flex: 1, minWidth: 0, py: 1 }}>
           <Box
             component="h1"
             id="tool-title"
@@ -97,7 +97,7 @@ export default function InputWidget({ title, subtitle, icon, actions, children }
               flex: 1,
               minWidth: 0,
               m: 0,
-              fontSize: TYPE.title,
+              fontSize: 15,
               fontWeight: 650,
               letterSpacing: "-0.01em",
               lineHeight: 1.3,
@@ -108,7 +108,7 @@ export default function InputWidget({ title, subtitle, icon, actions, children }
           >
             {title}
           </Box>
-          {subtitle && <Box component="p" sx={{ m: 0, mt: 0.5, fontSize: TYPE.meta, color: COLORS.muted }}>{subtitle}</Box>}
+          {subtitle && <Box component="p" sx={{ m: 0, mt: 0.25, fontSize: TYPE.meta, lineHeight: 1.3, color: COLORS.muted }}>{subtitle}</Box>}
           </Box>
           <Box
             component="button"
@@ -162,8 +162,8 @@ export default function InputWidget({ title, subtitle, icon, actions, children }
               scrollbarGutter: "stable",
               display: "flex",
               flexDirection: "column",
-              gap: 1.5,
-              p: 2,
+              gap: 1,
+              p: 1.25,
               [PHONE]: { flex: "none", overflow: "visible", pt: 0.5 },
             }}
           >
@@ -177,8 +177,8 @@ export default function InputWidget({ title, subtitle, icon, actions, children }
                 alignItems: "center",
                 gap: 1,
                 flex: "none",
-                px: 1.5,
-                py: 1,
+                px: 1.25,
+                py: 0.75,
                 borderTop: `1px solid ${COLORS.rule}`,
                 bgcolor: COLORS.paper,
                 "& .MuiButton-root": { whiteSpace: "nowrap" },

@@ -151,6 +151,10 @@ test("the basemaps are https styles with structured attributions; the satellite 
   const satellite = config.map.basemaps.find((basemap) => basemap.id === "satellite");
   assert.match(satellite.raster.tiles, /^https:\/\/tiles\.maps\.eox\.at\/.*s2cloudless-2017_3857.*\{z\}\/\{y\}\/\{x\}/);
   assert.ok(satellite.attribution.some(({ text }) => /EOX/.test(text) && /CC BY 4\.0/.test(text)));
+  // The coarse fallback under it is NASA GIBS Blue Marble (public domain), credited.
+  assert.match(satellite.raster.fallback.tiles, /^https:\/\/gibs\.earthdata\.nasa\.gov\/.*BlueMarble.*\{z\}\/\{y\}\/\{x\}/);
+  assert.equal(satellite.raster.fallback.maxzoom, 8);
+  assert.ok(satellite.attribution.some(({ text }) => /NASA/.test(text)));
   // The 2018+ Sentinel-2 cloudless layers are non-commercial; Esri imagery needs a licence.
   assert.doesNotMatch(JSON.stringify(config), /arcgis|s2cloudless-20(1[89]|2\d)/i);
 });

@@ -440,6 +440,94 @@ export function guardFilter(expression) {
   ];
 }
 
+// ---------------------------------------------------------------------------
+// Calm labels: place names after the Apple Maps habit. Few, small, quiet names
+// when zoomed out, more appearing as you zoom in; mixed case, regular weight,
+// soft grey with a halo in the map's own background colour.
+// ---------------------------------------------------------------------------
+
+const zoomSize = (...stops) => ["interpolate", ["linear"], ["zoom"], ...stops.flat()];
+
+// kind: [minzoom, text-size, letter-spacing, light colour, dark colour]
+const CALM_PLACE = {
+  country: [1.5, zoomSize([1, 8], [5, 10], [8, 12]), 0.1, "#7b818a", "#8d96a2"],
+  state: [5, zoomSize([5, 9.5], [8, 11.5]), 0.06, "#8a9099", "#7d8793"],
+  cityLarge: [3.5, zoomSize([3.5, 9.5], [7, 11.5], [11, 14]), 0.01, "#5f6670", "#aab3be"],
+  city: [5.5, zoomSize([5.5, 10], [8, 11.5], [12, 14]), 0.01, "#5f6670", "#aab3be"],
+  town: [8, zoomSize([8, 10], [12, 12]), 0.01, "#6e757e", "#97a1ad"],
+  village: [11, zoomSize([11, 9.5], [14, 11.5]), 0.01, "#8a9099", "#8790 9c".replace(" ", "")],
+  small: [12.5, zoomSize([12.5, 9], [15, 10.5]), 0.02, "#8a9099", "#7d8793"],
+};
+const CALM_BACKGROUND = { positron: "#f3f1eb", dark: "#1c222a" };
+const CALM_WATER = { positron: ["#7f9db8", "rgba(188, 212, 230, 0.9)"], dark: ["#5d7a99", "rgba(14, 24, 36, 0.9)"] };
+
+function placeKind(id) {
+  if (/country/.test(id)) return "country";
+  if (/state/.test(id)) return "state";
+  if (/city_(large|capital)/.test(id)) return "cityLarge";
+  if (/city/.test(id)) return "city";
+  if (/town/.test(id)) return "town";
+  if (/village/.test(id)) return "village";
+  return "small"; // suburb, hamlet, neighbourhood, "other"
+}
+
+const regularFont = (fonts) =>
+  Array.isArray(fonts) ? fonts.map((font) => (/Bold|Semibold/.test(font) ? font.replace(/\s*(Semi)?[Bb]old/, " Regular") : font)) : fonts;
+
+/**
+ * Quiet down a label layer. Only symbol layers of the place, water_name and
+ * transportation_name source layers change; palette "none" keeps its colours.
+ */
+export function calmLabels(layer, palette = "positron") {
+  if (layer?.type !== "symbol") return layer;
+  const source = layer["source-layer"];
+  const dark = palette === "dark";
+  const coloured = palette === "positron" || palette === "dark";
+  const layout = { ...layer.layout };
+  const paint = { ...layer.paint };
+  if (source === "place") {
+    const [minzoom, size, spacing, light, night] = CALM_PLACE[placeKind(layer.id)];
+    const isCountry = placeKind(layer.id) === "country";
+    layout["text-size"] = size;
+    layout["text-transform"] = isCountry ? "uppercase" : "none";
+    layout["text-letter-spacing"] = spacing;
+    layout["text-font"] = regularFont(layout["text-font"]);
+    delete layout["icon-image"];
+    layout["text-anchor"] = "center";
+    layout["text-offset"] = [0, 0];
+    if (layout["text-justify"]) layout["text-justify"] = "center";
+    if (coloured) {
+      paint["text-color"] = dark ? night : light;
+      paint["text-halo-color"] = CALM_BACKGROUND[palette];
+      paint["text-halo-width"] = 1.3;
+      paint["text-halo-blur"] = 0.5;
+    }
+    return { ...layer, minzoom: Math.max(layer.minzoom ?? 0, minzoom), layout, paint };
+  }
+  if (source === "water_name") {
+    layout["text-size"] = layout["text-size"] === undefined || typeof layout["text-size"] === "number"
+      ? 11
+      : zoomSize([0, 9], [8, 12]);
+    layout["text-transform"] = "none";
+    layout["text-letter-spacing"] = 0.08;
+    if (coloured) {
+      [paint["text-color"], paint["text-halo-color"]] = CALM_WATER[palette];
+      paint["text-halo-width"] = 1.2;
+    }
+    return { ...layer, layout, paint };
+  }
+  if (source === "transportation_name" && !layout["icon-image"]) {
+    layout["text-transform"] = "none";
+    if (coloured) {
+      paint["text-color"] = dark ? "#7d8793" : "#8a9099";
+      paint["text-halo-color"] = CALM_BACKGROUND[palette];
+      paint["text-halo-width"] = 1.2;
+    }
+    return { ...layer, layout, paint };
+  }
+  return layer;
+}
+
 /**
  * The basemap style as the app draws it: on the globe (MAP_PROJECTION), the
  * house colours of its palette and labels in the interface language. Raster
@@ -461,6 +549,7 @@ export function tuneBasemapStyle(style, language, { palette = "positron", keepRa
       const paint = overrides[layer.id];
       let next = paint ? { ...layer, paint: { ...layer.paint, ...paint } } : layer;
       if (Array.isArray(next.filter)) next = { ...next, filter: guardFilter(next.filter) };
+      next = calmLabels(next, palette);
       if (isLocalizedLabelLayer(next)) {
         next = { ...next, layout: { ...next.layout, "text-field": localizedNameExpression(language) } };
       }

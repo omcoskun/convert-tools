@@ -166,11 +166,6 @@ const stageSx = {
     boxShadow: "0 1px 4px rgba(22, 25, 28, 0.18)",
     pointerEvents: "none",
   },
-  // Between the phone and a wide window the scale bar would reach under the
-  // centred result widget.
-  "@media (min-width: 760px) and (max-width: 999.98px)": {
-    "& .map-scale": { display: "none" },
-  },
 };
 
 function ControlButton({ label, icon, onClick, disabled, pressed, expanded, buttonRef, busy, children }) {
@@ -521,7 +516,9 @@ export default function MapStage({
           flexDirection: "column",
           alignItems: "center",
           gap: 1,
-          [PHONE]: { top: top(expanded, 10), right: 10, gap: 0.75 },
+          // A short map keeps the column above the credits strip: groups that do
+          // not fit wrap into a second column to its left.
+          [PHONE]: { top: top(expanded, 10), right: 10, bottom: 60, gap: 0.75, flexWrap: "wrap-reverse", alignContent: "flex-start", justifyContent: "flex-start" },
         }}
       >
         <Box sx={groupSx}>
@@ -602,15 +599,16 @@ export default function MapStage({
           right: 8,
           bottom: 8,
           zIndex: 2,
+          // Desktop: one row in the strip under the result widget (WORKSPACE.strip).
           display: "flex",
-          flexDirection: "column",
+          flexDirection: "row",
           alignItems: "flex-end",
-          gap: "2px",
+          gap: "8px",
           maxWidth: "calc(100% - 16px)",
           pointerEvents: "none",
           "& > *": { pointerEvents: "auto" },
           // The sheet overlaps the map's lower edge by 14 px.
-          [PHONE]: { bottom: 22 },
+          [PHONE]: { bottom: 22, flexDirection: "column", alignItems: "flex-end", gap: "2px" },
         }}
       >
         {ready && (

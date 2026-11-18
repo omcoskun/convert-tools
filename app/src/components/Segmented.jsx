@@ -30,7 +30,7 @@ const TONES = {
 const PHONE_TARGET = 40;
 const SIZES = {
   sm: { pad: 2, height: 24, phoneHeight: 28, px: 8, minWidth: 32, font: TYPE.meta, icon: 14 },
-  md: { pad: 3, height: 30, phoneHeight: 34, px: 12, minWidth: 36, font: TYPE.small, icon: 16 },
+  md: { pad: 3, height: 30, phoneHeight: 34, px: 8, minWidth: 36, font: TYPE.small, icon: 16 },
 };
 
 /**
@@ -104,7 +104,7 @@ export default function Segmented({ label, options, value, onChange, tone = "pap
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px",
+              gap: "5px",
               height: metrics.height,
               minWidth: metrics.minWidth,
               px: `${metrics.px}px`,

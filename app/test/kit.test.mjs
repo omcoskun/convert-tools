@@ -233,7 +233,7 @@ test("CopyButton names what it copies and has a polite status region for the con
 });
 
 test("theme.js exports the design tokens", () => {
-  assert.deepEqual(theme.TYPE, { label: 11, meta: 12, small: 13, body: 14, title: 16, heading: 22, readout: 32 });
+  assert.deepEqual(theme.TYPE, { label: 11, meta: 12, small: 13, body: 14, title: 16, heading: 22, readout: 28 });
   assert.deepEqual(theme.RADIUS, { control: 8, card: 12, widget: 16, pill: 999 });
   assert.deepEqual(theme.MOTION, { fast: "120ms", base: "180ms", ease: "cubic-bezier(0.2, 0, 0, 1)" });
   assert.equal(theme.BAR_HEIGHT, 52);

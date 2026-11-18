@@ -182,8 +182,8 @@ export default function PointField({
       sx={{
         display: "flex",
         flexDirection: "column",
-        gap: 0.75,
-        p: "8px 10px 10px 12px",
+        gap: 0.5,
+        p: "6px 8px 8px 10px",
         minWidth: 0,
         containerType: "inline-size",
         border: `1px solid ${picking ? tone.color : COLORS.rule}`,
@@ -221,7 +221,7 @@ export default function PointField({
           <Box id={messageId}>
             {showFormats && <Box
               component="dl"
-              sx={{ m: 0, display: "grid", gridTemplateColumns: "40px minmax(0, 1fr)", gap: "2px 8px", alignItems: "baseline" }}
+              sx={{ m: 0, display: "grid", gridTemplateColumns: "34px minmax(0, 1fr)", gap: "0 6px", alignItems: "baseline" }}
             >
               {[
                 ["DMS", formats.dms],
@@ -241,7 +241,7 @@ export default function PointField({
                       color: COLORS.ink2,
                       fontFamily: MONO_FONT,
                       fontSize: TYPE.meta,
-                      lineHeight: 1.5,
+                      lineHeight: 1.4,
                     }}
                   >
                     {parts.map((part) => (

@@ -53,13 +53,13 @@ export default function WorkspaceLayout({ hidden = false, children }) {
     const { input, result } = widgetsRef.current;
     if (!root) return;
     const box = root.getBoundingClientRect();
-    let below = WORKSPACE.inset;
+    let below = WORKSPACE.strip + 4;
     let budget = Number.POSITIVE_INFINITY;
     if (input && result) {
       const hud = result.getBoundingClientRect();
       const inputWidth = input.getBoundingClientRect().width;
       if (hud.height > 0 && hud.left < input.getBoundingClientRect().right + WORKSPACE.inset) {
-        below = box.bottom - hud.top + WORKSPACE.inset;
+        below = box.bottom - hud.top + WORKSPACE.inset / 2;
       }
       // On tall, narrow windows the input widget scrolls sooner, so the
       // widgets at rest leave the map its share. The open drawer does not
