@@ -12,9 +12,9 @@ import Icon from "./Icon.jsx";
 
 // A is cobalt, B vermilion, other points ink (spec section 7).
 const TONES = {
-  a: { color: COLORS.a, soft: COLORS.aSoft, ink: COLORS.aInk },
-  b: { color: COLORS.b, soft: COLORS.bSoft, ink: COLORS.bInk },
-  ink: { color: COLORS.ink, soft: COLORS.paper2, ink: COLORS.ink },
+  a: { color: COLORS.a, on: "#ffffff", soft: COLORS.aSoft, ink: COLORS.aInk },
+  b: { color: COLORS.b, on: "#ffffff", soft: COLORS.bSoft, ink: COLORS.bInk },
+  ink: { color: COLORS.selected, on: COLORS.onSelected, soft: COLORS.paper2, ink: COLORS.ink },
 };
 
 const cardButton = {
@@ -55,7 +55,7 @@ function Badge({ text, tone }) {
         boxSizing: "border-box",
         borderRadius: `${RADIUS.pill}px`,
         bgcolor: TONES[tone].color,
-        color: "#ffffff",
+        color: TONES[tone].on,
         fontSize: TYPE.meta,
         fontWeight: 700,
         fontVariantNumeric: "tabular-nums",
@@ -158,7 +158,7 @@ export default function PointField({
             ...cardButton,
             borderColor: picking ? tone.color : COLORS.rule2,
             bgcolor: picking ? tone.color : COLORS.sheet,
-            color: picking ? "#ffffff" : tone.ink,
+            color: picking ? tone.on : tone.ink,
             "&:hover": { borderColor: tone.color },
             // In a narrow field only the icon shows; the name keeps the visible words first.
             "@container (max-width: 340px)": { px: 0, "& > .pick-text": visuallyHidden },

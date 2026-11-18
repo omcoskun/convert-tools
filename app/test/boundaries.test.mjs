@@ -58,9 +58,11 @@ test("maplibre-gl is imported only dynamically, by src/map/maplibre.js", () => {
   assert.doesNotMatch(loader, /^\s*import\s[^(]*["']maplibre-gl["']/m, "no static import");
 });
 
-test("the map has no satellite or imagery source", () => {
+test("imagery comes only from the basemaps of config.json, never Esri/ArcGIS", () => {
+  // The satellite basemap is EOX Sentinel-2 cloudless (CC BY 4.0), named in
+  // config.map.basemaps with its credit; no tile URL is written in the code.
   const offenders = sources
-    .filter(({ text }) => /arcgis|World_Imagery|satellite|esri/i.test(text))
+    .filter(({ text }) => /arcgis|World_Imagery|\besri\b|https:\/\/[^"'`\s]*\{z\}/i.test(text))
     .map(({ name }) => name);
   assert.deepEqual(offenders, []);
 });

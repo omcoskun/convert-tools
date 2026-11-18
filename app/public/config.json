@@ -101,6 +101,43 @@
     ]
   },
   "map": {
-    "style": "https://tiles.openfreemap.org/styles/positron"
+    "defaultBasemap": "standard",
+    "basemaps": [
+      {
+        "id": "standard",
+        "style": "https://tiles.openfreemap.org/styles/positron",
+        "darkStyle": "https://tiles.openfreemap.org/styles/dark",
+        "attribution": [
+          { "text": "OpenFreeMap", "href": "https://openfreemap.org" },
+          { "text": "© OpenMapTiles", "href": "https://www.openmaptiles.org/" },
+          { "text": "© OpenStreetMap", "href": "https://www.openstreetmap.org/copyright" }
+        ]
+      },
+      {
+        "id": "detailed",
+        "style": "https://tiles.openfreemap.org/styles/liberty",
+        "attribution": [
+          { "text": "OpenFreeMap", "href": "https://openfreemap.org" },
+          { "text": "© OpenMapTiles", "href": "https://www.openmaptiles.org/" },
+          { "text": "© OpenStreetMap", "href": "https://www.openstreetmap.org/copyright" },
+          { "text": "Natural Earth", "href": "https://www.naturalearthdata.com" }
+        ]
+      },
+      {
+        "id": "satellite",
+        "style": "https://tiles.openfreemap.org/styles/positron",
+        "raster": {
+          "tiles": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2017_3857/default/g/{z}/{y}/{x}.jpg",
+          "tileSize": 256,
+          "maxzoom": 14
+        },
+        "attribution": [
+          { "text": "Sentinel-2 cloudless by EOX (Copernicus Sentinel data 2017), CC BY 4.0", "href": "https://s2maps.eu" },
+          { "text": "OpenFreeMap", "href": "https://openfreemap.org" },
+          { "text": "© OpenMapTiles", "href": "https://www.openmaptiles.org/" },
+          { "text": "© OpenStreetMap", "href": "https://www.openstreetmap.org/copyright" }
+        ]
+      }
+    ]
   }
 }

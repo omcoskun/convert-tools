@@ -49,24 +49,37 @@ export const BROWSER_TARGETS = Object.freeze({
 });
 
 /**
- * Origin of the basemap style in public/config.json (map.style). The style,
- * its tiles, glyphs and sprites are all served from this origin.
+ * Every https URL in an object, depth first (config.json's map section:
+ * basemap styles, the satellite tile template, attribution links).
+ * @param {unknown} value
+ * @returns {string[]}
  */
-export const MAP_STYLE_ORIGIN = new URL(
-  JSON.parse(readFileSync(path.join(root, "public/config.json"), "utf8")).map.style,
-).origin;
+function urlsIn(value) {
+  if (typeof value === "string") return /^https:\/\//.test(value) ? [value] : [];
+  if (Array.isArray(value)) return value.flatMap(urlsIn);
+  if (value && typeof value === "object") return Object.values(value).flatMap(urlsIn);
+  return [];
+}
 
-// Served as a <meta> tag in production builds (GitHub Pages cannot set
-// headers). Emotion injects <style> elements, hence 'unsafe-inline' for
-// styles only. The map fetches its basemap from MAP_STYLE_ORIGIN, runs its
-// worker from vendor/ and may decode sprite images through blob: URLs.
-// Changing map.style to another host needs a rebuild for this policy.
+/**
+ * Origins the map fetches from: those of every basemap style and raster
+ * tile template in public/config.json (map.basemaps). A style's tiles,
+ * glyphs and sprites come from its own origin. Attribution links are not
+ * fetched and are left out.
+ */
+export function mapOrigins(map) {
+  const fetched = (map?.basemaps ?? []).map((basemap) => ({ ...basemap, attribution: undefined }));
+  return [...new Set(urlsIn(fetched).map((url) => new URL(url.replace(/[{}]/g, "")).origin))].sort();
+}
+
+export const MAP_ORIGINS = Object.freeze(mapOrigins(JSON.parse(readFileSync(path.join(root, "public/config.json"), "utf8")).map));
+
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
-  `connect-src 'self' ${MAP_STYLE_ORIGIN}`,
+  `connect-src 'self' ${MAP_ORIGINS.join(" ")}`,
   "worker-src 'self'",
   "font-src 'self'",
   "object-src 'none'",

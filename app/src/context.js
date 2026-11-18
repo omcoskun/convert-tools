@@ -11,6 +11,19 @@ export const ConfigContext = createContext(null);
  */
 export const LanguageContext = createContext(null);
 
+/**
+ * The colour theme: { mode, preference, setPreference } where mode is the
+ * shown "light" or "dark" and preference the chosen "system", "light" or
+ * "dark". Light when no provider is above (server-rendered tests).
+ */
+export const ThemeModeContext = createContext(null);
+
+const FIXED_LIGHT = Object.freeze({ mode: "light", preference: "light", setPreference() {} });
+
+export function useThemeMode() {
+  return useContext(ThemeModeContext) ?? FIXED_LIGHT;
+}
+
 export function useConfig() {
   const value = useContext(ConfigContext);
   if (value == null) throw new Error("ConfigContext is not provided.");

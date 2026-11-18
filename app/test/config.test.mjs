@@ -130,9 +130,27 @@ test("the comparison sphere has a plausible Earth radius in metres", () => {
   assert.ok(radius >= 6356752.314245 && radius <= 6378137, String(radius));
 });
 
-test("the basemap is one https vector style and nothing else", () => {
-  assert.deepEqual(Object.keys(config.map), ["style"]);
-  const url = new URL(config.map.style);
-  assert.equal(url.protocol, "https:");
-  assert.doesNotMatch(JSON.stringify(config), /arcgis|imagery|satellite/i);
+test("the basemaps are https styles with structured attributions; the satellite is CC BY imagery", () => {
+  assert.deepEqual(Object.keys(config.map).sort(), ["basemaps", "defaultBasemap"]);
+  const ids = config.map.basemaps.map((basemap) => basemap.id);
+  assert.deepEqual(ids, ["standard", "detailed", "satellite"]);
+  assert.ok(ids.includes(config.map.defaultBasemap));
+  for (const basemap of config.map.basemaps) {
+    for (const key of ["style", "darkStyle"]) {
+      if (basemap[key] === undefined) continue;
+      assert.equal(new URL(basemap[key]).protocol, "https:", `${basemap.id}.${key}`);
+    }
+    assert.ok(basemap.attribution.length > 0, basemap.id);
+    for (const { text, href } of basemap.attribution) {
+      assert.equal(typeof text, "string");
+      assert.equal(new URL(href).protocol, "https:", text);
+    }
+    // OpenStreetMap data needs its credit wherever its tiles are drawn.
+    assert.ok(basemap.attribution.some(({ href }) => href === "https://www.openstreetmap.org/copyright"), basemap.id);
+  }
+  const satellite = config.map.basemaps.find((basemap) => basemap.id === "satellite");
+  assert.match(satellite.raster.tiles, /^https:\/\/tiles\.maps\.eox\.at\/.*s2cloudless-2017_3857.*\{z\}\/\{y\}\/\{x\}/);
+  assert.ok(satellite.attribution.some(({ text }) => /EOX/.test(text) && /CC BY 4\.0/.test(text)));
+  // The 2018+ Sentinel-2 cloudless layers are non-commercial; Esri imagery needs a licence.
+  assert.doesNotMatch(JSON.stringify(config), /arcgis|s2cloudless-20(1[89]|2\d)/i);
 });

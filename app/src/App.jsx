@@ -1,15 +1,54 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ConfigContext, LanguageContext } from "./context.js";
+import { ConfigContext, LanguageContext, ThemeModeContext } from "./context.js";
 import { sectionOf } from "./lib/address.js";
+import { readPref, writePref } from "./lib/prefs.js";
 import { HandoffContext, createHandoffStore } from "./shell/handoff.js";
 import { ToolMemoryContext, createToolMemory } from "./shell/tool-memory.js";
 import TopBar from "./shell/TopBar.jsx";
 import WorkspaceLayout from "./shell/WorkspaceLayout.jsx";
-import { COLORS, RADIUS, TYPE, theme } from "./theme.js";
+import { COLORS, RADIUS, THEME_PREFERENCES, TYPE, createAppTheme, resolveTheme } from "./theme.js";
 import { DEFAULT_TOOL, TOOLS, resolveTool } from "./tools/index.js";
 import { Box, CssBaseline, ThemeProvider } from "./ui/index.js";
 
 const layoutOf = (id) => TOOLS.find((tool) => tool.id === id).layout;
+
+const DARK_QUERY = "(prefers-color-scheme: dark)";
+const systemPrefersDark = () => (typeof window !== "undefined" && window.matchMedia?.(DARK_QUERY).matches) || false;
+
+/**
+ * The colour theme: the stored preference (system by default) and the
+ * system's own setting, followed while the preference is "system".
+ */
+function useThemeModeState() {
+  const [preference, setPreferenceState] = useState(() => readPref("theme", "system", THEME_PREFERENCES));
+  const [systemDark, setSystemDark] = useState(systemPrefersDark);
+  useEffect(() => {
+    const query = window.matchMedia?.(DARK_QUERY);
+    if (!query) return undefined;
+    const onChange = () => setSystemDark(query.matches);
+    onChange();
+    query.addEventListener?.("change", onChange);
+    return () => query.removeEventListener?.("change", onChange);
+  }, []);
+  const mode = resolveTheme(preference, systemDark);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = mode;
+    root.style.colorScheme = mode;
+    root.style.backgroundColor = "";
+  }, [mode]);
+  return useMemo(
+    () => ({
+      mode,
+      preference,
+      setPreference(next) {
+        setPreferenceState(next);
+        writePref("theme", next);
+      },
+    }),
+    [mode, preference],
+  );
+}
 
 /**
  * Workspace tools stand on the one map of WorkspaceLayout. Once a workspace
@@ -23,6 +62,8 @@ const layoutOf = (id) => TOOLS.find((tool) => tool.id === id).layout;
  */
 export default function App({ config, lang, initialLanguage, initialTool = DEFAULT_TOOL }) {
   const [language, setLanguage] = useState(initialLanguage || config.defaultLanguage);
+  const themeMode = useThemeModeState();
+  const appTheme = useMemo(() => createAppTheme(themeMode.mode), [themeMode.mode]);
   const [tool, setTool] = useState(() => resolveTool(initialTool) ?? DEFAULT_TOOL);
   const [workspaceTool, setWorkspaceTool] = useState(() => (layoutOf(tool) === "workspace" ? tool : null));
   const languageNames = useMemo(
@@ -84,8 +125,9 @@ export default function App({ config, lang, initialLanguage, initialTool = DEFAU
   }
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={appTheme}>
       <CssBaseline />
+      <ThemeModeContext.Provider value={themeMode}>
       <ConfigContext.Provider value={config}>
         <LanguageContext.Provider value={active}>
           <Box
@@ -111,7 +153,7 @@ export default function App({ config, lang, initialLanguage, initialTool = DEFAU
                 px: 1.5,
                 py: 1,
                 borderRadius: `${RADIUS.control}px`,
-                bgcolor: COLORS.ink,
+                bgcolor: COLORS.panel,
                 color: COLORS.onInk,
                 fontSize: TYPE.body,
                 fontWeight: 650,
@@ -143,6 +185,7 @@ export default function App({ config, lang, initialLanguage, initialTool = DEFAU
           </Box>
         </LanguageContext.Provider>
       </ConfigContext.Provider>
+      </ThemeModeContext.Provider>
     </ThemeProvider>
   );
 }

@@ -61,7 +61,7 @@ export default function Readout({ label, symbol, value, unit, copyValue, copyLab
         minWidth: 0,
         p: 2,
         borderRadius: `${RADIUS.card}px`,
-        bgcolor: COLORS.ink,
+        bgcolor: COLORS.panel,
         color: COLORS.onInk,
       }}
     >

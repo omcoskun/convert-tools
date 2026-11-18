@@ -7,10 +7,11 @@ import config, {
   BROWSER_TARGETS,
   CONTENT_SECURITY_POLICY,
   IWC_VALUES,
-  MAP_STYLE_ORIGIN,
+  MAP_ORIGINS,
+  mapOrigins,
   resolveIwc,
 } from "../webpack.config.js";
-import { APP_ROOT, readJson } from "./support/files.mjs";
+import { APP_ROOT } from "./support/files.mjs";
 
 /** Builds the config with IWC set to value (undefined: unset), then restores the environment. */
 function configWith(value, mode) {
@@ -77,13 +78,24 @@ test("production pages carry the Content-Security-Policy meta tag, development p
   });
   assert.match(CONTENT_SECURITY_POLICY, /script-src 'self'(;|$)/);
   assert.doesNotMatch(CONTENT_SECURITY_POLICY, /unsafe-eval/);
-  // No image host: the basemap is vector data fetched from the style's origin.
+  // No image host: tiles and imagery are fetched, then decoded from blobs.
   assert.match(CONTENT_SECURITY_POLICY, /img-src 'self' data: blob:(;|$)/);
-  assert.equal(MAP_STYLE_ORIGIN, new URL(readJson("public/config.json").map.style).origin);
-  assert.match(CONTENT_SECURITY_POLICY, new RegExp(`connect-src 'self' ${MAP_STYLE_ORIGIN}(;|$)`));
+  assert.deepEqual(MAP_ORIGINS, ["https://tiles.maps.eox.at", "https://tiles.openfreemap.org"]);
+  assert.match(CONTENT_SECURITY_POLICY, new RegExp(`connect-src 'self' ${MAP_ORIGINS.join(" ")}(;|$)`));
   assert.match(CONTENT_SECURITY_POLICY, /worker-src 'self'(;|$)/);
   assert.doesNotMatch(CONTENT_SECURITY_POLICY, /arcgis|unsafe-eval/);
   assert.deepEqual(plugin(configWith(undefined, "development"), "HtmlWebpackPlugin").userOptions.meta, {});
+});
+
+test("map origins come from styles and tile templates, not from attribution links", () => {
+  const map = {
+    basemaps: [
+      { id: "a", style: "https://one.example/styles/a", attribution: [{ text: "x", href: "https://credit.example/" }] },
+      { id: "b", style: "https://one.example/styles/b", darkStyle: "https://two.example/dark", raster: { tiles: "https://three.example/{z}/{y}/{x}.jpg" } },
+    ],
+  };
+  assert.deepEqual(mapOrigins(map), ["https://one.example", "https://three.example", "https://two.example"]);
+  assert.deepEqual(mapOrigins(undefined), []);
 });
 
 test("MapLibre is a separate chunk with its stylesheet and worker copied to vendor/", () => {

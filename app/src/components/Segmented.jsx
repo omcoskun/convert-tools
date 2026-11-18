@@ -19,7 +19,7 @@ const TONES = {
     color: COLORS.onInkMuted,
     hover: COLORS.onInk,
     checkedBg: COLORS.onInk,
-    checkedColor: COLORS.ink,
+    checkedColor: COLORS.panel,
     checkedShadow: "none",
     ring: COLORS.focusOnInk,
   },

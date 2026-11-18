@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { inverseGeodesic } from "@convert-tools/core";
+import { readPref, writePref } from "../lib/prefs.js";
+import { TONE_COLORS, basemapSource, findBasemap, satelliteStyle } from "./basemaps.js";
+import { graticuleCovers, graticuleFeatures, graticuleInterval } from "./graticule.js";
+import { accuracyRing, locationErrorKey } from "./location.js";
 import {
   GLOBE_MAX_ZOOM,
   LINE_COLORS,
@@ -6,7 +11,6 @@ import {
   LINE_WIDTH_ZOOMS,
   MERCATOR_LATITUDE_LIMIT,
   PIN_SHAPE,
-  WORLD_VIEW_LATITUDE,
   constrainView,
   coordinateFromLngLat,
   decimalsForResolution,
@@ -21,9 +25,11 @@ import {
   routeMidpoint,
   screenRuns,
   tuneBasemapStyle,
+  wrapLongitude,
 } from "./map-adapter.js";
 import { SPACE_SKY, worldMinZoom } from "./map-view.js";
 import { loadMapLibre, webgl2Available } from "./maplibre.js";
+import { mgrsZoneFeatures } from "./mgrs-zones.js";
 import {
   fitTargets,
   longitudeWithin,
@@ -48,7 +54,33 @@ const GRADIENT_PIECE_PREFIX = "convert-lines-gradient-piece:";
 const WHOLE = ["all", ["==", ["get", "from"], 0], ["==", ["get", "to"], 1]];
 const EMPTY_LINES = Object.freeze({ type: "FeatureCollection", features: Object.freeze([]) });
 
+// Overlays of the layer panel, under the lines: the latitude/longitude grid
+// (remade for the view on moveend) and the MGRS grid zones; and the accuracy
+// circle of "my location". Labels only where the style has glyphs.
+const GRID_SOURCE = "convert-grid";
+const GRID_LINES = "convert-grid-lines";
+const GRID_LABELS = "convert-grid-labels";
+const MGRS_SOURCE = "convert-mgrs";
+const MGRS_LINES = "convert-mgrs-lines";
+const MGRS_LABELS = "convert-mgrs-labels";
+const LOCATION_SOURCE = "convert-location";
+const LOCATION_FILL = "convert-location-fill";
+const LOCATION_LINE = "convert-location-line";
+const OVERLAY_LAYERS = Object.freeze({
+  graticule: Object.freeze({ source: GRID_SOURCE, layers: Object.freeze([GRID_LINES, GRID_LABELS]) }),
+  mgrs: Object.freeze({ source: MGRS_SOURCE, layers: Object.freeze([MGRS_LINES, MGRS_LABELS]) }),
+});
+const LOCATION_COLOR = "#2f7cf6";
+const DEFAULT_FONT = Object.freeze(["Noto Sans Regular"]);
+
 const STYLE_TIMEOUT_MS = 15000;
+// A right press opens the point menu only if the pointer did not move (a
+// right drag rotates the globe); a touch held this long opens it too.
+const MENU_MOVE_PX = 6;
+const LONG_PRESS_MS = 600;
+// Half the ground line the scale bar measures, in px either side of the centre.
+const SCALE_PROBE_PX = 40;
+const LOCATION_ERROR_MS = 6000;
 const TILE_ERROR_THRESHOLD = 3;
 const DOUBLE_CLICK_GUARD_MS = 450;
 const DOUBLE_CLICK_GUARD_PX = 10;
@@ -147,24 +179,6 @@ function largestZoom(map, target, padding, [low, high], fits) {
   return camera;
 }
 
-/**
- * The whole globe in the free part of the map, facing the longitude of the
- * scene's first fit target (or of the view, for an empty scene): the
- * largest zoom at which its radius takes at most 45 % of the free width or
- * height. In 2D: the flat world as tall as the map (see worldMinZoom).
- */
-function worldCamera(map, scene, padding, mode) {
-  const [facing] = fitTargets(scene);
-  const latitude = mode === "2d" ? 0 : WORLD_VIEW_LATITUDE;
-  return {
-    center: [mode === "2d" ? 0 : facing ? facing[0] : map.getCenter().lng, latitude],
-    zoom: minimumZoom(map, latitude, padding, mode),
-    padding,
-    pitch: 0,
-    bearing: 0,
-  };
-}
-
 function minimumZoom(map, latitude, padding, mode) {
   const canvas = map.getCanvas();
   return worldMinZoom({ width: canvas.clientWidth, height: canvas.clientHeight, latitude, padding, mode, fov: map.getVerticalFieldOfView() });
@@ -226,7 +240,7 @@ const SVG = "http://www.w3.org/2000/svg";
  * cap). An SVG above the canvas and below the pins and tags, redrawn on every
  * frame the map renders: a white casing and the line, as wide as MapLibre's.
  */
-function createPolarOverlay(map) {
+function createPolarOverlay(map, getColors) {
   const svg = document.createElementNS(SVG, "svg");
   svg.setAttribute("class", "map-polar-lines");
   svg.setAttribute("aria-hidden", "true");
@@ -234,8 +248,13 @@ function createPolarOverlay(map) {
   map.getCanvas().after(svg);
   let stretches = [];
   const draw = () => {
+    // Most scenes have no polar stretch: then no DOM work on any frame.
+    if (stretches.length === 0) {
+      if (svg.firstChild) svg.replaceChildren();
+      return;
+    }
     svg.replaceChildren();
-    if (stretches.length === 0) return;
+    const colors = getColors();
     const zoom = map.getZoom();
     const view = {
       centerLongitude: map.getCenter().lng,
@@ -261,15 +280,15 @@ function createPolarOverlay(map) {
           polyline.setAttribute("stroke-linejoin", "round");
           svg.append(polyline);
         };
-        stroke("#ffffff", lineWidthAt(zoom, LINE_WIDTHS.casing), 0.95);
-        let color = stretch.colors[0];
+        stroke(colors.casing, lineWidthAt(zoom, LINE_WIDTHS.casing), 0.95);
+        let color = stretch.colors[0] === LINE_COLORS.ink ? colors.line : stretch.colors[0];
         if (stretch.colors[0] !== stretch.colors[1]) {
           // The colour runs from where the stretch starts to where it ends.
           const id = `map-polar-gradient-${index}-${defs.childElementCount}`;
           const gradient = document.createElementNS(SVG, "linearGradient");
           gradient.setAttribute("id", id);
           gradient.setAttribute("gradientUnits", "userSpaceOnUse");
-          const [[x1, y1], [x2, y2]] = [run[0], run.at(-1)];
+          const [[x1, y1], [x2, y2]] = [run[0], run[run.length - 1]];
           for (const [name, value] of Object.entries({ x1, y1, x2, y2 })) gradient.setAttribute(name, value.toFixed(1));
           stretch.colors.forEach((stopColor, stopIndex) => {
             const stop = document.createElementNS(SVG, "stop");
@@ -326,7 +345,7 @@ function updatePinElement(element, pin) {
   element.title = name;
 }
 
-function installLineLayers(map) {
+function installLineLayers(map, colors) {
   if (!map.getSource(LINE_SOURCE)) {
     map.addSource(LINE_SOURCE, { type: "geojson", data: EMPTY_LINES, lineMetrics: true });
   }
@@ -337,9 +356,9 @@ function installLineLayers(map) {
       type: "line",
       source: LINE_SOURCE,
       layout,
-      paint: { "line-color": "#ffffff", "line-opacity": 0.95, "line-width": lineWidth(LINE_WIDTHS.casing) },
+      paint: { "line-color": colors.casing, "line-opacity": 0.95, "line-width": lineWidth(LINE_WIDTHS.casing) },
     });
-  }
+  } else map.setPaintProperty(CASING_LAYER, "line-color", colors.casing);
   if (!map.getLayer(PLAIN_LAYER)) {
     map.addLayer({
       id: PLAIN_LAYER,
@@ -347,9 +366,9 @@ function installLineLayers(map) {
       source: LINE_SOURCE,
       filter: ["!=", ["get", "gradient"], true],
       layout,
-      paint: { "line-color": LINE_COLORS.ink, "line-width": lineWidth(LINE_WIDTHS.line) },
+      paint: { "line-color": colors.line, "line-width": lineWidth(LINE_WIDTHS.line) },
     });
-  }
+  } else map.setPaintProperty(PLAIN_LAYER, "line-color", colors.line);
   if (!map.getLayer(GRADIENT_LAYER)) {
     map.addLayer({
       id: GRADIENT_LAYER,
@@ -400,14 +419,127 @@ function syncGradientPieces(map, features) {
   }
 }
 
+/** The font of the style's labels, for the app's own; null without glyphs. */
+function labelFont(map) {
+  const style = map.getStyle();
+  if (!style?.glyphs) return null;
+  let found = null;
+  for (const layer of style.layers ?? []) {
+    const font = layer.type === "symbol" ? layer.layout?.["text-font"] : undefined;
+    if (!Array.isArray(font) || font.length === 0 || !font.every((name) => typeof name === "string")) continue;
+    if (/regular/i.test(font[0])) return font;
+    found ??= font;
+  }
+  return found ?? DEFAULT_FONT;
+}
+
+// Overlays go under the measured lines.
+const beforeLines = (map) => (map.getLayer(CASING_LAYER) ? CASING_LAYER : undefined);
+
+function removeOverlay(map, { source, layers }) {
+  for (const id of layers) if (map.getLayer(id)) map.removeLayer(id);
+  if (map.getSource(source)) map.removeSource(source);
+}
+
+const labelPaint = (color, colors) => ({ "text-color": color, "text-halo-color": colors.halo, "text-halo-width": 1.4 });
+
+function installGrid(map, colors, font) {
+  if (!map.getSource(GRID_SOURCE)) map.addSource(GRID_SOURCE, { type: "geojson", data: EMPTY_LINES });
+  const before = beforeLines(map);
+  if (!map.getLayer(GRID_LINES)) {
+    map.addLayer({
+      id: GRID_LINES,
+      type: "line",
+      source: GRID_SOURCE,
+      layout: { "line-join": "round" },
+      paint: { "line-color": ["case", ["get", "major"], colors.gridMajor, colors.grid], "line-width": ["case", ["get", "major"], 1.1, 0.75] },
+    }, before);
+  }
+  if (font && !map.getLayer(GRID_LABELS)) {
+    map.addLayer({
+      id: GRID_LABELS,
+      type: "symbol",
+      source: GRID_SOURCE,
+      layout: {
+        "symbol-placement": "line",
+        "symbol-spacing": 360,
+        "text-field": ["get", "label"],
+        "text-font": font,
+        "text-size": 11,
+        "text-letter-spacing": 0.03,
+        "text-max-angle": 25,
+      },
+      paint: labelPaint(colors.label, colors),
+    }, before);
+  }
+}
+
+// The zone outlines are the same for every view: made once, when first shown.
+let zoneData = null;
+
+function installZones(map, colors, font) {
+  zoneData ??= mgrsZoneFeatures();
+  if (!map.getSource(MGRS_SOURCE)) map.addSource(MGRS_SOURCE, { type: "geojson", data: zoneData });
+  const before = beforeLines(map);
+  if (!map.getLayer(MGRS_LINES)) {
+    map.addLayer({
+      id: MGRS_LINES,
+      type: "line",
+      source: MGRS_SOURCE,
+      filter: ["==", ["get", "kind"], "zone"],
+      paint: { "line-color": colors.zone, "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.8, 6, 1.6] },
+    }, before);
+  }
+  if (font && !map.getLayer(MGRS_LABELS)) {
+    map.addLayer({
+      id: MGRS_LABELS,
+      type: "symbol",
+      source: MGRS_SOURCE,
+      minzoom: 2.5,
+      filter: ["==", ["get", "kind"], "label"],
+      layout: {
+        "text-field": ["get", "label"],
+        "text-font": font,
+        "text-size": ["interpolate", ["linear"], ["zoom"], 3, 11, 7, 15],
+        "text-padding": 4,
+      },
+      paint: labelPaint(colors.zoneLabel, colors),
+    }, before);
+  }
+}
+
+function installLocation(map) {
+  if (!map.getSource(LOCATION_SOURCE)) map.addSource(LOCATION_SOURCE, { type: "geojson", data: EMPTY_LINES });
+  const before = beforeLines(map);
+  if (!map.getLayer(LOCATION_FILL)) {
+    map.addLayer({ id: LOCATION_FILL, type: "fill", source: LOCATION_SOURCE, paint: { "fill-color": LOCATION_COLOR, "fill-opacity": 0.12 } }, before);
+  }
+  if (!map.getLayer(LOCATION_LINE)) {
+    map.addLayer({
+      id: LOCATION_LINE,
+      type: "line",
+      source: LOCATION_SOURCE,
+      paint: { "line-color": LOCATION_COLOR, "line-opacity": 0.5, "line-width": 1 },
+    }, before);
+  }
+}
+
 /**
  * Owns the one MapLibre map of the workspace for the component's lifetime
- * and draws a scene on it. A new scene, tool or language never recreates the
- * map: pins are created, moved and removed by id, the lines share one
- * GeoJSON source, and the labels are switched in place.
+ * and draws a scene on it. A new scene, tool, language, theme or basemap
+ * never recreates the map: pins are created, moved and removed by id, the
+ * lines share one GeoJSON source, the labels are switched in place and a
+ * basemap change loads another style, after which the app's own sources and
+ * layers are put back.
+ *
+ * Per-frame work stays out of React: the compass needle, the scale bar
+ * (subscribeView) and the centre mark are written through refs and CSS
+ * variables; React state changes only when something shown changes.
  *
  * @param {{
- *   styleUrl: string,
+ *   basemaps: import("./basemaps.js").Basemap[],
+ *   defaultBasemap: string,
+ *   mode: "light" | "dark",
  *   language: string,
  *   labels: { mapCanvas: string },
  *   scene: import("./scene.js").MapScene,
@@ -415,25 +547,16 @@ function syncGradientPieces(map, features) {
  *   handlersRef: { current: import("../shell/workspace-context.js").MapSceneHandlers },
  *   getPadding: () => { top: number, right: number, bottom: number, left: number },
  * }} options
+ *   basemaps: config.map.basemaps; the choice is remembered (prefs.js).
+ *   mode: the interface theme; the standard basemap follows it.
  *   owner identifies the tool that published the scene: when it changes,
  *   the new tool's fitRequest is taken as it is, without fitting.
  *   getPadding is read at each fit, so fits keep clear of the widgets.
- * @returns {{
- *   containerRef: { current: HTMLElement | null },
- *   cursorRef: { current: HTMLElement | null },
- *   status: import("../shell/workspace-context.js").MapStatus,
- *   basemap: "loading" | "ready" | "partial" | "fallback",
- *   retry: () => void,
- *   zoomIn: () => void,
- *   zoomOut: () => void,
- *   fitScene: () => void,
- *   showWorld: () => void,
- * }}
- *   basemap "partial": some tiles failed; "fallback": the offline grid.
  */
-export default function useMapStage({ styleUrl, language, labels, scene, owner, handlersRef, getPadding }) {
+export default function useMapStage({ basemaps, defaultBasemap, mode, language, labels, scene, owner, handlersRef, getPadding }) {
   const containerRef = useRef(null);
   const cursorRef = useRef(null);
+  const compassNodeRef = useRef(null);
   const mapRef = useRef(null);
   const libraryRef = useRef(null);
   const pinsRef = useRef(new Map());
@@ -447,19 +570,41 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
   const modeRef = useRef("3d");
   const navigatedRef = useRef(false);
   const syncViewRef = useRef(null);
+  const probingRef = useRef(false);
+  const viewListenersRef = useRef(new Set());
+  const gridRef = useRef(null);
+  const colorsRef = useRef(TONE_COLORS.light);
+  const locationRef = useRef({ watch: null, fix: null, marker: null, flown: false });
+  const menuOpenRef = useRef(false);
+  const updateGridRef = useRef(null);
+
+  const basemapIds = useMemo(() => basemaps.map((entry) => entry.id), [basemaps]);
+  const [basemapId, setBasemapId] = useState(() => readPref("map-basemap", defaultBasemap, basemapIds));
+  const [overlays, setOverlays] = useState(() => ({ graticule: readPref("map-graticule", false), mgrs: readPref("map-mgrs", false) }));
+  const source = useMemo(() => basemapSource(findBasemap(basemaps, basemapId), mode), [basemaps, basemapId, mode]);
+  const sourceRef = useRef(source);
+  const appliedRef = useRef({ key: source.key, mode });
+
   const [viewMode, setViewMode] = useState("3d");
-  const [navigation, setNavigation] = useState({ canZoomIn: true, canZoomOut: true, bearing: 0 });
+  const [navigation, setNavigation] = useState({ canZoomIn: true, canZoomOut: true });
+  const [rotated, setRotated] = useState(false);
   const [status, setStatus] = useState("loading");
-  const [basemap, setBasemap] = useState("loading");
+  const [basemapStatus, setBasemapStatus] = useState("loading");
+  const [loaded, setLoaded] = useState({ id: null, tone: source.tone });
   const [styleRevision, setStyleRevision] = useState(0);
   const [initAttempt, setInitAttempt] = useState(0);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [location, setLocation] = useState({ status: "off", errorKey: null });
 
   useEffect(() => {
-    latestRef.current = { language, labels, scene, getPadding };
+    latestRef.current = { language, labels, scene, getPadding, mode, overlays };
+    sourceRef.current = source;
   });
 
   const transformStyle = useCallback((previous, next) => {
-    const tuned = tuneBasemapStyle(next, latestRef.current?.language ?? "tr");
+    const current = sourceRef.current;
+    let tuned = tuneBasemapStyle(next, latestRef.current?.language ?? "tr", { palette: current.palette, keepRaster: current.keepRaster });
+    if (current.raster) tuned = satelliteStyle(tuned, current.raster);
     basemapRef.current.localizedLayers = (tuned?.layers ?? []).filter(isLocalizedLabelLayer).map((layer) => layer.id);
     return tuned;
   }, []);
@@ -478,20 +623,21 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     // One point keeps a closer zoom, if the map has one.
     const single = isSinglePoint(bounds);
     const maxZoom = single ? Math.max(map.getZoom(), 12) : 15;
-    const camera = modeRef.current === "2d"
-      ? map.cameraForBounds(bounds, { padding, absolutePadding: true, maxZoom, bearing: 0 })
-      : fitCamera(map, latest.scene, bounds, { padding, maxZoom });
+    let camera;
+    // The fit tries many cameras before a frame is drawn: the listeners
+    // that follow the view sit those out.
+    probingRef.current = true;
+    try {
+      camera = modeRef.current === "2d"
+        ? map.cameraForBounds(bounds, { padding, absolutePadding: true, maxZoom, bearing: 0 })
+        : fitCamera(map, latest.scene, bounds, { padding, maxZoom });
+    } finally {
+      probingRef.current = false;
+    }
     if (!camera) return;
     if (single) map.easeTo({ ...camera, padding, pitch: 0, bearing: 0, duration: animate ? animation(600) : 0 });
     else map.flyTo({ ...camera, padding, pitch: 0, bearing: 0, duration: animate ? animation(700) : 0 });
     map.once("moveend", () => placePinsOnRef.current?.());
-  }, []);
-
-  const showWorld = useCallback(() => {
-    navigatedRef.current = true;
-    const map = mapRef.current;
-    const latest = latestRef.current;
-    if (map) map.flyTo({ ...worldCamera(map, latest.scene, latest.getPadding(), modeRef.current), duration: animation(700) });
   }, []);
 
   const zoomBy = useCallback((delta) => {
@@ -500,17 +646,17 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     if (map) map.easeTo({ zoom: map.getZoom() + delta, duration: animation(250) });
   }, []);
 
-  const setMode = useCallback((mode) => {
+  const setMode = useCallback((next) => {
     const map = mapRef.current;
-    if (!map || modeRef.current === mode) return;
+    if (!map || modeRef.current === next) return;
     navigatedRef.current = true;
     map.stop();
-    modeRef.current = mode;
-    setViewMode(mode);
-    map.setProjection({ type: mode === "3d" ? "globe" : "mercator" });
-    map.setSky(mode === "3d" ? SPACE_SKY : undefined);
-    map.setMaxPitch(mode === "3d" ? 60 : 0);
-    if (mode === "3d") {
+    modeRef.current = next;
+    setViewMode(next);
+    map.setProjection({ type: next === "3d" ? "globe" : "mercator" });
+    map.setSky(next === "3d" ? SPACE_SKY : undefined);
+    map.setMaxPitch(next === "3d" ? 60 : 0);
+    if (next === "3d") {
       map.dragRotate.enable();
       map.touchZoomRotate.enableRotation();
       map.touchPitch.enable();
@@ -522,13 +668,67 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       map.keyboard.disableRotation();
     }
     const center = map.getCenter();
-    map.jumpTo({ center: [center.lng, mode === "2d" ? Math.max(-MERCATOR_LATITUDE_LIMIT, Math.min(MERCATOR_LATITUDE_LIMIT, center.lat)) : center.lat] });
-    map.easeTo({ pitch: mode === "3d" && map.getZoom() >= 5 ? 45 : 0, bearing: 0, duration: animation(500) });
+    map.jumpTo({ center: [center.lng, next === "2d" ? Math.max(-MERCATOR_LATITUDE_LIMIT, Math.min(MERCATOR_LATITUDE_LIMIT, center.lat)) : center.lat] });
+    map.easeTo({ pitch: next === "3d" && map.getZoom() >= 5 ? 45 : 0, bearing: 0, duration: animation(500) });
     syncViewRef.current?.();
   }, []);
 
   const resetNorth = useCallback(() => {
     mapRef.current?.easeTo({ bearing: 0, pitch: 0, duration: animation(400) });
+  }, []);
+
+  // The compass needle turns with the map, written straight to its element.
+  const compassRef = useCallback((node) => {
+    compassNodeRef.current = node;
+    const map = mapRef.current;
+    if (node && map) node.style.transform = `rotate(${-map.getBearing()}deg)`;
+  }, []);
+
+  /** Calls `listener("zoom" | "move")` on every frame the view changes; returns the unsubscribe. */
+  const subscribeView = useCallback((listener) => {
+    const listeners = viewListenersRef.current;
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }, []);
+
+  /** Ground metres per screen pixel across the centre of the free map, from the core; null over space. */
+  const measureScale = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return null;
+    const padding = map.getPadding();
+    const canvas = map.getCanvas();
+    const x = padding.left + (canvas.clientWidth - padding.left - padding.right) / 2;
+    const y = padding.top + (canvas.clientHeight - padding.top - padding.bottom) / 2;
+    const west = lngLatOnMap(map, { x: x - SCALE_PROBE_PX, y });
+    const east = lngLatOnMap(map, { x: x + SCALE_PROBE_PX, y });
+    if (!west || !east) return null;
+    try {
+      const { distanceMetres } = inverseGeodesic(
+        { latitude: west.lat, longitude: wrapLongitude(west.lng) },
+        { latitude: east.lat, longitude: wrapLongitude(east.lng) },
+      );
+      return distanceMetres / (2 * SCALE_PROBE_PX);
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const chooseBasemap = useCallback((id) => {
+    setBasemapId(id);
+    writePref("map-basemap", id);
+  }, []);
+
+  const toggleOverlay = useCallback((name) => {
+    setOverlays((current) => ({ ...current, [name]: !current[name] }));
+  }, []);
+  useEffect(() => {
+    writePref("map-graticule", overlays.graticule);
+    writePref("map-mgrs", overlays.mgrs);
+  }, [overlays]);
+
+  const closeContextMenu = useCallback(() => {
+    menuOpenRef.current = false;
+    setContextMenu(null);
   }, []);
 
   // Keep camera padding in step with floating widgets and expanded mode.
@@ -555,6 +755,104 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     [flushMove],
   );
 
+  // ---- Overlays: added while shown, put back after every style load -------
+  const syncOverlays = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer(CASING_LAYER)) return;
+    const wanted = latestRef.current?.overlays ?? {};
+    const colors = colorsRef.current;
+    let font;
+    for (const [name, parts] of Object.entries(OVERLAY_LAYERS)) {
+      if (!wanted[name]) {
+        removeOverlay(map, parts);
+        if (name === "graticule") gridRef.current = null;
+        continue;
+      }
+      font ??= labelFont(map);
+      if (name === "graticule") installGrid(map, colors, font);
+      else installZones(map, colors, font);
+    }
+    updateGridRef.current?.();
+  }, []);
+
+  // ---- My location: a dot and the accuracy circle, while switched on -------
+  const drawLocation = useCallback(() => {
+    const map = mapRef.current;
+    const maplibregl = libraryRef.current;
+    const state = locationRef.current;
+    if (!map || !maplibregl || !state.fix) return;
+    const { latitude, longitude, accuracy } = state.fix;
+    const lngLat = [longitude, modeRef.current === "2d" ? displayLatitude(latitude) : markerLatitude(latitude)];
+    if (!state.marker) {
+      const element = document.createElement("div");
+      element.className = "map-location-dot";
+      element.setAttribute("aria-hidden", "true");
+      element.append(document.createElement("span"));
+      state.marker = new maplibregl.Marker({ element, anchor: "center" });
+    }
+    state.marker.setLngLat(lngLat).addTo(map);
+    if (!map.getLayer(CASING_LAYER)) return;
+    installLocation(map);
+    const ring = accuracy > 0 ? accuracyRing({ latitude, longitude }, accuracy) : null;
+    map.getSource(LOCATION_SOURCE)?.setData(ring
+      ? { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } }
+      : EMPTY_LINES);
+  }, []);
+
+  const stopLocation = useCallback((next = { status: "off", errorKey: null }) => {
+    const state = locationRef.current;
+    if (state.watch != null) navigator.geolocation?.clearWatch(state.watch);
+    state.marker?.remove();
+    const map = mapRef.current;
+    if (map) removeOverlay(map, { source: LOCATION_SOURCE, layers: [LOCATION_FILL, LOCATION_LINE] });
+    locationRef.current = { watch: null, fix: null, marker: null, flown: false };
+    setLocation(next);
+  }, []);
+
+  const toggleLocation = useCallback(() => {
+    if (locationRef.current.watch != null) {
+      stopLocation();
+      return;
+    }
+    const geolocation = typeof navigator === "undefined" ? undefined : navigator.geolocation;
+    if (!geolocation) {
+      setLocation({ status: "error", errorKey: locationErrorKey(2) });
+      return;
+    }
+    setLocation({ status: "searching", errorKey: null });
+    const onFix = ({ coords }) => {
+      const state = locationRef.current;
+      if (state.watch == null) return;
+      state.fix = { latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy };
+      drawLocation();
+      const map = mapRef.current;
+      if (map && !state.flown) {
+        state.flown = true;
+        navigatedRef.current = true;
+        const zoom = Math.max(map.getZoom(), coords.accuracy > 2000 ? 10 : 15);
+        map.flyTo({ center: [coords.longitude, coords.latitude], zoom, duration: animation(900) });
+      }
+      setLocation((current) => (current.status === "on" ? current : { status: "on", errorKey: null }));
+    };
+    const onError = (error) => {
+      // A later timeout keeps the last fix; a refusal or no fix at all ends it.
+      if (locationRef.current.fix && error.code !== 1) return;
+      stopLocation({ status: "error", errorKey: locationErrorKey(error.code) });
+    };
+    locationRef.current.watch = geolocation.watchPosition(onFix, onError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
+  }, [drawLocation, stopLocation]);
+
+  useEffect(() => {
+    if (location.status !== "error") return undefined;
+    const timer = window.setTimeout(() => setLocation({ status: "off", errorKey: null }), LOCATION_ERROR_MS);
+    return () => window.clearTimeout(timer);
+  }, [location.status]);
+
+  useEffect(() => () => {
+    const { watch } = locationRef.current;
+    if (watch != null) navigator.geolocation?.clearWatch(watch);
+  }, []);
+
   // ---- Create the map once ----------------------------------------------
   useEffect(() => {
     let disposed = false;
@@ -562,7 +860,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     let styleTimer = 0;
     let cursorFrame = 0;
     let lastPick = null;
-    let removeCanvasListeners = null;
+    let removeDomListeners = null;
     const container = containerRef.current;
     const basemapState = basemapRef.current;
     const pins = pinsRef.current;
@@ -572,18 +870,18 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       if (!map || disposed || !basemapState.remote) return;
       window.clearTimeout(styleTimer);
       basemapState.remote = false;
-      setBasemap("fallback");
+      setBasemapStatus("fallback");
       // setStyle reuses the constructor's transformStyle by default and then
       // waits for the previous style to finish loading, which a failed remote
       // style never does. The local style needs no transform.
-      map.setStyle(fallbackStyle(), { diff: false, transformStyle: undefined });
+      map.setStyle(fallbackStyle(latestRef.current.mode), { diff: false, transformStyle: undefined });
     };
 
     const loadRemoteStyle = () => {
       basemapState.remote = true;
       basemapState.styleLoaded = false;
       basemapState.tileErrors = 0;
-      setBasemap("loading");
+      setBasemapStatus("loading");
       window.clearTimeout(styleTimer);
       styleTimer = window.setTimeout(() => {
         if (!basemapState.styleLoaded) switchToFallback();
@@ -611,10 +909,11 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       const latest = latestRef.current;
       const initialBounds = sceneBounds(latest.scene);
       loadRemoteStyle();
+      appliedRef.current = { key: sourceRef.current.key, mode: latest.mode };
       try {
         map = new maplibregl.Map({
           container,
-          style: styleUrl,
+          style: sourceRef.current.url,
           transformStyle,
           ...(initialBounds && !isSinglePoint(initialBounds)
             ? { bounds: initialBounds, fitBoundsOptions: { padding: latest.getPadding(), maxZoom: 15 } }
@@ -629,13 +928,13 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
           // the Mercator edge (see constrainView). `map` is unset while the
           // constructor fits the first view.
           transformConstrain: (lngLat, zoom) => {
-            const mode = modeRef.current;
+            const viewMode = modeRef.current;
             const padding = latestRef.current.getPadding();
-            const minZoom = worldMinZoom({ width: container.clientWidth, height: container.clientHeight, latitude: lngLat.lat, mode, padding });
+            const minZoom = worldMinZoom({ width: container.clientWidth, height: container.clientHeight, latitude: lngLat.lat, mode: viewMode, padding });
             // The flat map's edge stays out of view: the padding the camera
             // centres in now (none until the first syncView).
             const viewport = { height: container.clientHeight, padding: map ? map.getPadding() : undefined };
-            const view = constrainView(lngLat, zoom, { ...ZOOM_RANGE, minZoom }, map ? map.getZoom() : zoom, mode, viewport);
+            const view = constrainView(lngLat, zoom, { ...ZOOM_RANGE, minZoom }, map ? map.getZoom() : zoom, viewMode, viewport);
             return { center: new maplibregl.LngLat(view.longitude, view.latitude), zoom: view.zoom };
           },
           maxPitch: 60,
@@ -646,6 +945,11 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
           cooperativeGestures: false,
           clickTolerance: 4,
           fadeDuration: 120,
+          // Sharp enough on any screen; a 3x phone draws 2.25x fewer pixels.
+          pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+          // The styles are known; validating each one costs a frame or two.
+          validateStyle: false,
+          refreshExpiredTiles: false,
         });
       } catch (error) {
         window.clearTimeout(styleTimer);
@@ -655,14 +959,14 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       }
       mapRef.current = map;
       libraryRef.current = maplibregl;
-      polarRef.current = createPolarOverlay(map);
+      polarRef.current = createPolarOverlay(map, () => colorsRef.current);
+      const stage = container.parentElement;
+      let centre = "";
       const updateNavigation = () => {
-        const centerPoint = map.project(map.getCenter());
-        container.parentElement.style.setProperty("--map-center-x", `${centerPoint.x}px`);
-        container.parentElement.style.setProperty("--map-center-y", `${centerPoint.y}px`);
+        if (probingRef.current) return;
         const floor = minimumZoom(map, map.getCenter().lat, latestRef.current.getPadding(), modeRef.current);
-        const next = { canZoomIn: map.getZoom() < map.getMaxZoom() - 0.01, canZoomOut: map.getZoom() > floor + 0.01, bearing: Math.round(map.getBearing()) };
-        setNavigation((current) => Object.keys(next).every((key) => next[key] === current[key]) ? current : next);
+        const next = { canZoomIn: map.getZoom() < map.getMaxZoom() - 0.01, canZoomOut: map.getZoom() > floor + 0.01 };
+        setNavigation((current) => (next.canZoomIn === current.canZoomIn && next.canZoomOut === current.canZoomOut ? current : next));
       };
       const syncView = () => {
         const padding = latestRef.current.getPadding();
@@ -670,17 +974,68 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
         if (Object.keys(padding).some((key) => padding[key] !== previous[key])) map.setPadding(padding);
         const minZoom = minimumZoom(map, map.getCenter().lat, padding, modeRef.current);
         if (map.getZoom() < minZoom) map.jumpTo({ zoom: minZoom });
+        // The camera centre is the middle of the padded view, whatever the
+        // pan, zoom or rotation: the keyboard centre mark follows it.
+        const canvas = map.getCanvas();
+        const x = padding.left + (canvas.clientWidth - padding.left - padding.right) / 2;
+        const y = padding.top + (canvas.clientHeight - padding.top - padding.bottom) / 2;
+        const next = `${x},${y}`;
+        if (next !== centre) {
+          centre = next;
+          stage.style.setProperty("--map-center-x", `${x}px`);
+          stage.style.setProperty("--map-center-y", `${y}px`);
+        }
         updateNavigation();
       };
       syncViewRef.current = syncView;
-      map.on("move", updateNavigation);
+      const notifyView = (kind) => {
+        if (probingRef.current || viewListenersRef.current.size === 0) return;
+        for (const listener of viewListenersRef.current) listener(kind);
+      };
+      let turned = false;
+      const updateCompass = () => {
+        if (probingRef.current) return;
+        const bearing = map.getBearing();
+        const node = compassNodeRef.current;
+        if (node) node.style.transform = `rotate(${-bearing}deg)`;
+        const next = Math.abs(bearing) > 0.5 || map.getPitch() > 0.5;
+        if (next !== turned) {
+          turned = next;
+          setRotated(next);
+        }
+      };
+      // One call per frame: "zoom" when the zoom changed since the last one.
+      let notifiedZoom = map.getZoom();
+      map.on("zoom", updateNavigation);
+      map.on("move", () => {
+        const zoom = map.getZoom();
+        notifyView(zoom === notifiedZoom ? "move" : "zoom");
+        notifiedZoom = zoom;
+      });
+      map.on("rotate", updateCompass);
+      map.on("pitch", updateCompass);
+      map.on("moveend", () => {
+        updateNavigation();
+        updateCompass();
+        updateGridRef.current?.();
+      });
       map.on("resize", syncView);
       syncView();
-      // Bottom-right controls stack upwards: the scale bar sits above the attribution.
-      map.addControl(new maplibregl.AttributionControl({ compact: false }), "bottom-right");
-      map.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 96 }), "bottom-right");
       const canvas = map.getCanvas();
       canvas.setAttribute("aria-label", latest.labels.mapCanvas);
+
+      // The latitude/longitude grid around the view, remade when the view
+      // leaves the area it covers or wants another interval.
+      updateGridRef.current = () => {
+        const grid = map.getSource(GRID_SOURCE);
+        if (!grid || probingRef.current) return;
+        const wanted = graticuleInterval(map.getZoom());
+        const view = map.getBounds();
+        const bounds = [[view.getWest(), view.getSouth()], [view.getEast(), view.getNorth()]];
+        if (graticuleCovers(gridRef.current, bounds, wanted)) return;
+        gridRef.current = graticuleFeatures(bounds, wanted, latestRef.current.language);
+        grid.setData(gridRef.current);
+      };
 
       // The first view is fitted while the layout may still be settling (the
       // phone sheet takes its height after the map is created), so it is
@@ -688,6 +1043,10 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       let userMoved = false;
       map.on("movestart", (event) => {
         if (event.originalEvent) userMoved = true;
+        if (menuOpenRef.current) {
+          menuOpenRef.current = false;
+          setContextMenu(null);
+        }
       });
       map.once("load", () => {
         if (!userMoved && !navigatedRef.current && initialBounds) fitScene(false);
@@ -698,14 +1057,21 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       if (initialBounds && isSinglePoint(initialBounds)) fitScene(false);
 
       map.on("style.load", () => {
+        const current = sourceRef.current;
         if (basemapState.remote) {
           basemapState.styleLoaded = true;
           window.clearTimeout(styleTimer);
-          setBasemap("ready");
+          setBasemapStatus("ready");
         }
+        const tone = basemapState.remote ? current.tone : latestRef.current.mode;
+        colorsRef.current = TONE_COLORS[tone] ?? TONE_COLORS.light;
+        setLoaded({ id: basemapState.remote ? current.key.split(":")[0] : null, tone });
         map.setProjection({ type: modeRef.current === "3d" ? "globe" : "mercator" });
         map.setSky(modeRef.current === "3d" ? SPACE_SKY : undefined);
-        installLineLayers(map);
+        installLineLayers(map, colorsRef.current);
+        gridRef.current = null;
+        syncOverlays();
+        drawLocation();
         syncView();
         setStatus("ready");
         setStyleRevision((value) => value + 1);
@@ -719,7 +1085,7 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
           return;
         }
         basemapState.tileErrors += 1;
-        if (basemapState.tileErrors >= TILE_ERROR_THRESHOLD) setBasemap("partial");
+        if (basemapState.tileErrors >= TILE_ERROR_THRESHOLD) setBasemapStatus("partial");
       });
 
       map.on("click", (event) => {
@@ -741,6 +1107,51 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
         lastPick = { time: now, x: event.point.x, y: event.point.y };
         pick(lngLat);
       });
+
+      // ---- The point menu: right click (without a drag) or a long touch ----
+      const openMenu = ({ x, y }) => {
+        const lngLat = lngLatOnMap(map, { x, y });
+        if (!lngLat) return;
+        menuOpenRef.current = true;
+        setContextMenu({ x, y, latitude: Math.max(-90, Math.min(90, lngLat.lat)), longitude: wrapLongitude(lngLat.lng) });
+      };
+      let pendingMenu = null;
+      map.on("contextmenu", (event) => {
+        event.originalEvent?.preventDefault?.();
+        const at = { x: event.point.x, y: event.point.y };
+        // Windows sends contextmenu on release, macOS and Linux on press.
+        if ((event.originalEvent?.buttons ?? 0) === 0) openMenu(at);
+        else pendingMenu = at;
+      });
+      const onMouseUp = (event) => {
+        if (!pendingMenu || event.button !== 2) return;
+        const rect = canvas.getBoundingClientRect();
+        const moved = Math.abs(event.clientX - rect.left - pendingMenu.x) + Math.abs(event.clientY - rect.top - pendingMenu.y);
+        if (moved < MENU_MOVE_PX) openMenu(pendingMenu);
+        pendingMenu = null;
+      };
+      let pressTimer = 0;
+      let pressAt = null;
+      const cancelPress = () => {
+        window.clearTimeout(pressTimer);
+        pressTimer = 0;
+        pressAt = null;
+      };
+      map.on("touchstart", (event) => {
+        cancelPress();
+        if (event.originalEvent?.touches?.length !== 1) return;
+        pressAt = { x: event.point.x, y: event.point.y };
+        pressTimer = window.setTimeout(() => {
+          const at = pressAt;
+          cancelPress();
+          if (at) openMenu(at);
+        }, LONG_PRESS_MS);
+      });
+      map.on("touchmove", (event) => {
+        if (pressAt && Math.abs(event.point.x - pressAt.x) + Math.abs(event.point.y - pressAt.y) > MENU_MOVE_PX) cancelPress();
+      });
+      map.on("touchend", cancelPress);
+      map.on("touchcancel", cancelPress);
 
       // Keyboard: the arrow keys pan the focused map and Enter places what
       // is being picked under the centre mark.
@@ -765,10 +1176,13 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       canvas.addEventListener("keydown", onCanvasKey);
       canvas.addEventListener("focus", onCanvasFocus);
       canvas.addEventListener("blur", onCanvasBlur);
-      removeCanvasListeners = () => {
+      window.addEventListener("mouseup", onMouseUp);
+      removeDomListeners = () => {
         canvas.removeEventListener("keydown", onCanvasKey);
         canvas.removeEventListener("focus", onCanvasFocus);
         canvas.removeEventListener("blur", onCanvasBlur);
+        window.removeEventListener("mouseup", onMouseUp);
+        cancelPress();
       };
 
       let cursorLngLat = null;
@@ -793,8 +1207,9 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       });
 
       reloadBasemapRef.current = () => {
+        appliedRef.current = { key: sourceRef.current.key, mode: latestRef.current.mode };
         loadRemoteStyle();
-        map.setStyle(styleUrl, { diff: false, transformStyle });
+        map.setStyle(sourceRef.current.url, { diff: false, transformStyle });
       };
     }
 
@@ -806,21 +1221,39 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
       const drag = dragRef.current;
       if (drag.frame) cancelAnimationFrame(drag.frame);
       dragRef.current = { id: null, frame: 0, pending: null };
-      removeCanvasListeners?.();
+      removeDomListeners?.();
       for (const entry of pins.values()) entry.marker.remove();
       for (const marker of tags.values()) marker.remove();
       pins.clear();
       tags.clear();
       polarRef.current?.remove();
       polarRef.current = null;
+      locationRef.current.marker?.remove();
+      locationRef.current.marker = null;
       map?.remove();
       mapRef.current = null;
       libraryRef.current = null;
       reloadBasemapRef.current = null;
       syncViewRef.current = null;
+      updateGridRef.current = null;
+      gridRef.current = null;
     };
-    // styleUrl comes from config.json and does not change while the app runs.
-  }, [initAttempt, transformStyle, handlersRef]);
+  }, [initAttempt, transformStyle, handlersRef, fitScene, syncOverlays, drawLocation]);
+
+  // ---- Basemap and theme: another style when the choice needs one --------
+  useEffect(() => {
+    if (!mapRef.current || !reloadBasemapRef.current) return;
+    const applied = appliedRef.current;
+    const offline = !basemapRef.current.remote;
+    // The offline grid follows the theme too: it is tried online again.
+    if (applied.key === source.key && !(offline && applied.mode !== mode)) return;
+    reloadBasemapRef.current();
+  }, [source.key, mode]);
+
+  // ---- Overlays ------------------------------------------------------------
+  useEffect(() => {
+    if (styleRevision > 0) syncOverlays();
+  }, [overlays, styleRevision, syncOverlays]);
 
   // ---- Pins: created, updated and removed by id -------------------------
   const createPinEntry = useCallback(
@@ -944,11 +1377,19 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
     }
   }, [lines, styleRevision, viewMode]);
 
+  // The location dot sits on the flat map's edge in 2D, like the pins.
+  useEffect(() => {
+    if (styleRevision > 0) drawLocation();
+  }, [viewMode, styleRevision, drawLocation]);
+
   // ---- Language: map labels and the canvas name -------------------------
   useEffect(() => {
     const map = mapRef.current;
     if (!map || styleRevision === 0) return;
     map.getCanvas().setAttribute("aria-label", labels.mapCanvas);
+    // The grid's hemisphere letters are the language's (40°K, 40°N).
+    gridRef.current = null;
+    updateGridRef.current?.();
     if (!basemapRef.current.remote) return;
     for (const id of basemapRef.current.localizedLayers) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "text-field", localizedNameExpression(language));
@@ -995,5 +1436,32 @@ export default function useMapStage({ styleUrl, language, labels, scene, owner, 
   const zoomIn = useCallback(() => zoomBy(1), [zoomBy]);
   const zoomOut = useCallback(() => zoomBy(-1), [zoomBy]);
 
-  return { containerRef, cursorRef, status, basemap, retry, zoomIn, zoomOut, fitScene, showWorld, viewMode, setMode, resetNorth, ...navigation };
+  return {
+    containerRef,
+    cursorRef,
+    compassRef,
+    status,
+    basemapStatus,
+    retry,
+    zoomIn,
+    zoomOut,
+    fitScene,
+    viewMode,
+    setMode,
+    resetNorth,
+    rotated,
+    ...navigation,
+    basemapId,
+    chooseBasemap,
+    overlays,
+    toggleOverlay,
+    loaded,
+    styleRevision,
+    subscribeView,
+    measureScale,
+    contextMenu,
+    closeContextMenu,
+    location,
+    toggleLocation,
+  };
 }

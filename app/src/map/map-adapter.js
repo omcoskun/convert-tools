@@ -334,7 +334,7 @@ export function fitPadding(stage, { input, result }, base) {
 // major roads clearer contrast while keeping the basemap quieter than the
 // cobalt/vermilion lines. Unknown layer ids are ignored, so another
 // (self-hosted) style loads unchanged.
-const PAINT_OVERRIDES = {
+const POSITRON_OVERRIDES = {
   background: { "background-color": "#f3f1eb" },
   water: { "fill-color": "#bcd4e6" },
   waterway: { "line-color": "#a6c4dc" },
@@ -357,6 +357,46 @@ const PAINT_OVERRIDES = {
   waterway_line_label: { "text-color": "#4f7799" },
 };
 
+// OpenFreeMap's dark style draws land and water in nearly the same black.
+// A blue-grey night palette: darker water than land, roads a step lighter,
+// readable names, warm motorways kept subtle.
+const PLACE_DARK = { "text-color": "#b9c2ce", "text-halo-color": "rgba(14, 18, 23, 0.85)", "text-halo-width": 1.2 };
+const DARK_OVERRIDES = {
+  background: { "background-color": "#1c222a" },
+  water: { "fill-color": "#0e1824" },
+  waterway: { "line-color": "#132233" },
+  landuse_park: { "fill-color": "#1d2924" },
+  landcover_wood: { "fill-color": "#1f2a26" },
+  landuse_residential: { "fill-color": "#262d36" },
+  building: { "fill-color": "#262d37", "fill-outline-color": "#303843" },
+  highway_minor: { "line-color": "#2b323c" },
+  highway_major_casing: { "line-color": "rgba(72, 81, 94, 0.8)" },
+  highway_major_inner: { "line-color": "#353d48" },
+  highway_major_subtle: { "line-color": "#323a45" },
+  highway_motorway_casing: { "line-color": "rgba(98, 88, 66, 0.85)" },
+  highway_motorway_inner: { "line-color": ["interpolate", ["linear"], ["zoom"], 5.8, "hsla(38, 28%, 55%, 0.35)", 6, "#4d4637"] },
+  highway_motorway_subtle: { "line-color": "#3b372d" },
+  boundary_state: { "line-color": "hsl(215, 10%, 33%)" },
+  "boundary_country_z0-4": { "line-color": "hsl(215, 12%, 44%)" },
+  "boundary_country_z5-": { "line-color": "hsl(215, 12%, 44%)" },
+  water_name: { "text-color": "#7193b8", "text-halo-color": "rgba(14, 18, 23, 0.8)" },
+  highway_name_other: { "text-color": "#8a95a3", "text-halo-color": "rgba(14, 18, 23, 0.9)" },
+  highway_name_motorway: { "text-color": "#9aa4b1" },
+  place_other: PLACE_DARK,
+  place_suburb: PLACE_DARK,
+  place_village: PLACE_DARK,
+  place_town: PLACE_DARK,
+  place_city: { ...PLACE_DARK, "text-color": "#d3dae3" },
+  place_city_large: { ...PLACE_DARK, "text-color": "#dfe5ec" },
+  place_state: { ...PLACE_DARK, "text-color": "#8f9aa8" },
+  place_country_other: { ...PLACE_DARK, "text-color": "#a7b1bd" },
+  place_country_minor: { ...PLACE_DARK, "text-color": "#a7b1bd" },
+  place_country_major: { ...PLACE_DARK, "text-color": "#b9c2ce" },
+};
+
+/** Paint overrides per basemap palette; "none" leaves a style's colours. */
+export const PALETTE_OVERRIDES = Object.freeze({ positron: POSITRON_OVERRIDES, dark: DARK_OVERRIDES, none: {} });
+
 const LOCALIZED_SOURCE_LAYERS = new Set(["place", "water_name", "aerodrome_label"]);
 
 /** Label expression: the place name in the interface language where the data has it. */
@@ -374,11 +414,6 @@ export function isLocalizedLabelLayer(layer) {
   );
 }
 
-/**
- * The basemap style as the app draws it: on the globe (MAP_PROJECTION), no
- * raster sources (no imagery or shaded relief is ever requested), the house
- * colours and labels in the interface language.
- */
 // A missing property compares as false: MapLibre does that too, but logs a
 // warning for every feature ("Expected value to be of type number, but found
 // null"). Comparing a stand-in that fails the test keeps the result and the
@@ -405,15 +440,25 @@ export function guardFilter(expression) {
   ];
 }
 
-export function tuneBasemapStyle(style, language) {
+/**
+ * The basemap style as the app draws it: on the globe (MAP_PROJECTION), the
+ * house colours of its palette and labels in the interface language. Raster
+ * sources (Natural Earth relief in some styles) are dropped unless
+ * `keepRaster`; the satellite basemap adds its own imagery (basemaps.js).
+ * @param {object} style a fetched style
+ * @param {string} language
+ * @param {{ palette?: keyof typeof PALETTE_OVERRIDES, keepRaster?: boolean }} [options]
+ */
+export function tuneBasemapStyle(style, language, { palette = "positron", keepRaster = false } = {}) {
   if (!style || !Array.isArray(style.layers)) return style;
+  const overrides = PALETTE_OVERRIDES[palette] ?? {};
   const sources = Object.fromEntries(
-    Object.entries(style.sources ?? {}).filter(([, source]) => source?.type !== "raster"),
+    Object.entries(style.sources ?? {}).filter(([, source]) => keepRaster || source?.type !== "raster"),
   );
   const layers = style.layers
     .filter((layer) => layer.type !== "raster" && (layer.source === undefined || layer.source in sources))
     .map((layer) => {
-      const paint = PAINT_OVERRIDES[layer.id];
+      const paint = overrides[layer.id];
       let next = paint ? { ...layer, paint: { ...layer.paint, ...paint } } : layer;
       if (Array.isArray(next.filter)) next = { ...next, filter: guardFilter(next.filter) };
       if (isLocalizedLabelLayer(next)) {
@@ -456,20 +501,27 @@ function graticule(step) {
   return { type: "FeatureCollection", features };
 }
 
-export function fallbackStyle() {
+const FALLBACK_COLORS = Object.freeze({
+  light: { background: "#eceae3", major: "#a8a293", minor: "#c9c3b5" },
+  dark: { background: "#1c222a", major: "#4b5563", minor: "#323a45" },
+});
+
+/** The offline grid, in the colours of the interface theme. */
+export function fallbackStyle(mode = "light") {
+  const colors = FALLBACK_COLORS[mode] ?? FALLBACK_COLORS.light;
   return {
     version: 8,
     name: "convert-offline-graticule",
     projection: MAP_PROJECTION,
     sources: { "convert-graticule": { type: "geojson", data: graticule(30) } },
     layers: [
-      { id: "background", type: "background", paint: { "background-color": "#eceae3" } },
+      { id: "background", type: "background", paint: { "background-color": colors.background } },
       {
         id: "convert-graticule",
         type: "line",
         source: "convert-graticule",
         paint: {
-          "line-color": ["match", ["get", "kind"], "major", "#a8a293", "#c9c3b5"],
+          "line-color": ["match", ["get", "kind"], "major", colors.major, colors.minor],
           "line-width": ["match", ["get", "kind"], "major", 1.2, 0.7],
         },
       },

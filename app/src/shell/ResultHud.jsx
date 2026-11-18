@@ -42,7 +42,7 @@ const hudSx = (expanded) => ({
     flexDirection: "column",
     overflow: "hidden",
     borderRadius: `${RADIUS.widget}px`,
-    bgcolor: COLORS.ink,
+    bgcolor: COLORS.panel,
     boxShadow: SHADOW.float,
   },
   "& .hud-drawer": {
@@ -114,7 +114,7 @@ const hudSx = (expanded) => ({
           gap: 0,
           // Room for the sheet's drag handle drawn over the strip's top edge.
           p: "20px 16px 10px",
-          bgcolor: COLORS.ink,
+          bgcolor: COLORS.panel,
         },
         "& .hud-head": { minHeight: 24 },
         "& .hud-row": { minHeight: 40, columnGap: 1.5 },
@@ -385,7 +385,7 @@ export default function ResultHud({
             px: 2,
             py: 1,
             borderRadius: `${RADIUS.pill}px`,
-            bgcolor: COLORS.ink,
+            bgcolor: COLORS.panel,
             color: COLORS.onInk,
             boxShadow: SHADOW.float,
           }}

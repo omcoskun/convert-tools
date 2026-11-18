@@ -218,7 +218,8 @@ export default function WorkspaceLayout({ hidden = false, children }) {
           }}
         >
           <MapStage
-            styleUrl={mapSettings.style}
+            basemaps={mapSettings.basemaps}
+            defaultBasemap={mapSettings.defaultBasemap}
             scene={published.scene}
             owner={published.owner}
             handlersRef={handlersRef}

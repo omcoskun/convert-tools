@@ -241,16 +241,34 @@ Değişmeyen kurallar:
   çizilir). Kürede görünüm kutbun üstüne ortalanabilir ve 11. düzeye kadar
   yakınlaşılabilir; ±85,05°'nin ötesinde karo olmadığı için orası kenarın
   rengiyle düz boyanır. Antimeridyeni geçen hat tek parça çizilir.
-- Altlık OpenFreeMap "positron" stilidir (`config.json` → `map.style`). Uydu
-  görüntüsü ve gölgeli rölyef yoktur: `src/map/map-adapter.js` stildeki bütün
-  raster kaynakları atar. Atıflar haritanın sağ altında görünür. Altlık
-  yüklenemezse harita istek yapmayan çevrimdışı bir ızgaraya döner ve
-  "Yeniden dene" düğmesi gösterir; ölçüm ve seçim çalışmaya devam eder.
-  OpenFreeMap ücretsizdir ama hizmet garantisi (SLA) vermez; gerekirse aynı
-  stil kendi sunucunuzda barındırılabilir.
-- CSP `connect-src` derleme sırasında `map.style` adresinin kaynağına açılır.
-  Bu yüzden altlık sunucusunu değiştirmek, diğer ayarların aksine, yeniden
-  derleme ister.
+- Üç altlık vardır ve `config.json` → `map.basemaps` içinde tanımlıdır
+  (seçim hatırlanır): "standart" OpenFreeMap "positron"dur ve açık/koyu
+  temayı izler (koyuda OpenFreeMap "dark" stili); "ayrıntılı" OpenFreeMap
+  "liberty"dir (gölgeli rölyef ile); "uydu" EOX Sentinel-2 cloudless 2017
+  görüntüsüdür (CC BY 4.0) ve sınırlar ile yer adları vektör stilinden gelir.
+  Raster kaynaklar yalnız bu kataloğun girdileridir; `src/map/map-adapter.js`
+  stildeki başka raster kaynakları atar. Altlık yüklenemezse harita istek
+  yapmayan çevrimdışı bir ızgaraya döner ve "Yeniden dene" düğmesi
+  gösterir; ölçüm ve seçim çalışmaya devam eder. OpenFreeMap ücretsizdir ama
+  hizmet garantisi (SLA) vermez; gerekirse aynı stil kendi sunucunuzda
+  barındırılabilir.
+- Katmanlar (varsayılan kapalı): enlem/boylam ızgarası (aralığı yakınlaştırma
+  düzeyini izler) ve MGRS ızgara bölgeleri.
+- Ölçek çubuğu Apple tarzıdır: yakınlaşırken görünür, sonra silinir; tıklayınca
+  metrik, deniz mili ve imperial arasında döner; katman panelinden sabitlenebilir.
+- Atıflar sağ altta bir ⓘ düğmesinin arkasındadır; altlık yüklendikten sonra
+  5 saniye açık kalır, sonra kapanır (OSMF atıf yönergeleri buna izin verir).
+  Atıflar `config.json`'da yapılandırılmış `{ text, href }` öğeleridir; uzak
+  stilden HTML çizilmez.
+- Haritada sağ tık (dokunmatikte uzun basış) noktayı ondalık derece ve MGRS
+  olarak gösterir; her biri tek tıkla kopyalanır. "Konumum" tarayıcının
+  konum özelliğini kullanır ve jeodezik bir doğruluk çemberi çizer; konum
+  uygulamanın sunucusuna gönderilmez.
+- Açık, koyu ya da sistem teması üst çubuktan seçilir ve `localStorage`'da
+  saklanır.
+- CSP `connect-src`, derleme sırasında `config.json` → `map` içindeki her
+  adresin kaynağından kurulur (`webpack.config.js` → `mapOrigins`). Bu yüzden
+  altlık sunucusunu değiştirmek, diğer ayarların aksine, yeniden derleme ister.
 - MapLibre ayrı bir parça olarak, yalnız bir çalışma alanı aracı açıldığında
   yüklenir (`src/map/maplibre.js`). Araç bağlantısının üzerine gelinince ya da
   bağlantıya odaklanılınca önceden çekilir. Stil dosyası ve web worker

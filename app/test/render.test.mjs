@@ -209,13 +209,13 @@ test("the measure tool measures Ankara -> Istanbul and offers picking on the map
     assert.ok(!/aria-label=/.test(button.match(/^<button[^>]*>/)[0]), `pick ${letter} named by its content`);
     assert.ok(button.includes(lang.tr.text.repickPoint) && button.includes(`, ${label}`), button);
   }
-  for (const key of ["mapZoomIn", "mapZoomOut", "mapFit", "mapWorld", "mapExpand"]) {
+  for (const key of ["mapLayers", "map3D", "mapZoomIn", "mapZoomOut", "mapFit", "mapMyLocation", "mapExpand"]) {
     assert.ok(html.includes(`aria-label="${lang.tr.text[key]}"`), key);
   }
   assert.ok(text.includes(lang.tr.text.swapPoints) && text.includes(lang.tr.text.clearPoints));
   // MapLibre starts in an effect, which server rendering does not run.
   assert.ok(text.includes(lang.tr.text.mapLoading));
-  assert.doesNotMatch(html, /arcgis|satellite|<svg[^>]*role="img"/i);
+  assert.doesNotMatch(html, /arcgis|<svg[^>]*role="img"/i);
 });
 
 test("a core error is shown with its localized message and its code", () => {

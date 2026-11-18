@@ -1,9 +1,21 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import { IWC } from "./env.js";
+import { readPref } from "./lib/prefs.js";
 import { loadRuntime } from "./runtime.js";
+import { PALETTES, THEME_PREFERENCES, resolveTheme } from "./theme.js";
 
 if (IWC) document.documentElement.dataset.iwc = IWC;
+
+// The page takes the stored theme's colours before config.json and lang.json
+// arrive, so a dark theme does not flash white; App takes over on render.
+{
+  const mode = resolveTheme(readPref("theme", "system", THEME_PREFERENCES), window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+  const root = document.documentElement;
+  root.dataset.theme = mode;
+  root.style.colorScheme = mode;
+  root.style.backgroundColor = PALETTES[mode].paper;
+}
 
 const root = createRoot(document.getElementById("root"));
 

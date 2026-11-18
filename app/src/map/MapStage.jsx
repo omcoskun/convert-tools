@@ -1,16 +1,26 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon.jsx";
-import { useLanguage } from "../context.js";
+import { useLanguage, useThemeMode } from "../context.js";
+import { readPref, writePref } from "../lib/prefs.js";
 import { BAR_HEIGHT, COLORS, MONO_FONT, MOTION, PHONE, RADIUS, SHADOW, TYPE, UI_FONT, WORKSPACE } from "../theme.js";
 import { Box, visuallyHidden } from "../ui/index.js";
+import Attribution from "./Attribution.jsx";
+import { TONE_COLORS, findBasemap } from "./basemaps.js";
+import ContextMenu from "./ContextMenu.jsx";
+import LayerPanel from "./LayerPanel.jsx";
 import { PIN_SHAPE } from "./map-adapter.js";
+import { SCALE_UNITS } from "./scale.js";
+import ScaleBar from "./ScaleBar.jsx";
 import SpaceBackdrop from "./SpaceBackdrop.jsx";
 import useMapStage from "./useMapStage.js";
 
+// Pin and picking colours. The ink pin takes the colour of the plain line on
+// the loaded basemap (--map-ink, set on the stage), so it matches its line on
+// light, dark and satellite maps.
 const TONES = {
-  a: { color: COLORS.a, soft: COLORS.aSoft, halo: "rgba(36, 80, 224, 0.24)" },
-  b: { color: COLORS.b, soft: COLORS.bSoft, halo: "rgba(226, 73, 44, 0.24)" },
-  ink: { color: COLORS.ink, soft: COLORS.paper2, halo: "rgba(22, 25, 28, 0.2)" },
+  a: { color: COLORS.a, soft: COLORS.aSoft, on: "#ffffff", halo: "rgba(36, 80, 224, 0.24)" },
+  b: { color: COLORS.b, soft: COLORS.bSoft, on: "#ffffff", halo: "rgba(226, 73, 44, 0.24)" },
+  ink: { color: "var(--map-ink)", soft: COLORS.paper2, on: "var(--map-on-ink)", halo: "rgba(22, 25, 28, 0.2)" },
 };
 
 /** Picking cursor: a crosshair with a dot in the colour of what is being placed. */
@@ -25,8 +35,9 @@ function pickCursor(color) {
 
 const glassSurface = {
   border: `1px solid ${COLORS.rule2}`,
-  bgcolor: COLORS.sheet,
+  bgcolor: COLORS.glass,
   boxShadow: SHADOW.float,
+  backdropFilter: "blur(12px) saturate(1.4)",
 };
 
 // Map controls and the hint column start below the glass bar, or at the top
@@ -90,6 +101,26 @@ const stageSx = {
     borderRadius: "50%",
     boxShadow: "0 0 0 1px rgba(22, 25, 28, 0.35), 0 1px 4px rgba(22, 25, 28, 0.35)",
   },
+  "& .map-location-dot": {
+    position: "relative",
+    width: 18,
+    height: 18,
+    boxSizing: "border-box",
+    border: "3px solid #ffffff",
+    borderRadius: "50%",
+    bgcolor: "#2f7cf6",
+    boxShadow: "0 1px 5px rgba(8, 12, 18, 0.4)",
+    pointerEvents: "none",
+  },
+  "& .map-location-dot > span": {
+    position: "absolute",
+    inset: -3,
+    borderRadius: "50%",
+    bgcolor: "rgba(47, 124, 246, 0.4)",
+    animation: "convertLocationPulse 2.2s ease-out infinite",
+    "@keyframes convertLocationPulse": { from: { transform: "scale(1)", opacity: 0.7 }, to: { transform: "scale(3.2)", opacity: 0 } },
+    "@media (prefers-reduced-motion: reduce)": { animation: "none", opacity: 0 },
+  },
   "& .map-pin-head": {
     position: "absolute",
     left: "50%",
@@ -117,6 +148,7 @@ const stageSx = {
         `& .map-pin.tone-${tone} .map-pin-dot, & .map-pin.tone-${tone} .map-pin-head, & .map-pin.tone-${tone} .map-pin-needle`,
         { bgcolor: color },
       ],
+      [`& .map-pin.tone-${tone} .map-pin-head`, { color: TONES[tone].on }],
       [`& .map-pin.tone-${tone}.is-hollow .map-pin-head`, { bgcolor: "#ffffff", borderColor: color, color }],
       [`& .map-pin.tone-${tone}.is-hollow .map-pin-dot`, { bgcolor: "#ffffff", borderColor: color }],
     ]),
@@ -126,7 +158,7 @@ const stageSx = {
     py: "3px",
     border: `1px solid ${COLORS.rule2}`,
     borderRadius: `${RADIUS.pill}px`,
-    bgcolor: "rgba(252, 251, 248, 0.95)",
+    bgcolor: COLORS.glass,
     color: COLORS.ink,
     font: `650 12px/1.4 ${MONO_FONT}`,
     fontVariantNumeric: "tabular-nums",
@@ -134,52 +166,27 @@ const stageSx = {
     boxShadow: "0 1px 4px rgba(22, 25, 28, 0.18)",
     pointerEvents: "none",
   },
-  // Attribution in the bottom-right corner, the scale bar above it. Both
-  // stay in the strip under the result widget, which floats 20 px up.
-  "& > .map-canvas .maplibregl-ctrl-bottom-right": { maxWidth: "calc(100% - 24px)" },
-  "& > .map-canvas .maplibregl-ctrl-bottom-right > .maplibregl-ctrl": { m: 0 },
-  "& > .map-canvas .maplibregl-ctrl-attrib": {
-    p: "2px 8px",
-    bgcolor: "rgba(252, 251, 248, 0.86)",
-    borderRadius: "7px 0 0 0",
-    fontSize: TYPE.label,
-    lineHeight: "15px",
-    color: COLORS.ink2,
-    whiteSpace: "nowrap",
-  },
-  "& > .map-canvas .maplibregl-ctrl-attrib a": { color: COLORS.ink2 },
-  "& > .map-canvas .maplibregl-ctrl-scale": {
-    mr: "8px",
-    mb: "6px",
-    ml: "auto",
-    borderColor: COLORS.ink2,
-    bgcolor: "rgba(252, 251, 248, 0.8)",
-    color: COLORS.ink,
-    fontFamily: MONO_FONT,
-    fontSize: TYPE.label,
-  },
   // Between the phone and a wide window the scale bar would reach under the
   // centred result widget.
   "@media (min-width: 760px) and (max-width: 999.98px)": {
-    "& > .map-canvas .maplibregl-ctrl-scale": { display: "none" },
-  },
-  [PHONE]: {
-    "& > .map-canvas .maplibregl-ctrl-attrib": { whiteSpace: "normal" },
-    // The sheet overlaps the map's lower edge by 14 px.
-    "& > .map-canvas .maplibregl-ctrl-bottom-right": { bottom: "14px" },
+    "& .map-scale": { display: "none" },
   },
 };
 
-function ControlButton({ label, icon, onClick, disabled, pressed, children }) {
+function ControlButton({ label, icon, onClick, disabled, pressed, expanded, buttonRef, busy, children }) {
   return (
     <Box
       component="button"
       type="button"
+      ref={buttonRef}
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
       aria-pressed={pressed}
+      aria-expanded={expanded}
+      aria-haspopup={expanded === undefined ? undefined : "dialog"}
       title={label}
+      className={busy ? "is-busy" : undefined}
       sx={{
         display: "grid",
         placeItems: "center",
@@ -194,7 +201,13 @@ function ControlButton({ label, icon, onClick, disabled, pressed, children }) {
         transition: `background-color ${MOTION.fast} ${MOTION.ease}`,
         "&:hover:not(:disabled)": { bgcolor: COLORS.paper2 },
         "&:disabled": { cursor: "default", opacity: 0.4 },
-        "&[aria-pressed='true']": { bgcolor: COLORS.ink, color: COLORS.onInk },
+        "&[aria-pressed='true'], &[aria-expanded='true']": { bgcolor: COLORS.selected, color: COLORS.onSelected },
+        "&:focus-visible": { outline: `3px solid ${COLORS.focus}`, outlineOffset: "1px" },
+        "&.is-busy svg": {
+          animation: "convertLocate 1.2s ease-in-out infinite",
+          "@keyframes convertLocate": { "50%": { opacity: 0.35 } },
+          "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+        },
         [PHONE]: { width: 40, height: 40 },
       }}
     >
@@ -204,6 +217,20 @@ function ControlButton({ label, icon, onClick, disabled, pressed, children }) {
 }
 
 const Separator = () => <Box component="span" aria-hidden="true" sx={{ height: "1px", m: "3px 6px", bgcolor: COLORS.rule }} />;
+
+// One rounded group of the control column.
+const groupSx = { ...glassSurface, display: "flex", flexDirection: "column", p: "3px", borderRadius: `${RADIUS.card}px` };
+
+/** The compass needle: north red, south grey; MapStage turns it with the map. */
+function CompassNeedle() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <path d="M11 2.5 14.2 11H7.8Z" fill="#e2492c" />
+      <path d="M11 19.5 7.8 11h6.4Z" fill="currentColor" opacity="0.45" />
+      <circle cx="11" cy="11" r="1.6" fill="currentColor" />
+    </svg>
+  );
+}
 
 const textButton = {
   display: "inline-flex",
@@ -227,11 +254,14 @@ const textButton = {
 
 /**
  * The one map of the workspace: the MapLibre canvas drawing the scene, the
- * picking hint, the map controls (zoom, fit, whole world, enlarge), the
- * pointer readout and the loading, basemap and error states. Rendered once
- * by WorkspaceLayout and kept for the life of the app.
+ * picking hint, one column of map controls (layers, 3D, zoom, fit, my
+ * location, enlarge, and a compass while the map is turned), the scale bar
+ * and the credits in the bottom-right corner, the pointer readout, the point
+ * menu and the loading, basemap and error states. Rendered once by
+ * WorkspaceLayout and kept for the life of the app.
  * @param {{
- *   styleUrl: string,
+ *   basemaps: import("./basemaps.js").Basemap[],
+ *   defaultBasemap: string,
  *   scene: import("./scene.js").MapScene,
  *   owner: object | null,
  *   handlersRef: { current: import("../shell/workspace-context.js").MapSceneHandlers },
@@ -241,11 +271,13 @@ const textButton = {
  *   onStatusChange: (status: import("../shell/workspace-context.js").MapStatus) => void,
  *   active: boolean,
  * }} props
- *   owner: the tool that published the scene (see useMapStage). active:
- *   false while a page tool hides the workspace, so Esc is left alone.
+ *   basemaps, defaultBasemap: config.map. owner: the tool that published
+ *   the scene (see useMapStage). active: false while a page tool hides the
+ *   workspace, so Esc is left alone.
  */
 export default function MapStage({
-  styleUrl,
+  basemaps,
+  defaultBasemap,
   scene,
   owner,
   handlersRef,
@@ -256,29 +288,46 @@ export default function MapStage({
   active,
 }) {
   const { language, text } = useLanguage();
+  const { mode } = useThemeMode();
   const labels = useMemo(() => ({ mapCanvas: `${text.mapTitle}. ${text.mapPanHint}` }), [text]);
-  const { containerRef, cursorRef, status, basemap, retry, zoomIn, zoomOut, fitScene, showWorld, viewMode, setMode, resetNorth, canZoomIn, canZoomOut, bearing } = useMapStage({
-    styleUrl,
-    language,
-    labels,
-    scene,
-    owner,
-    handlersRef,
-    getPadding,
-  });
+  const map = useMapStage({ basemaps, defaultBasemap, mode, language, labels, scene, owner, handlersRef, getPadding });
+  const { status, basemapStatus, retry, viewMode, setMode, loaded, location } = map;
   const ready = status === "ready";
   const { picking } = scene;
   const canFit = scene.pins.length > 0 || scene.lines.some((line) => line.points.length > 0);
+
+  const [layersOpen, setLayersOpen] = useState(false);
+  const layersButtonRef = useRef(null);
+  const [scaleUnit, setScaleUnit] = useState(() => readPref("map-scale-unit", "metric", SCALE_UNITS));
+  const [scalePinned, setScalePinned] = useState(() => readPref("map-scale-pinned", false));
+  const changeScaleUnit = useCallback((unit) => {
+    setScaleUnit(unit);
+    writePref("map-scale-unit", unit);
+  }, []);
+  const toggleScalePinned = useCallback(() => {
+    setScalePinned((current) => {
+      writePref("map-scale-pinned", !current);
+      return !current;
+    });
+  }, []);
+  const closeLayers = useCallback(() => {
+    // Focus goes back to the button only from inside the panel (Esc, or a
+    // press elsewhere while a card had focus), never away from the map.
+    const focused = document.activeElement;
+    if (focused instanceof Element && focused.closest(".map-layer-panel")) layersButtonRef.current?.focus();
+    setLayersOpen(false);
+  }, []);
 
   useEffect(() => {
     onStatusChange(status);
   }, [status, onStatusChange]);
 
-  // Escape leaves picking first, then the enlarged view.
+  // Escape leaves picking first, then the enlarged view. The panel and the
+  // point menu handle their own Escape first.
   useEffect(() => {
     if (!active) return undefined;
     function onKey(event) {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented || layersOpen || map.contextMenu) return;
       if (picking) {
         handlersRef.current?.onCancelPick?.();
         event.preventDefault();
@@ -289,19 +338,27 @@ export default function MapStage({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, picking, expanded, onToggleExpanded, handlersRef]);
+  }, [active, picking, expanded, onToggleExpanded, handlersRef, layersOpen, map.contextMenu]);
 
   const tone = TONES[picking?.tone] ?? TONES.ink;
+  const toneColors = TONE_COLORS[loaded.tone] ?? TONE_COLORS.light;
+  const credits = loaded.id ? findBasemap(basemaps, loaded.id)?.attribution ?? [] : [];
+  const locationError = {
+    mapLocationDenied: text.mapLocationDenied,
+    mapLocationTimeout: text.mapLocationTimeout,
+    mapLocationUnavailable: text.mapLocationUnavailable,
+  }[location.errorKey];
+  const columnTop = top(expanded, WORKSPACE.inset);
 
   return (
     <Box
       component="section"
       className={`map-stage${picking ? ` is-picking is-picking-${picking.tone}` : ""}`}
       aria-label={text.mapTitle}
-      sx={stageSx}
+      sx={{ ...stageSx, "--map-ink": toneColors.line, "--map-on-ink": toneColors.onLine }}
     >
       <SpaceBackdrop />
-      <div className="map-canvas" ref={containerRef} />
+      <div className="map-canvas" ref={map.containerRef} />
 
       {/* Shown while picking with keyboard focus on the canvas: Enter places the point here. */}
       <Box
@@ -323,13 +380,13 @@ export default function MapStage({
         }}
       />
 
-      {/* The picking hint and the basemap notice, centred over the part of the map the input widget leaves free. */}
+      {/* The picking hint and the notices, centred over the part of the map the input widget leaves free. */}
       <Box
         sx={{
           position: "absolute",
           top: top(expanded, WORKSPACE.inset),
           left: expanded ? 76 : `calc(${WORKSPACE.inputWidth} + ${2 * WORKSPACE.inset}px)`,
-          right: 168,
+          right: 76,
           zIndex: 4,
           display: "flex",
           flexDirection: "column",
@@ -369,7 +426,7 @@ export default function MapStage({
                 component="span"
                 sx={{
                   display: "none",
-                  color: "#c6d4e8",
+                  color: COLORS.muted,
                   fontSize: TYPE.meta,
                   ".map-canvas.is-keyboard-focus ~ * &": { display: "block" },
                   [PHONE]: { display: "none !important" },
@@ -386,7 +443,7 @@ export default function MapStage({
                   px: "5px",
                   border: `1px solid ${COLORS.rule2}`,
                   borderRadius: "5px",
-                  color: "#c6d4e8",
+                  color: COLORS.muted,
                   fontFamily: MONO_FONT,
                   fontSize: TYPE.label,
                   lineHeight: "16px",
@@ -398,7 +455,7 @@ export default function MapStage({
             </Box>
           </Box>
         )}
-        {(basemap === "fallback" || basemap === "partial") && ready && (
+        {(basemapStatus === "fallback" || basemapStatus === "partial") && ready && (
           <Box
             role="alert"
             sx={{
@@ -407,7 +464,7 @@ export default function MapStage({
               gap: 1.25,
               maxWidth: "100%",
               p: "6px 6px 6px 12px",
-              border: "1px solid #ecd59c",
+              border: `1px solid ${COLORS.warnRule}`,
               borderRadius: `${RADIUS.card}px`,
               bgcolor: COLORS.warnSoft,
               color: COLORS.warn,
@@ -418,11 +475,32 @@ export default function MapStage({
             }}
           >
             <Icon name="alert" size={18} />
-            <span>{basemap === "fallback" ? text.mapBasemapFallback : text.mapBasemapPartial}</span>
+            <span>{basemapStatus === "fallback" ? text.mapBasemapFallback : text.mapBasemapPartial}</span>
             <Box component="button" type="button" onClick={retry} sx={{ ...textButton, color: COLORS.warn, borderColor: "currentColor" }}>
               <Icon name="refresh" size={16} />
               {text.mapRetry}
             </Box>
+          </Box>
+        )}
+        {locationError && (
+          <Box
+            role="alert"
+            sx={{
+              ...glassSurface,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              maxWidth: "100%",
+              p: "8px 14px 8px 10px",
+              borderRadius: `${RADIUS.pill}px`,
+              color: COLORS.ink,
+              fontSize: TYPE.small,
+              fontWeight: 600,
+              "& svg": { color: COLORS.warn, flex: "none" },
+            }}
+          >
+            <Icon name="locate" size={18} />
+            <span>{locationError}</span>
           </Box>
         )}
       </Box>
@@ -430,70 +508,140 @@ export default function MapStage({
         {picking?.label ?? ""}
       </Box>
 
-      <Box role="group" aria-label={text.mapViewMode} sx={{
-        ...glassSurface, position: "absolute", zIndex: 3,
-        right: 76, top: top(expanded, WORKSPACE.inset), display: "flex", gap: "2px", p: "3px",
-        borderRadius: `${RADIUS.card}px`,
-        [PHONE]: { right: 66, top: top(expanded, 10) },
-      }}>
-        <ControlButton label={text.map2D} onClick={() => setMode("2d")} disabled={!ready} pressed={viewMode === "2d"}>
-          <Box component="span" sx={{ fontSize: 12, fontWeight: 750 }}>2D</Box>
-        </ControlButton>
-        <ControlButton label={text.map3D} onClick={() => setMode("3d")} disabled={!ready} pressed={viewMode === "3d"}>
-          <Box component="span" sx={{ fontSize: 12, fontWeight: 750 }}>3D</Box>
-        </ControlButton>
-      </Box>
-
+      {/* The control column: what the map shows, where it looks, what it does. */}
       <Box
         role="group"
         aria-label={text.mapControls}
         sx={{
-          ...glassSurface,
           position: "absolute",
-          top: top(expanded, WORKSPACE.inset),
+          top: columnTop,
           right: WORKSPACE.inset,
           zIndex: 3,
           display: "flex",
           flexDirection: "column",
-          p: "3px",
-          borderRadius: `${RADIUS.card}px`,
-          [PHONE]: { top: top(expanded, 10), right: 10 },
+          alignItems: "center",
+          gap: 1,
+          [PHONE]: { top: top(expanded, 10), right: 10, gap: 0.75 },
         }}
       >
-        <ControlButton label={text.mapZoomIn} icon="plus" onClick={zoomIn} disabled={!ready || !canZoomIn} />
-        <ControlButton label={text.mapZoomOut} icon="minus" onClick={zoomOut} disabled={!ready || !canZoomOut} />
-        <Separator />
-        <ControlButton label={text.mapNorth} onClick={resetNorth} disabled={!ready}>
-          <Box component="span" sx={{ display: "grid", placeItems: "center", transform: `rotate(${-bearing}deg)` }}><Icon name="compass" size={20} /></Box>
-        </ControlButton>
-        <Separator />
-        <ControlButton label={text.mapFit} icon="focus" onClick={fitScene} disabled={!ready || !canFit} />
-        <ControlButton label={text.mapWorld} icon="world" onClick={showWorld} disabled={!ready} />
-        <Separator />
-        <ControlButton
-          label={expanded ? text.mapCollapse : text.mapExpand}
-          icon={expanded ? "collapse" : "expand"}
-          onClick={onToggleExpanded}
-          pressed={expanded}
+        <Box sx={groupSx}>
+          <ControlButton
+            label={text.mapLayers}
+            icon="layers"
+            buttonRef={layersButtonRef}
+            expanded={layersOpen}
+            onClick={() => setLayersOpen((open) => !open)}
+            disabled={!ready}
+          />
+          <ControlButton label={text.map3D} onClick={() => setMode(viewMode === "3d" ? "2d" : "3d")} disabled={!ready} pressed={viewMode === "3d"}>
+            <Box component="span" sx={{ fontSize: 12, fontWeight: 750, letterSpacing: "0.02em" }}>3D</Box>
+          </ControlButton>
+        </Box>
+        <Box sx={groupSx}>
+          <ControlButton label={text.mapZoomIn} icon="plus" onClick={map.zoomIn} disabled={!ready || !map.canZoomIn} />
+          <Separator />
+          <ControlButton label={text.mapZoomOut} icon="minus" onClick={map.zoomOut} disabled={!ready || !map.canZoomOut} />
+        </Box>
+        <Box sx={groupSx}>
+          <ControlButton label={text.mapFit} icon="focus" onClick={() => map.fitScene()} disabled={!ready || !canFit} />
+          <ControlButton
+            label={text.mapMyLocation}
+            icon="locate"
+            onClick={map.toggleLocation}
+            disabled={!ready}
+            pressed={location.status === "on" || location.status === "searching"}
+            busy={location.status === "searching"}
+          />
+          <ControlButton
+            label={expanded ? text.mapCollapse : text.mapExpand}
+            icon={expanded ? "collapse" : "expand"}
+            onClick={onToggleExpanded}
+            pressed={expanded}
+          />
+        </Box>
+        {map.rotated && (
+          // On a phone the column fills the map's height: the compass goes beside its top.
+          <Box sx={{ ...groupSx, borderRadius: "50%", [PHONE]: { position: "absolute", top: 0, right: "calc(100% + 8px)" } }}>
+            <ControlButton label={text.mapNorth} onClick={map.resetNorth} disabled={!ready}>
+              <Box component="span" ref={map.compassRef} sx={{ display: "grid", placeItems: "center", color: COLORS.ink }}>
+                <CompassNeedle />
+              </Box>
+            </ControlButton>
+          </Box>
+        )}
+      </Box>
+
+      <Box
+        sx={{
+          position: "absolute",
+          top: columnTop,
+          right: WORKSPACE.inset + 52,
+          zIndex: 5,
+          "&:empty": { display: "none" },
+          [PHONE]: { top: top(expanded, 10), right: 66 },
+        }}
+      >
+        <LayerPanel
+          open={layersOpen && ready}
+          onClose={closeLayers}
+          returnFocusRef={layersButtonRef}
+          basemaps={basemaps}
+          basemapId={map.basemapId}
+          onChooseBasemap={map.chooseBasemap}
+          overlays={map.overlays}
+          onToggleOverlay={map.toggleOverlay}
+          scalePinned={scalePinned}
+          onToggleScalePinned={toggleScalePinned}
         />
+      </Box>
+
+      {/* The scale bar over the credits, in the strip under the result widget. */}
+      <Box
+        sx={{
+          position: "absolute",
+          right: 8,
+          bottom: 8,
+          zIndex: 2,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: "2px",
+          maxWidth: "calc(100% - 16px)",
+          pointerEvents: "none",
+          "& > *": { pointerEvents: "auto" },
+          // The sheet overlaps the map's lower edge by 14 px.
+          [PHONE]: { bottom: 22 },
+        }}
+      >
+        {ready && (
+          <ScaleBar
+            subscribeView={map.subscribeView}
+            measureScale={map.measureScale}
+            unit={scaleUnit}
+            onUnitChange={changeScaleUnit}
+            pinned={scalePinned}
+            tone={loaded.tone}
+          />
+        )}
+        <Attribution credits={credits} revision={map.styleRevision} />
       </Box>
 
       <Box
         component="output"
-        ref={cursorRef}
+        ref={map.cursorRef}
         aria-hidden="true"
         sx={{
+          ...glassSurface,
           position: "absolute",
-          left: 0,
-          bottom: 0,
+          left: 8,
+          bottom: 8,
           zIndex: 2,
-          p: "2px 8px",
-          borderRadius: "0 7px 0 0",
-          bgcolor: "rgba(252, 251, 248, 0.86)",
+          p: "3px 10px",
+          borderRadius: `${RADIUS.pill}px`,
           color: COLORS.ink2,
           fontFamily: MONO_FONT,
           fontSize: TYPE.label,
-          lineHeight: "15px",
+          lineHeight: "16px",
           fontVariantNumeric: "tabular-nums",
           pointerEvents: "none",
           "&:empty": { display: "none" },
@@ -501,6 +649,8 @@ export default function MapStage({
           "@media (hover: none)": { display: "none" },
         }}
       />
+
+      <ContextMenu menu={map.contextMenu} onClose={map.closeContextMenu} />
 
       {status === "loading" && (
         <Box
@@ -528,7 +678,7 @@ export default function MapStage({
             sx={{
               width: 26,
               height: 26,
-              border: `3px solid ${COLORS.rule2}`,
+              border: "3px solid rgba(198, 212, 232, 0.25)",
               borderTopColor: "#c6d4e8",
               borderRadius: "50%",
               animation: "convertSpin 800ms linear infinite",
@@ -555,7 +705,7 @@ export default function MapStage({
             gap: 1.25,
             p: 2.5,
             textAlign: "center",
-            color: COLORS.error,
+            color: "#ffb4a6",
             fontSize: TYPE.body,
             fontWeight: 650,
           }}
@@ -565,7 +715,7 @@ export default function MapStage({
             {status === "unsupported" ? text.mapUnsupported : text.mapUnavailable}
           </Box>
           {status === "error" && (
-            <Box component="button" type="button" onClick={retry} sx={{ ...textButton, color: COLORS.error, borderColor: "currentColor" }}>
+            <Box component="button" type="button" onClick={retry} sx={textButton}>
               <Icon name="refresh" size={16} />
               {text.mapRetry}
             </Box>

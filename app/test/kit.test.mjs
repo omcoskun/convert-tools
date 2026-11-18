@@ -269,36 +269,54 @@ function contrast(foreground, background) {
   return (light + 0.05) / (dark + 0.05);
 }
 
-test("text meets WCAG AA (4.5:1) on paper, sheet, glass and ink; focus rings 3:1", () => {
-  const C = theme.COLORS;
-  // The bar's glass over the darkest possible map pixel is the worst case.
-  const glass = over(C.glass, "#000000");
-  const pairs = [
-    ...["ink", "ink2", "muted"].flatMap((text) =>
-      ["paper", "paper2", "sheet"].map((surface) => [text, C[text], surface, C[surface]]),
-    ),
-    ...["ink", "ink2", "muted"].map((text) => [text, C[text], "glass over black", glass]),
-    ["onInk", C.onInk, "ink", C.ink],
-    ["onInk", C.onInk, "inkRaised", C.inkRaised],
-    ["onInkMuted", C.onInkMuted, "ink", C.ink],
-    ["onInkMuted", C.onInkMuted, "inkRaised", C.inkRaised],
-    ["warn", C.warn, "warnSoft", C.warnSoft],
-    ["error", C.error, "errorSoft", C.errorSoft],
-    ["error", C.error, "sheet", C.sheet],
-    ["success", C.success, "sheet", C.sheet],
-    ["aInk", C.aInk, "sheet", C.sheet],
-    ["bInk", C.bInk, "sheet", C.sheet],
-  ];
-  for (const [textName, text, surfaceName, surface] of pairs) {
-    const ratio = contrast(text, surface);
-    assert.ok(ratio >= 4.5, `${textName} on ${surfaceName}: ${ratio.toFixed(2)}`);
-  }
-  for (const [ring, surface] of [
-    [C.focus, C.paper],
-    [C.focus, C.sheet],
-    [C.focusOnInk, C.ink],
-    [C.focusOnInk, C.inkRaised],
-  ]) {
-    assert.ok(contrast(ring, surface) >= 3, `${ring} on ${surface}`);
+test("both palettes have the same keys, and COLORS names each as a CSS variable", () => {
+  const keys = Object.keys(theme.PALETTES.light).sort();
+  assert.deepEqual(Object.keys(theme.PALETTES.dark).sort(), keys);
+  assert.deepEqual(Object.keys(theme.COLORS).sort(), keys);
+  for (const key of keys) assert.equal(theme.COLORS[key], `var(--ct-${key})`);
+  for (const mode of theme.THEME_MODES) {
+    const variables = theme.cssVariables(mode);
+    for (const key of keys) assert.equal(variables[`--ct-${key}`], theme.PALETTES[mode][key], `${mode} ${key}`);
+    assert.ok(variables["--ct-shadow-float"] && variables["--ct-shadow-raised"], mode);
   }
 });
+
+for (const mode of ["light", "dark"]) {
+  test(`${mode}: text meets WCAG AA (4.5:1) on paper, sheet, glass and panels; focus rings 3:1`, () => {
+    const C = theme.PALETTES[mode];
+    // The bar's glass over the most contrasting map pixel is the worst case.
+    const glass = over(C.glass, mode === "light" ? "#000000" : "#ffffff");
+    const pairs = [
+      ...["ink", "ink2", "muted"].flatMap((text) =>
+        ["paper", "paper2", "sheet"].map((surface) => [text, C[text], surface, C[surface]]),
+      ),
+      ...["ink", "ink2", "muted"].map((text) => [text, C[text], "glass over the map", glass]),
+      ["onInk", C.onInk, "panel", C.panel],
+      ["onInk", C.onInk, "inkRaised", C.inkRaised],
+      ["onInkMuted", C.onInkMuted, "panel", C.panel],
+      ["onInkMuted", C.onInkMuted, "inkRaised", C.inkRaised],
+      ["onSelected", C.onSelected, "selected", C.selected],
+      ["panel", C.panel, "onInk", C.onInk],
+      ["warn", C.warn, "warnSoft", C.warnSoft],
+      ["error", C.error, "errorSoft", C.errorSoft],
+      ["error", C.error, "sheet", C.sheet],
+      ["success", C.success, "sheet", C.sheet],
+      ["aInk", C.aInk, "sheet", C.sheet],
+      ["aInk", C.aInk, "aSoft", C.aSoft],
+      ["bInk", C.bInk, "sheet", C.sheet],
+      ["bInk", C.bInk, "bSoft", C.bSoft],
+    ];
+    for (const [textName, text, surfaceName, surface] of pairs) {
+      const ratio = contrast(text, surface);
+      assert.ok(ratio >= 4.5, `${textName} on ${surfaceName}: ${ratio.toFixed(2)}`);
+    }
+    for (const [ring, surface] of [
+      [C.focus, C.paper],
+      [C.focus, C.sheet],
+      [C.focusOnInk, C.panel],
+      [C.focusOnInk, C.inkRaised],
+    ]) {
+      assert.ok(contrast(ring, surface) >= 3, `${ring} on ${surface}`);
+    }
+  });
+}

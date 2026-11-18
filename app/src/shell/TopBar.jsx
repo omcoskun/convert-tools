@@ -3,8 +3,10 @@ import Icon from "../components/Icon.jsx";
 import Segmented from "../components/Segmented.jsx";
 import { useConfig, useLanguage } from "../context.js";
 import { BAR_HEIGHT, COLORS, MOTION, PHONE, RADIUS, SHADOW, TYPE } from "../theme.js";
+import { basemapOrigins } from "../map/maplibre.js";
 import { TOOLS } from "../tools/index.js";
 import { Box, visuallyHidden } from "../ui/index.js";
+import ThemeMenu from "./ThemeMenu.jsx";
 
 // Below this width only the open tool keeps its visible label; the others
 // show a tooltip on hover or keyboard focus.
@@ -14,7 +16,7 @@ const COMPACT_POINTER = "@media (max-width: 1099.98px) and (min-width: 760px)";
 function BrandMark() {
   return (
     <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true" focusable="false" style={{ flex: "none" }}>
-      <rect width="32" height="32" rx="9" fill={COLORS.ink} />
+      <rect width="32" height="32" rx="9" fill={COLORS.panel} />
       <path
         d="M8.5 21.5C11 12 18 9.5 23.5 10.5"
         fill="none"
@@ -61,7 +63,7 @@ const tooltip = {
     px: 1,
     py: 0.5,
     borderRadius: `${RADIUS.control}px`,
-    bgcolor: COLORS.ink,
+    bgcolor: COLORS.panel,
     boxShadow: SHADOW.raised,
     color: COLORS.onInk,
     fontSize: TYPE.meta,
@@ -94,7 +96,8 @@ const tooltip = {
  */
 export default function TopBar({ tool, onSelect, language, onLanguage, overMap = false }) {
   const { text, languageNames } = useLanguage();
-  const { languages } = useConfig();
+  const { languages, map } = useConfig();
+  const prefetch = (entry) => () => entry.prefetch?.(basemapOrigins(map));
   const navRef = useRef(null);
 
   // On phones the row may scroll: centre the open tool, so the tools on
@@ -193,8 +196,8 @@ export default function TopBar({ tool, onSelect, language, onLanguage, overMap =
                   href={`#${entry.id}`}
                   aria-current={current ? "page" : undefined}
                   onClick={(event) => handleClick(event, entry.id)}
-                  onPointerEnter={entry.prefetch}
-                  onFocus={entry.prefetch}
+                  onPointerEnter={prefetch(entry)}
+                  onFocus={prefetch(entry)}
                   sx={{ ...link, [COMPACT]: current ? undefined : { px: 0 } }}
                 >
                   <Icon name={entry.icon} size={18} />
@@ -212,7 +215,8 @@ export default function TopBar({ tool, onSelect, language, onLanguage, overMap =
           })}
         </Box>
       </Box>
-      <Box sx={{ flex: "none", display: "flex" }}>
+      <Box sx={{ flex: "none", display: "flex", alignItems: "center", gap: 1 }}>
+        <ThemeMenu />
         <Segmented
           label={text.language}
           size="sm"

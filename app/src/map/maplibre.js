@@ -58,7 +58,53 @@ export function loadMapLibre() {
   return loading;
 }
 
-/** Starts the download early; errors surface when the map really loads. */
-export function prefetchMapLibre() {
+/**
+ * Adds <link rel="preconnect" crossorigin> for each origin not yet linked, so
+ * the first style and tile requests skip DNS and TLS set-up.
+ */
+export function preconnect(origins) {
+  if (typeof document === "undefined" || !Array.isArray(origins)) return;
+  const linked = new Set(
+    [...document.querySelectorAll('link[rel="preconnect"]')].map((link) => link.href),
+  );
+  for (const origin of origins) {
+    let href;
+    try {
+      href = new URL(origin).origin + "/";
+    } catch {
+      continue;
+    }
+    if (linked.has(href)) continue;
+    linked.add(href);
+    const link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = href;
+    link.crossOrigin = "";
+    document.head.append(link);
+  }
+}
+
+/** Origins of every basemap style, dark style and raster tile template. */
+export function basemapOrigins(map) {
+  const origins = new Set();
+  for (const basemap of map?.basemaps ?? []) {
+    for (const url of [basemap.style, basemap.darkStyle, basemap.raster?.tiles]) {
+      if (typeof url !== "string") continue;
+      try {
+        origins.add(new URL(url.replace(/[{}]/g, "")).origin);
+      } catch {
+        // A malformed URL is reported when the map loads.
+      }
+    }
+  }
+  return [...origins];
+}
+
+/**
+ * Starts the download early; errors surface when the map really loads.
+ * `origins` is optional (an event argument from an event handler is ignored).
+ */
+export function prefetchMapLibre(origins) {
+  preconnect(origins);
   loadMapLibre().catch(() => {});
 }
