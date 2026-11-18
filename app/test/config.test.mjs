@@ -149,8 +149,9 @@ test("the basemaps are https styles with structured attributions; the satellite 
     assert.ok(basemap.attribution.some(({ href }) => href === "https://www.openstreetmap.org/copyright"), basemap.id);
   }
   const satellite = config.map.basemaps.find((basemap) => basemap.id === "satellite");
-  assert.match(satellite.raster.tiles, /^https:\/\/tiles\.maps\.eox\.at\/.*s2cloudless-2017_3857.*\{z\}\/\{y\}\/\{x\}/);
-  assert.ok(satellite.attribution.some(({ text }) => /EOX/.test(text) && /CC BY 4\.0/.test(text)));
+  assert.match(satellite.raster.tiles, /^https:\/\/tiles\.maps\.eox\.at\/.*s2cloudless_3857\/.*\{z\}\/\{y\}\/\{x\}/);
+  // The 2016 layer covers every land tile; the 2017 one is white (no data) off Europe.
+  assert.ok(satellite.attribution.some(({ text }) => /EOX/.test(text) && /2016/.test(text) && /CC BY 4\.0/.test(text)));
   // The coarse fallback under it is NASA GIBS Blue Marble (public domain), credited.
   assert.match(satellite.raster.fallback.tiles, /^https:\/\/gibs\.earthdata\.nasa\.gov\/.*BlueMarble.*\{z\}\/\{y\}\/\{x\}/);
   assert.equal(satellite.raster.fallback.maxzoom, 8);

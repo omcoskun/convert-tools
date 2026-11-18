@@ -244,8 +244,9 @@ Değişmeyen kurallar:
 - Üç altlık vardır ve `config.json` → `map.basemaps` içinde tanımlıdır
   (seçim hatırlanır): "standart" OpenFreeMap "positron"dur ve açık/koyu
   temayı izler (koyuda OpenFreeMap "dark" stili); "ayrıntılı" OpenFreeMap
-  "liberty"dir (gölgeli rölyef ile); "uydu" EOX Sentinel-2 cloudless 2017
-  görüntüsüdür (CC BY 4.0); altında NASA GIBS Blue Marble (kamu malı, en çok
+  "liberty"dir (gölgeli rölyef ile); "uydu" EOX Sentinel-2 cloudless 2016
+  görüntüsüdür (CC BY 4.0; 2017 katmanında Avrupa dışındaki karalar veri
+  olmadığı için beyazdır); altında NASA GIBS Blue Marble (kamu malı, en çok
   8. düzey) kaba bir yedek olarak çizilir, böylece EOX karosu gelmediğinde
   boşluk yerine kaba görüntü görünür. Sınırlar ile yer adları vektör
   stilinden gelir. Altlığın "bazı parçalar yüklenemedi" uyarısı, son 10

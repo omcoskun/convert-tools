@@ -127,7 +127,7 @@
         "id": "satellite",
         "style": "https://tiles.openfreemap.org/styles/positron",
         "raster": {
-          "tiles": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2017_3857/default/g/{z}/{y}/{x}.jpg",
+          "tiles": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg",
           "tileSize": 256,
           "maxzoom": 14,
           "fallback": {
@@ -137,7 +137,7 @@
           }
         },
         "attribution": [
-          { "text": "Sentinel-2 cloudless by EOX (Copernicus Sentinel data 2017), CC BY 4.0", "href": "https://s2maps.eu" },
+          { "text": "Sentinel-2 cloudless by EOX (contains modified Copernicus Sentinel data 2016 & 2017), CC BY 4.0", "href": "https://s2maps.eu" },
           { "text": "NASA Blue Marble (GIBS)", "href": "https://earthdata.nasa.gov/gibs" },
           { "text": "OpenFreeMap", "href": "https://openfreemap.org" },
           { "text": "© OpenMapTiles", "href": "https://www.openmaptiles.org/" },
