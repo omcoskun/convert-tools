@@ -162,9 +162,9 @@ export default function InputWidget({ title, subtitle, icon, actions, children }
               scrollbarGutter: "stable",
               display: "flex",
               flexDirection: "column",
-              gap: 1,
-              p: 1.25,
-              [PHONE]: { flex: "none", overflow: "visible", pt: 0.5 },
+              gap: 1.5,
+              p: 1.5,
+              [PHONE]: { flex: "none", overflow: "visible", px: 2, pt: 0.5 },
             }}
           >
             {children}
@@ -183,7 +183,7 @@ export default function InputWidget({ title, subtitle, icon, actions, children }
                 bgcolor: COLORS.paper,
                 "& .MuiButton-root": { whiteSpace: "nowrap" },
                 "& .MuiButton-startIcon": { mr: "6px" },
-                [PHONE]: { px: 2, pt: 0, pb: 2, borderTop: 0 },
+                [PHONE]: { px: 2, py: 1, borderTop: `1px solid ${COLORS.rule}` },
               }}
             >
               {actions}

@@ -6,6 +6,7 @@ import { localeDecimal } from "../../lib/locale-decimal.js";
 import { COLORS, TYPE } from "../../theme.js";
 import { Box } from "../../ui/index.js";
 import Quantities from "./Quantities.jsx";
+import { angleCopy, displayAngle } from "./measure.js";
 
 const POINTS = [
   { letter: "A", tone: "a" },
@@ -43,8 +44,8 @@ export default function InverseMode({ rows, target, dispatch, showFormats }) {
 }
 
 /**
- * The details of "İki nokta": the distance in every unit at full precision
- * and the geodesic quantities of inverseGeodesic.
+ * The details of "İki nokta": the two azimuths, the distance in every unit at
+ * full precision and the geodesic quantities of inverseGeodesic.
  * @param {{ value: { inverse: object, lengths: { metre: string, kilometre: string, "nautical-mile": string } } }} props
  */
 export function InverseDetails({ value }) {
@@ -52,6 +53,16 @@ export function InverseDetails({ value }) {
   const { inverse, lengths } = value;
   return (
     <>
+      <DataList>
+        {[[text.initialAzimuth, inverse.initialBearingDegrees], [text.finalAzimuth, inverse.finalBearingDegrees]].map(([label, degrees]) => (
+          <DataRow
+            key={label}
+            label={label}
+            value={inverse.azimuthDefined ? displayAngle(degrees, language, inverse.bearingUncertaintyDegrees) : "—"}
+            copyValue={inverse.azimuthDefined ? angleCopy(degrees, inverse.bearingUncertaintyDegrees) : undefined}
+          />
+        ))}
+      </DataList>
       <Disclosure title={text.allUnits}>
         <DataList>
           {[

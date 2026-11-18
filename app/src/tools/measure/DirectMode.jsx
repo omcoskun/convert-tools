@@ -1,3 +1,4 @@
+import DataList, { DataRow } from "../../components/DataList.jsx";
 import Disclosure from "../../components/Disclosure.jsx";
 import Field from "../../components/Field.jsx";
 import PointField from "../../components/PointField.jsx";
@@ -6,7 +7,7 @@ import { fill, useLanguage } from "../../context.js";
 import { readNumberText } from "../../lib/point-text.js";
 import { COLORS, TYPE } from "../../theme.js";
 import { Box } from "../../ui/index.js";
-import { LENGTH_UNITS } from "./measure.js";
+import { LENGTH_UNITS, angleCopy, displayAngle } from "./measure.js";
 import Quantities from "./Quantities.jsx";
 
 const message = { m: 0, color: COLORS.error, fontSize: TYPE.meta, fontWeight: 650, lineHeight: 1.45 };
@@ -88,18 +89,24 @@ export default function DirectMode({ state, target, dispatch, showFormats }) {
 }
 
 /**
- * The details of "Azimut + mesafe": the geodesic quantities of
- * directGeodesic.
- * @param {{ value: { direct: object } }} props
+ * The details of "Azimut + mesafe": the final azimuth and the MGRS of B, then
+ * the geodesic quantities of directGeodesic.
+ * @param {{ value: { direct: object }, mgrs?: string | null }} props
  */
-export function DirectDetails({ value }) {
-  const { text } = useLanguage();
+export function DirectDetails({ value, mgrs }) {
+  const { text, language } = useLanguage();
   return (
-    <Disclosure title={text.quantities}>
-      <Quantities result={value.direct} />
-      <Box component="p" sx={{ m: 0, pt: 1, color: COLORS.muted, fontSize: TYPE.meta, lineHeight: 1.5 }}>
-        {text.quantitiesNote} {text.directLineNote}
-      </Box>
-    </Disclosure>
+    <>
+      <DataList>
+        <DataRow label={text.finalAzimuth} value={displayAngle(value.direct.finalBearingDegrees, language)} copyValue={angleCopy(value.direct.finalBearingDegrees)} />
+        <DataRow label="MGRS" value={mgrs ?? "—"} copyValue={mgrs ?? undefined} />
+      </DataList>
+      <Disclosure title={text.quantities}>
+        <Quantities result={value.direct} />
+        <Box component="p" sx={{ m: 0, pt: 1, color: COLORS.muted, fontSize: TYPE.meta, lineHeight: 1.5 }}>
+          {text.quantitiesNote} {text.directLineNote}
+        </Box>
+      </Disclosure>
+    </>
   );
 }

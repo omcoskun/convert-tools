@@ -2,14 +2,13 @@ import { useEffect, useRef } from "react";
 import Icon from "../components/Icon.jsx";
 import Segmented from "../components/Segmented.jsx";
 import { useConfig, useLanguage } from "../context.js";
-import { BAR_HEIGHT, COLORS, MOTION, PHONE, RADIUS, SHADOW, TYPE } from "../theme.js";
+import { BAR_HEIGHT, COLORS, MOTION, PHONE, PHONE_BAR_HEIGHT, RADIUS, SHADOW, TYPE } from "../theme.js";
 import { basemapOrigins } from "../map/maplibre.js";
 import { TOOLS } from "../tools/index.js";
 import { Box, visuallyHidden } from "../ui/index.js";
 import ThemeMenu from "./ThemeMenu.jsx";
 
-// Below this width only the open tool keeps its visible label; the others
-// show a tooltip on hover or keyboard focus.
+// Tablets abbreviate inactive tools. Phones use a separate labeled row.
 const COMPACT = "@media (max-width: 1099.98px)";
 const COMPACT_POINTER = "@media (max-width: 1099.98px) and (min-width: 760px)";
 
@@ -49,7 +48,8 @@ const link = {
   transition: `background-color ${MOTION.fast} ${MOTION.ease}, color ${MOTION.fast} ${MOTION.ease}`,
   "&:hover": { bgcolor: COLORS.paper2, color: COLORS.ink },
   "&[aria-current='page'], &[aria-current='page']:hover": { bgcolor: COLORS.aSoft, color: COLORS.aInk },
-  [PHONE]: { height: 40, minWidth: 40 },
+  [PHONE]: { height: 44, minWidth: 0, width: "100%", px: 0.25, flexDirection: "column", gap: 0.5, fontSize: TYPE.label, "& > svg": { width: 16, height: 16 } },
+  "@media (max-width: 359.98px)": { fontSize: 10 },
 };
 
 const tooltip = {
@@ -140,15 +140,15 @@ export default function TopBar({ tool, onSelect, language, onLanguage, overMap =
             backdropFilter: "blur(14px) saturate(1.4)",
           },
         }),
-        [PHONE]: { gap: 1, px: 1.5 },
+        [PHONE]: { display: "grid", gridTemplateColumns: "1fr auto", gridTemplateRows: "48px 52px", height: PHONE_BAR_HEIGHT, gap: 0, px: 1 },
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "none", color: COLORS.ink }}>
         <BrandMark />
-        <Box sx={{ [PHONE]: visuallyHidden }}>
+        <Box>
         <Box
           component="span"
-          sx={{ fontSize: TYPE.title, fontWeight: 700, letterSpacing: "-0.01em", [PHONE]: visuallyHidden }}
+          sx={{ fontSize: TYPE.title, fontWeight: 700, letterSpacing: "-0.01em" }}
         >
           {text.brandName}
         </Box>
@@ -163,6 +163,8 @@ export default function TopBar({ tool, onSelect, language, onLanguage, overMap =
           flex: 1,
           minWidth: 0,
           [PHONE]: {
+            gridColumn: "1 / -1",
+            gridRow: 2,
             alignSelf: "stretch",
             display: "flex",
             alignItems: "center",
@@ -174,7 +176,7 @@ export default function TopBar({ tool, onSelect, language, onLanguage, overMap =
       >
         <Box
           component="ul"
-          sx={{ display: "flex", gap: 0.5, m: 0, p: 0, listStyle: "none", [PHONE]: { gap: 0, px: 0.5 } }}
+          sx={{ display: "flex", gap: 0.5, m: 0, p: 0, listStyle: "none", [PHONE]: { gap: 0.25, width: "100%" } }}
         >
           {TOOLS.map((entry) => {
             const current = entry.id === tool;
@@ -186,6 +188,7 @@ export default function TopBar({ tool, onSelect, language, onLanguage, overMap =
                 sx={{
                   position: "relative",
                   flex: "none",
+                  [PHONE]: { flex: "1 1 0", minWidth: 0 },
                   [COMPACT_POINTER]: {
                     "&:hover > .tool-tip, & > a:focus-visible + .tool-tip": { opacity: 1, transform: "translate(-50%, 0)" },
                   },
@@ -198,10 +201,10 @@ export default function TopBar({ tool, onSelect, language, onLanguage, overMap =
                   onClick={(event) => handleClick(event, entry.id)}
                   onPointerEnter={prefetch(entry)}
                   onFocus={prefetch(entry)}
-                  sx={{ ...link, [COMPACT]: current ? undefined : { px: 0 } }}
+                  sx={{ ...link, [COMPACT_POINTER]: current ? undefined : { px: 0 } }}
                 >
                   <Icon name={entry.icon} size={18} />
-                  <Box component="span" sx={current ? undefined : { [COMPACT]: visuallyHidden }}>
+                  <Box component="span" sx={current ? undefined : { [COMPACT_POINTER]: visuallyHidden }}>
                     {label}
                   </Box>
                 </Box>
@@ -215,7 +218,7 @@ export default function TopBar({ tool, onSelect, language, onLanguage, overMap =
           })}
         </Box>
       </Box>
-      <Box sx={{ flex: "none", display: "flex", alignItems: "center", gap: 1 }}>
+      <Box sx={{ flex: "none", display: "flex", alignItems: "center", gap: 1, [PHONE]: { gridColumn: 2, gridRow: 1 } }}>
         <ThemeMenu />
         <Segmented
           label={text.language}

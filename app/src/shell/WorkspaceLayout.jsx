@@ -3,7 +3,7 @@ import { useConfig, useLanguage } from "../context.js";
 import MapStage from "../map/MapStage.jsx";
 import { PIN_SHAPE, fitPadding } from "../map/map-adapter.js";
 import { EMPTY_SCENE } from "../map/scene.js";
-import { BAR_HEIGHT, COLORS, PHONE, WORKSPACE } from "../theme.js";
+import { BAR_HEIGHT, COLORS, PHONE, PHONE_BAR_HEIGHT, WORKSPACE } from "../theme.js";
 import { Box } from "../ui/index.js";
 import { WorkspaceApiContext, WorkspaceContext } from "./workspace-context.js";
 
@@ -118,15 +118,22 @@ export default function WorkspaceLayout({ hidden = false, children }) {
   const getPadding = useCallback(() => {
     const stage = rootRef.current?.querySelector(".map-stage");
     if (!stage) return { top: 16, right: 16, bottom: 16, left: 16 };
-    const bar = expandedRef.current ? 0 : BAR_HEIGHT;
     const phone = window.matchMedia?.(PHONE_QUERY).matches ?? false;
+    const bar = expandedRef.current ? 0 : phone ? PHONE_BAR_HEIGHT : BAR_HEIGHT;
     // The top padding keeps a whole pin (PIN_SHAPE.height above its tip) below the bar.
     const top = bar + PIN_SHAPE.height + (phone ? 10 : 16);
-    const base = phone ? { top, right: 76, bottom: 28, left: 24 } : { top, right: 76, bottom: 32, left: 32 };
+    // The side paddings keep a whole pin (half of it beside its tip) off the edge.
+    const side = (phone ? 24 : 32) + PIN_SHAPE.width / 2;
+    const base = { top, right: 76, bottom: phone ? 28 : 32, left: side };
     const { input, result } = widgetsRef.current;
+    const controls = stage.querySelector(".map-controls");
     return fitPadding(
       stage.getBoundingClientRect(),
-      { input: input?.getBoundingClientRect() ?? null, result: result?.getBoundingClientRect() ?? null },
+      {
+        input: input?.getBoundingClientRect() ?? null,
+        result: result?.getBoundingClientRect() ?? null,
+        controls: controls?.getBoundingClientRect() ?? null,
+      },
       base,
     );
   }, []);
@@ -203,11 +210,13 @@ export default function WorkspaceLayout({ hidden = false, children }) {
                     bottom: "auto",
                     left: "auto",
                     flex: "none",
-                    height: "clamp(120px, calc(var(--sheet-ratio) * 100%), calc(100% - 200px))",
+                    height: `clamp(120px, calc(var(--sheet-ratio) * 100%), calc(100% - ${PHONE_BAR_HEIGHT + 150}px))`,
                     mt: "-14px",
                     display: "flex",
                     flexDirection: "column",
                     overflowY: "auto",
+                    scrollbarWidth: "thin",
+                    paddingBottom: "env(safe-area-inset-bottom)",
                     overscrollBehavior: "contain",
                     pointerEvents: "auto",
                     bgcolor: COLORS.sheet,

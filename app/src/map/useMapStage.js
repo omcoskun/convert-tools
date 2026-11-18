@@ -1051,10 +1051,12 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
       map.once("load", () => {
         if (!userMoved && !navigatedRef.current && initialBounds) fitScene(false);
       });
-      // One point has no bounds to give the constructor: centre it in the free
-      // part of the map now, without waiting for "load" (which a background
-      // tab may not reach for a long time).
-      if (initialBounds && isSinglePoint(initialBounds)) fitScene(false);
+      // Fit now, without waiting for "load" (which a background tab, or a
+      // slow tile, may hold off for a long time): the constructor's fit does
+      // not keep its padding on the camera, so the first padding sync would
+      // slide the scene by half the difference of the side paddings, off the
+      // map on a phone. One point has no bounds to give the constructor.
+      if (initialBounds) fitScene(false);
 
       map.on("style.load", () => {
         const current = sourceRef.current;

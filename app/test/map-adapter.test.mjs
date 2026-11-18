@@ -175,9 +175,18 @@ test("fits keep the scene clear of the floating widgets", () => {
   assert.deepEqual(fitPadding(stage, { input, result }, base), {
     top: 108,
     right: 76,
-    left: 374 + 32,
+    // Half a pin (PIN_SHAPE.width / 2) beside the widget, so B's pin clears it.
+    left: 374 + 32 + 15,
     bottom: 128 + 32,
   });
+  // A control column wider than the base right padding (the phone's two
+  // columns) pushes the scene clear of it, half a pin included.
+  const controls = rect(375 - 12 - 108, 112, 108, 230);
+  assert.equal(fitPadding(rect(0, 0, 375, 480), { input: null, result: null, controls }, base).right, 108 + 12 + 8 + 15);
+  // The desktop's single 44 px column, 16 px from the edge.
+  assert.equal(fitPadding(stage, { input, result, controls: rect(1440 - 16 - 44, 68, 44, 300) }, base).right, 16 + 44 + 8 + 15);
+  // A column narrower than the base right padding keeps the base.
+  assert.equal(fitPadding(stage, { input, result, controls: rect(1440 - 8 - 20, 68, 20, 300) }, base).right, 76);
   // Hidden widgets (no size) and widgets below the map (the phone sheet) leave the base.
   const phone = rect(0, 0, 375, 480);
   assert.deepEqual(fitPadding(phone, { input: rect(0, 466, 375, 340), result: rect(0, 0, 0, 0) }, base), base);

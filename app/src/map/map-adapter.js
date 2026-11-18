@@ -303,23 +303,30 @@ const showsOver = (widget, stage) =>
   widget.left >= stage.left &&
   widget.right <= stage.right;
 
+// A pin is drawn centred on its point, so half of it reaches past the padding;
+// the gaps beside the widgets and the control column make room for it.
+const PIN_HALF = PIN_SHAPE.width / 2;
+
 /**
  * Padding for fitting a scene into the part of the map the floating widgets
  * leave free (spec 6.2): left = input widget width + 32 px (the widget sits
- * 16 px from the edge), bottom = result widget height + 32 px (it sits
- * 20 px above the bottom). A widget without a size (hidden) or not inside
- * the map (the phone sheet below it) leaves the base padding. Paddings that
- * would leave less than 64 px of map shrink in proportion.
+ * 16 px from the edge) + half a pin, right = control column width + 24 px +
+ * half a pin, bottom = result widget height + 32 px (it sits 20 px above the
+ * bottom). A widget without a size (hidden) or not inside the map (the phone
+ * sheet below it) leaves the base padding. Paddings that would leave less
+ * than 64 px of map shrink in proportion.
  * @typedef {{ left: number, top: number, right: number, bottom: number, width: number, height: number }} Rect
  *   a client rect (DOMRect)
  * @param {Rect} stage the map
- * @param {{ input?: Rect | null, result?: Rect | null }} widgets the input and result widgets
+ * @param {{ input?: Rect | null, result?: Rect | null, controls?: Rect | null }} widgets the input and
+ *   result widgets and the map's control column
  * @param {{ top: number, right: number, bottom: number, left: number }} base padding in px without widgets
  * @returns {{ top: number, right: number, bottom: number, left: number }}
  */
-export function fitPadding(stage, { input, result }, base) {
+export function fitPadding(stage, { input, result, controls }, base) {
   let { top, right, bottom, left } = base;
-  if (showsOver(input, stage)) left = Math.max(left, Math.round(input.right - stage.left + 16));
+  if (showsOver(input, stage)) left = Math.max(left, Math.round(input.right - stage.left + 16 + PIN_HALF));
+  if (showsOver(controls, stage)) right = Math.max(right, Math.round(stage.right - controls.left + 8 + PIN_HALF));
   if (showsOver(result, stage)) bottom = Math.max(bottom, Math.round(stage.bottom - result.top + 12));
   [left, right] = shrinkPair(left, right, stage.width);
   [top, bottom] = shrinkPair(top, bottom, stage.height);

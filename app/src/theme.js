@@ -127,6 +127,7 @@ export const MOTION = Object.freeze({ fast: "120ms", base: "180ms", ease: "cubic
 
 /** Height of the top bar in px. */
 export const BAR_HEIGHT = 52;
+export const PHONE_BAR_HEIGHT = 100;
 
 /**
  * Where the widgets float on the workspace map (spec 6.2), shared by the
@@ -149,7 +150,7 @@ export const UI_FONT =
 export const MONO_FONT = 'ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace';
 
 // Phone layout below this width: the workspace puts the map above a bottom
-// sheet, controls grow to 40 px and pages narrow their padding.
+// sheet, controls grow for touch and pages narrow their padding.
 export const PHONE = "@media (max-width: 759.98px)";
 
 export const THEME_MODES = Object.freeze(["light", "dark"]);
@@ -215,7 +216,8 @@ export function createAppTheme(mode) {
     components: {
       MuiCssBaseline: {
         styleOverrides: {
-          ":root": { ...cssVariables(mode), colorScheme: mode },
+          ":root": { ...cssVariables(mode), "--ct-bar-height": `${BAR_HEIGHT}px`, colorScheme: mode },
+          [PHONE]: { ":root": { "--ct-bar-height": `${PHONE_BAR_HEIGHT}px` } },
           body: { WebkitFontSmoothing: "antialiased", MozOsxFontSmoothing: "grayscale" },
           "code, kbd, samp, pre, output": { fontFamily: MONO_FONT, fontVariantNumeric: "tabular-nums" },
           ":focus-visible": { outline: `2.5px solid ${COLORS.focus}`, outlineOffset: 2 },

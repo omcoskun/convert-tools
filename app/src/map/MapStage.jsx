@@ -42,7 +42,7 @@ const glassSurface = {
 
 // Map controls and the hint column start below the glass bar, or at the top
 // of the enlarged map.
-const top = (expanded, gap) => (expanded ? gap : BAR_HEIGHT + gap);
+const top = (expanded, gap) => (expanded ? gap : `calc(var(--ct-bar-height, ${BAR_HEIGHT}px) + ${gap}px)`);
 
 // Everything MapLibre draws (canvas, markers, controls) sits inside the
 // stage, so its look is set here with selectors more specific than
@@ -506,6 +506,7 @@ export default function MapStage({
       {/* The control column: what the map shows, where it looks, what it does. */}
       <Box
         role="group"
+        className="map-controls"
         aria-label={text.mapControls}
         sx={{
           position: "absolute",

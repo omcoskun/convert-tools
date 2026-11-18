@@ -34,8 +34,17 @@ const desktop = {
   },
 };
 
-const hudSx = (expanded) => ({
+// compact is false or the width of the smaller card in px.
+const hudSx = (expanded, compact) => ({
   ...desktop,
+  ...(compact && {
+    bottom: 24,
+    width: `min(${compact}px, calc(100% - 48px))`,
+    "@media (min-width: 1100px)": {
+      ...desktop["@media (min-width: 1100px)"],
+      width: `min(${compact}px, calc(100% - ${WORKSPACE.inputWidth} - 64px))`,
+    },
+  }),
   "& .hud-notices": { display: "flex", flexDirection: "column", gap: 1, "& > *": { boxShadow: SHADOW.float } },
   "& .hud-box": {
     display: "flex",
@@ -57,20 +66,24 @@ const hudSx = (expanded) => ({
     color: COLORS.ink,
   },
   "& .hud-drawer[data-open='true']": { display: "block" },
-  "& .hud-main": { display: "flex", flexDirection: "column", gap: 0.5, p: "8px 12px 4px", color: COLORS.onInk },
-  "& .hud-head": { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, minHeight: 24 },
+  "& .hud-main": { display: "flex", flexDirection: "column", gap: 0.5, p: "12px 16px 8px", color: COLORS.onInk },
+  ...(compact && {
+    "& .hud-main": { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "2px 12px", p: "8px 12px", color: COLORS.onInk },
+  }),
+  "& .hud-head": { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, minHeight: 24, ...(compact && { gridColumn: "1 / -1" }) },
   // A value too long to share the row with its cells (a coordinate pair)
   // sends the cells to a second line instead of breaking or overlapping.
-  "& .hud-row": { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 1.5, rowGap: 0.5, minHeight: 40, minWidth: 0 },
+  "& .hud-row": { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 1.5, rowGap: 0.5, minHeight: compact ? 32 : 40, minWidth: 0 },
   "& .hud-cells-sheet": { display: "none" },
+  "& .hud-toggle-sheet": { display: "none" },
   "& .hud-actions-sheet": { display: "none", flexWrap: "wrap", gap: 1 },
-  "& .hud-foot": { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, minHeight: 28 },
+  "& .hud-foot": { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, minHeight: 28, ...(compact && { alignSelf: "center" }) },
   "& .hud-actions": { display: "flex", flexWrap: "wrap", gap: 0.5, ml: "auto" },
   "& .hud-action": {
     display: "inline-flex",
     alignItems: "center",
     gap: 0.5,
-    height: 28,
+    height: 32,
     px: 1.25,
     border: `1px solid ${COLORS.inkRaised}`,
     borderRadius: `${RADIUS.pill}px`,
@@ -111,19 +124,30 @@ const hudSx = (expanded) => ({
           top: 0,
           zIndex: 2,
           flex: "none",
+          display: compact ? "grid" : "flex",
+          gridTemplateColumns: "minmax(0, 1fr) auto",
+          flexDirection: "column",
           gap: 0,
           // Room for the sheet's drag handle drawn over the strip's top edge.
-          p: "20px 16px 10px",
+          p: compact ? "18px 16px 8px" : "20px 16px 10px",
           bgcolor: COLORS.panel,
         },
-        "& .hud-head": { minHeight: 24 },
-        "& .hud-row": { minHeight: 40, columnGap: 1.5 },
+        "& .hud-head": compact
+          ? { display: "contents", "& > p": { gridColumn: "1 / -1", gridRow: 1 }, "& > [role='radiogroup']": { gridColumn: 2, gridRow: 2, alignSelf: "center" } }
+          : { minHeight: 24 },
+        "& .hud-row": { minHeight: compact ? 32 : 40, columnGap: 1.5, ...(compact && { gridColumn: 1, gridRow: 2 }) },
         "& .hud-cells > div:nth-of-type(n + 2), & .hud-foot": { display: "none" },
         "& .hud-actions-sheet": { display: "flex", order: 1, flex: "none", px: 2, pt: 1 },
         "& .hud-cells-sheet": { display: "block", order: 1, flex: "none", px: 2 },
-        "& .hud-drawer, & .hud-drawer[data-open='true']": {
-          display: "block",
-          order: 2,
+        "& .hud-toggle-sheet": {
+          display: "flex", order: 2, flex: "none", alignItems: "center", justifyContent: "space-between",
+          minHeight: 44, mx: 2, px: 0, border: 0, borderTop: `1px solid ${COLORS.rule}`,
+          bgcolor: "transparent", color: COLORS.ink2, font: "inherit", fontSize: TYPE.small, fontWeight: 650,
+          cursor: "pointer", "&[aria-expanded='true'] > svg": { transform: "rotate(180deg)" },
+        },
+        "& .hud-drawer": {
+          display: "none",
+          order: 3,
           flex: "none",
           maxHeight: "none",
           overflow: "visible",
@@ -132,11 +156,24 @@ const hudSx = (expanded) => ({
           pb: 3,
           bgcolor: "transparent",
         },
+        "& .hud-drawer[data-open='true']": { display: "block" },
+        ...(compact && {
+          "@media (max-width: 359.98px)": {
+            "& .hud-main": { display: "flex" },
+            // Only a label beside the unit switch gives up room for it.
+            "& .hud-head": { display: "flex", "& > p:not(:only-child)": { maxWidth: 160 } },
+          },
+        }),
       },
 });
 
 // A long primary value (a coordinate pair): the page heading size, broken
 // only at its spaces.
+// The smaller card of a single figure (compact), unless a coordinate pair
+// (valueSize "md") needs a wider one, given as compact's width.
+const COMPACT_WIDTH = 380;
+const compactFigure = { fontSize: 24, [PHONE]: { fontSize: 24 } };
+
 const mediumFigure = {
   fontSize: TYPE.heading,
   letterSpacing: "-0.01em",
@@ -165,6 +202,7 @@ const mediumFigure = {
  *   details?: import("react").ReactNode,
  *   valueSize?: "lg" | "md",
  *   actions?: Array<{ key: string, label: string, icon?: string, onClick: () => void }>,
+ *   compact?: boolean | number,
  * }} props
  *   label names the value ("Elipsoidal mesafe · WGS 84"); value is the
  *   formatted figure, null or undefined when there is none; copyValue is
@@ -177,7 +215,9 @@ const mediumFigure = {
  *   (a coordinate pair) at the page heading size instead of the readout
  *   size, so it fits beside its cells and breaks only between its parts.
  *   actions are buttons that act on the value (hand it to another tool),
- *   shown with a value only, at the foot of the ink bar.
+ *   shown with a value only, at the foot of the ink bar. compact makes a
+ *   smaller card lower on the map for a lone figure: true for 380 px, or
+ *   its width in px.
  */
 export default function ResultHud({
   label,
@@ -192,6 +232,7 @@ export default function ResultHud({
   details,
   valueSize = "lg",
   actions = [],
+  compact = false,
 }) {
   const { text } = useLanguage();
   const { expanded } = useWorkspace();
@@ -206,8 +247,22 @@ export default function ResultHud({
   const shownActions = hasValue ? actions : [];
   const announced = useSettledValue(hasValue ? `${label}: ${value}${unit ? ` ${unit}` : ""}` : "", 700);
 
+  // The phone sheet's toggle sits at its foot, so what it opens would land
+  // below the screen: the sheet scrolls the toggle up under the sticky strip.
+  function toggleSheetDetails(event) {
+    const button = event.currentTarget;
+    setOpen(!open);
+    if (open) return;
+    window.requestAnimationFrame(() => {
+      const strip = button.closest("[data-widget='result']")?.querySelector(".hud-main");
+      button.style.scrollMarginTop = `${(strip?.offsetHeight ?? 0) + 8}px`;
+      const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      button.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+    });
+  }
+
   return (
-    <Box ref={widgetRef} data-widget="result" sx={hudSx(expanded)}>
+    <Box ref={widgetRef} data-widget="result" sx={hudSx(expanded, compact === true ? COMPACT_WIDTH : compact)}>
       {noticeItems.length > 0 && <Box className="hud-notices">{noticeItems}</Box>}
       <Box component="section" className="hud-box" aria-labelledby={labelId}>
         {hasDetails && (
@@ -227,13 +282,13 @@ export default function ResultHud({
               {hasValue ? (
                 <>
                   <Box component="p" sx={{ m: 0, minWidth: 0, fontFamily: MONO_FONT, fontVariantNumeric: "tabular-nums" }}>
-                    <Box component="span" sx={{ ...readoutFigureSx, ...(valueSize === "md" && mediumFigure), color: COLORS.onInk }}>
+                    <Box component="span" sx={{ ...readoutFigureSx, ...(valueSize === "md" ? mediumFigure : compact && compactFigure), color: COLORS.onInk }}>
                       {value}
                     </Box>
                     {unit && (
                       <>
                         {" "}
-                        <Box component="span" sx={{ color: COLORS.onInkMuted, fontSize: TYPE.title }}>
+                        <Box component="span" sx={{ color: COLORS.onInkMuted, fontSize: compact ? TYPE.body : TYPE.title }}>
                           {unit}
                         </Box>
                       </>
@@ -318,7 +373,7 @@ export default function ResultHud({
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 0.5,
-                    height: 28,
+                    height: 36,
                     ml: -1,
                     px: 1,
                     border: 0,
@@ -372,6 +427,12 @@ export default function ResultHud({
             ))}
           </DataList>
         </div>
+      )}
+      {hasDetails && !expanded && (
+        <Box component="button" type="button" className="hud-toggle-sheet" aria-expanded={open} aria-controls={drawerId} onClick={toggleSheetDetails}>
+          {text.resultDetails}
+          <Icon name="chevron" size={16} />
+        </Box>
       )}
       {expanded && (
         <Box

@@ -23,8 +23,8 @@ const cardButton = {
   justifyContent: "center",
   gap: "5px",
   flex: "none",
-  height: 28,
-  minWidth: 28,
+  height: 32,
+  minWidth: 32,
   px: "8px",
   border: `1px solid ${COLORS.rule2}`,
   borderRadius: `${RADIUS.control}px`,
@@ -192,7 +192,7 @@ export default function PointField({
         bgcolor: COLORS.sheet,
         boxShadow: picking ? `0 0 0 3px ${tone.soft}` : "none",
         transition: `border-color ${MOTION.fast} ${MOTION.ease}, box-shadow ${MOTION.fast} ${MOTION.ease}`,
-        "& .MuiOutlinedInput-input": { fontSize: TYPE.small },
+        "& .MuiOutlinedInput-input": { fontSize: TYPE.body },
         [PHONE]: { "& .MuiOutlinedInput-input": { fontSize: 16 } },
       }}
     >

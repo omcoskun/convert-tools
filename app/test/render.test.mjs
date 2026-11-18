@@ -218,6 +218,21 @@ test("the measure tool measures Ankara -> Istanbul and offers picking on the map
   assert.doesNotMatch(html, /arcgis|<svg[^>]*role="img"/i);
 });
 
+test("measurement prioritizes distance while retaining copyable azimuths in details", () => {
+  for (const language of ["tr", "en"]) {
+    const { html } = renderTool("measure", { language });
+    const main = visibleText(element(html, 'class="hud-main"'));
+    const details = element(html, 'class="hud-drawer ');
+    assert.ok(main.includes(language === "tr" ? "350,092" : "350.092"));
+    for (const key of ["initialAzimuth", "finalAzimuth"]) {
+      const label = lang[language].text[key];
+      assert.ok(!main.includes(label), `${key} is secondary`);
+      assert.ok(visibleText(details).includes(label), `${key} remains available`);
+      assert.ok(details.includes(`aria-label="${lang[language].text.copy} ${label}"`), `${key} stays copyable`);
+    }
+  }
+});
+
 test("a core error is shown with its localized message and its code", () => {
   const broken = {
     ...config,
@@ -319,6 +334,8 @@ test("the direct mode shows the end point it computed, the line as travelled", (
   // Six decimals shown; the copy button copies the full precision.
   assert.ok(result.includes(`${end.latitude.toFixed(6)}, ${end.longitude.toFixed(6)}`), result);
   assert.ok(result.includes(lang.tr.text.finalAzimuth) && result.includes("MGRS"), result);
+  const details = element(html, 'class="hud-drawer ');
+  assert.ok(details.includes('aria-label="Kopyala MGRS"'), "destination grid reference remains copyable in details on every screen");
   // A, the azimuth and the distance are inputs; B is computed (a hollow pin, not a field).
   const input = element(html, 'data-widget="input"');
   assert.match(input, /id="measure-point-0"/);

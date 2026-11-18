@@ -18,17 +18,15 @@ import ResultHud from "../../shell/ResultHud.jsx";
 import { useRememberedReducer } from "../../shell/tool-memory.js";
 import { useMapScene } from "../../shell/workspace-context.js";
 import { COLORS, TYPE } from "../../theme.js";
-import { Box, Button } from "../../ui/index.js";
+import { Box, Button, visuallyHidden } from "../../ui/index.js";
 import DirectMode, { DirectDetails } from "./DirectMode.jsx";
 import InverseMode, { InverseDetails } from "./InverseMode.jsx";
 import {
   LENGTH_UNITS,
   MEASURE_MODES,
-  angleCopy,
   callSnippet,
   checkModel,
   cutAzimuthBound,
-  displayAngle,
   displayBound,
   displayDistance,
   lengthsOf,
@@ -88,7 +86,7 @@ function readInputs(mode, readings, azimuth, distance) {
  * (useHandoffReceiver) fills A or B, also while the tool is hidden.
  */
 export default function MeasureTool() {
-  const [showFormats, setShowFormats] = useState(true);
+  const [showFormats, setShowFormats] = useState(false);
   const { language, text, examples: exampleLabels } = useLanguage();
   const { measure: settings } = useConfig();
   // Kept while another tool is open; a map pick in progress is not.
@@ -228,13 +226,6 @@ export default function MeasureTool() {
       options={LENGTH_UNITS.map((item) => ({ value: item.id, label: item.symbol }))}
     />
   );
-  // An inverse result's azimuths come with an uncertainty: only the digits it
-  // leaves meaningful are shown and copied (displayAngle, angleCopy).
-  const azimuthCell = (label, degrees, defined = true, uncertainty = null) =>
-    defined
-      ? { label, value: displayAngle(degrees, language, uncertainty), copyValue: angleCopy(degrees, uncertainty) }
-      : { label, value: "—" };
-
   let hud;
   if (mode === "direct") {
     const direct = value?.direct;
@@ -244,7 +235,8 @@ export default function MeasureTool() {
       copyValue: direct ? `${plainNumber(direct.latitude)}, ${plainNumber(direct.longitude)}` : undefined,
       copyLabel: text.directLabel,
       valueSize: "md",
-      cells: direct ? [azimuthCell(text.finalAzimuth, direct.finalBearingDegrees), { label: "MGRS", value: endMgrs ?? "—", copyValue: endMgrs ?? undefined }] : [],
+      // Wide enough for a coordinate pair beside "Ayrıntılar".
+      compact: 480,
     };
   } else if (mode === "route") {
     const polyline = value?.polyline;
@@ -271,12 +263,7 @@ export default function MeasureTool() {
       copyValue: value ? value.lengths[unit.id] : undefined,
       copyLabel: text.distance,
       aside: unitSwitch,
-      cells: inverse
-        ? [
-            azimuthCell(text.initialAzimuth, inverse.initialBearingDegrees, inverse.azimuthDefined, inverse.bearingUncertaintyDegrees),
-            azimuthCell(text.finalAzimuth, inverse.finalBearingDegrees, inverse.azimuthDefined, inverse.bearingUncertaintyDegrees),
-          ]
-        : [],
+      compact: true,
     };
   }
 
@@ -325,7 +312,7 @@ export default function MeasureTool() {
   const details = (
     <>
       {value && mode === "inverse" && <InverseDetails value={value} />}
-      {value && mode === "direct" && <DirectDetails value={value} />}
+      {value && mode === "direct" && <DirectDetails value={value} mgrs={endMgrs} />}
       {value && mode === "route" && (
         <RouteDetails
           segments={value.polyline.segments}
@@ -347,32 +334,22 @@ export default function MeasureTool() {
           <CallSnippet code={snippet} />
         </Box>
       )}
+      <Box component="p" sx={{ m: 0, pb: 1.5, fontSize: TYPE.meta, color: COLORS.muted, lineHeight: 1.5 }}>{text.surfaceNote}</Box>
     </>
   );
 
   return (
     <>
-      <InputWidget title={text.distanceTitle} subtitle={text.measureSubtitle} icon="measure" actions={actions}>
+      <InputWidget title={text.distanceTitle} icon="measure" actions={actions}>
         <Segmented
           label={text.modeLabel}
           value={mode}
           onChange={(next) => dispatch({ type: "mode", mode: next, result: value })}
           options={MEASURE_MODES.map((id) => ({ value: id, label: modeLabels[id], icon: { inverse: "measure", direct: "crosshair", route: "route" }[id] }))}
         />
-        <Box sx={{ pb: 1.5, borderBottom: `1px solid ${COLORS.rule}` }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
-            <Box component="h2" sx={{ m: 0, fontSize: TYPE.body, fontWeight: 650 }}>
-              {{ inverse: text.inverseTitle, direct: text.directTitle, route: text.routeTitle }[mode]}
-            </Box>
-            {/* Off hides DMS/MGRS under each point; errors and the swap notice stay. */}
-            <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 0.5, flex: "none", fontSize: TYPE.label, color: COLORS.ink2, cursor: "pointer", minHeight: 32 }}>
-              <input type="checkbox" checked={showFormats} onChange={(event) => setShowFormats(event.target.checked)} aria-label={text.coordinateFormatsLabel} style={{ accentColor: COLORS.a }} />
-              {text.coordinateFormats}
-            </Box>
-          </Box>
-          <Box component="p" sx={{ m: 0, color: COLORS.muted, fontSize: TYPE.meta, lineHeight: 1.5 }}>
-            {{ inverse: text.inverseIntro, direct: text.directIntro, route: text.routeIntro }[mode]}
-          </Box>
+        <Box sx={visuallyHidden}>
+          <h2>{{ inverse: text.inverseTitle, direct: text.directTitle, route: text.routeTitle }[mode]}</h2>
+          <p>{{ inverse: text.inverseIntro, direct: text.directIntro, route: text.routeIntro }[mode]}</p>
         </Box>
         <Box
           component="form"
@@ -394,6 +371,10 @@ export default function MeasureTool() {
           {/* After a paste of points it says what was pasted, and announces it. */}
           <PasteHint hint={pasteHint} notice={pasteNotice} sx={{ fontSize: TYPE.meta }} />
         </Box>
+        <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 0.75, alignSelf: "flex-start", fontSize: TYPE.meta, color: COLORS.muted, cursor: "pointer", minHeight: 32 }}>
+          <input type="checkbox" checked={showFormats} onChange={(event) => setShowFormats(event.target.checked)} aria-label={text.coordinateFormatsLabel} style={{ accentColor: COLORS.a }} />
+          {text.coordinateFormats}
+        </Box>
         <Disclosure title={text.examplePresets}>
           <Chips
             label={text.examples}
@@ -406,7 +387,6 @@ export default function MeasureTool() {
               }))}
           />
         </Disclosure>
-        <Box component="p" sx={{ m: 0, fontSize: TYPE.label, color: COLORS.muted, lineHeight: 1.5 }}>{text.surfaceNote}</Box>
       </InputWidget>
       <ResultHud
         {...hud}
