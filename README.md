@@ -244,12 +244,18 @@ Değişmeyen kurallar:
 - Üç altlık vardır ve `config.json` → `map.basemaps` içinde tanımlıdır
   (seçim hatırlanır): "standart" OpenFreeMap "positron"dur ve açık/koyu
   temayı izler (koyuda OpenFreeMap "dark" stili); "ayrıntılı" OpenFreeMap
-  "liberty"dir (gölgeli rölyef ile); "uydu" EOX Sentinel-2 cloudless 2016
-  görüntüsüdür (CC BY 4.0; 2017 katmanında Avrupa dışındaki karalar veri
-  olmadığı için beyazdır); altında NASA GIBS Blue Marble (kamu malı, en çok
-  8. düzey) kaba bir yedek olarak çizilir, böylece EOX karosu gelmediğinde
-  boşluk yerine kaba görüntü görünür. Sınırlar ile yer adları vektör
-  stilinden gelir. Altlığın "bazı parçalar yüklenemedi" uyarısı, son 10
+  "liberty"dir (gölgeli rölyef ile); "uydu" EOX Sentinel-2 cloudless 2025
+  görüntüsüdür (CC BY-NC-SA 4.0: yalnız ticari olmayan kullanım; bu site
+  ticari değildir. 2017 katmanında Avrupa dışındaki karalar veri olmadığı
+  için beyazdır, 2025 katmanı tüm karaları kapsar); altında NASA GIBS Blue
+  Marble (kamu malı, en çok 8. düzey) kaba bir yedek olarak çizilir, böylece
+  EOX karosu gelmediğinde boşluk yerine kaba görüntü görünür. Sınırlar ile
+  yer adları vektör stilinden gelir; deniz ve okyanus adları mavi, kıta
+  adları (`map.basemaps` → `continents`, adları `lang.json`) uzak
+  görünümde aralıklı büyük harflerle yazılır. Uydu haritasında gecenin
+  olduğu yarı, Güneş'in o anki konumuna göre (cihaz saati, 5 dakikada bir)
+  karartılır ve NASA Black Marble şehir ışıklarıyla çizilir (`night`;
+  kamu malı); bu katman 3. düzeyden sonra söner, 6. düzeyde hiç görünmez. Altlığın "bazı parçalar yüklenemedi" uyarısı, son 10
   saniyedeki karo yüklemelerinin en az dörtte biri (ve en az 3'ü) başarısız
   olunca çıkar; yakınlaştırırken iptal edilen istekler sayılmaz.
   Raster kaynaklar yalnız bu kataloğun girdileridir; `src/map/map-adapter.js`

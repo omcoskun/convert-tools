@@ -130,7 +130,7 @@ test("the comparison sphere has a plausible Earth radius in metres", () => {
   assert.ok(radius >= 6356752.314245 && radius <= 6378137, String(radius));
 });
 
-test("the basemaps are https styles with structured attributions; the satellite is CC BY imagery", () => {
+test("the basemaps are https styles with structured attributions; the satellite is EOX 2025 imagery with a night side", () => {
   assert.deepEqual(Object.keys(config.map).sort(), ["basemaps", "defaultBasemap"]);
   const ids = config.map.basemaps.map((basemap) => basemap.id);
   assert.deepEqual(ids, ["standard", "detailed", "satellite"]);
@@ -149,13 +149,23 @@ test("the basemaps are https styles with structured attributions; the satellite 
     assert.ok(basemap.attribution.some(({ href }) => href === "https://www.openstreetmap.org/copyright"), basemap.id);
   }
   const satellite = config.map.basemaps.find((basemap) => basemap.id === "satellite");
-  assert.match(satellite.raster.tiles, /^https:\/\/tiles\.maps\.eox\.at\/.*s2cloudless_3857\/.*\{z\}\/\{y\}\/\{x\}/);
-  // The 2016 layer covers every land tile; the 2017 one is white (no data) off Europe.
-  assert.ok(satellite.attribution.some(({ text }) => /EOX/.test(text) && /2016/.test(text) && /CC BY 4\.0/.test(text)));
+  // The 2025 layer covers every land tile (the 2017 one is white off Europe);
+  // it is CC BY-NC-SA 4.0, which this non-commercial site may use.
+  assert.match(satellite.raster.tiles, /^https:\/\/tiles\.maps\.eox\.at\/.*s2cloudless-2025_3857\/.*\{z\}\/\{y\}\/\{x\}/);
+  assert.ok(satellite.attribution.some(({ text }) => /EOX/.test(text) && /2025/.test(text) && /CC BY-NC-SA 4\.0/.test(text)));
   // The coarse fallback under it is NASA GIBS Blue Marble (public domain), credited.
   assert.match(satellite.raster.fallback.tiles, /^https:\/\/gibs\.earthdata\.nasa\.gov\/.*BlueMarble.*\{z\}\/\{y\}\/\{x\}/);
   assert.equal(satellite.raster.fallback.maxzoom, 8);
   assert.ok(satellite.attribution.some(({ text }) => /NASA/.test(text)));
-  // The 2018+ Sentinel-2 cloudless layers are non-commercial; Esri imagery needs a licence.
-  assert.doesNotMatch(JSON.stringify(config), /arcgis|s2cloudless-20(1[89]|2\d)/i);
+  // The night side's lights: NASA GIBS Black Marble (public domain), credited.
+  assert.match(satellite.night.lights, /^https:\/\/gibs\.earthdata\.nasa\.gov\/.*VIIRS_Black_Marble.*\{z\}\/\{y\}\/\{x\}/);
+  assert.ok(Number.isInteger(satellite.night.zoom) && satellite.night.zoom >= 2 && satellite.night.zoom <= 4);
+  assert.ok(satellite.attribution.some(({ text }) => /Black Marble/.test(text)));
+  // Continent names sit on these points (names in lang.json).
+  assert.deepEqual(satellite.continents.map(({ id }) => id), ["northAmerica", "southAmerica", "europe", "africa", "asia", "oceania", "antarctica"]);
+  for (const { latitude, longitude } of satellite.continents) {
+    assert.ok(Math.abs(latitude) <= 85 && Math.abs(longitude) <= 180);
+  }
+  // Esri imagery needs a licence.
+  assert.doesNotMatch(JSON.stringify(config), /arcgis/i);
 });

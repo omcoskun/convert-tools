@@ -4,7 +4,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { encodeMgrs } from "@convert-tools/core";
 import { readJson } from "./support/files.mjs";
-import { SATELLITE_FALLBACK_SOURCE, SATELLITE_SOURCE, TONE_COLORS, basemapSource, findBasemap, pruneTileSamples, satelliteStyle, tileSample, tilesFailing } from "../src/map/basemaps.js";
+import {
+  CONTINENT_LAYER,
+  CONTINENT_SOURCE,
+  SATELLITE_FALLBACK_SOURCE,
+  SATELLITE_SOURCE,
+  TONE_COLORS,
+  basemapSource,
+  continentFeatures,
+  findBasemap,
+  firstLayerAboveImagery,
+  pruneTileSamples,
+  satelliteStyle,
+  tileSample,
+  tilesFailing,
+} from "../src/map/basemaps.js";
 import { GRATICULE_INTERVALS, graticuleCovers, graticuleFeatures, graticuleInterval, graticuleLabel } from "../src/map/graticule.js";
 import { PALETTE_OVERRIDES, tuneBasemapStyle } from "../src/map/map-adapter.js";
 import { mgrsZoneCells, mgrsZoneFeatures } from "../src/map/mgrs-zones.js";
@@ -14,8 +28,8 @@ const { basemaps } = readJson("public/config.json").map;
 
 test("the standard basemap follows the theme; the others keep one look", () => {
   const standard = findBasemap(basemaps, "standard");
-  assert.deepEqual(basemapSource(standard, "light"), { key: "standard:light", url: standard.style, tone: "light", palette: "positron", keepRaster: false, raster: null });
-  assert.deepEqual(basemapSource(standard, "dark"), { key: "standard:dark", url: standard.darkStyle, tone: "dark", palette: "dark", keepRaster: false, raster: null });
+  assert.deepEqual(basemapSource(standard, "light"), { key: "standard:light", url: standard.style, tone: "light", palette: "positron", keepRaster: false, raster: null, night: null, continents: null });
+  assert.deepEqual(basemapSource(standard, "dark"), { key: "standard:dark", url: standard.darkStyle, tone: "dark", palette: "dark", keepRaster: false, raster: null, night: null, continents: null });
   const detailed = findBasemap(basemaps, "detailed");
   assert.equal(basemapSource(detailed, "dark").url, detailed.style);
   assert.equal(basemapSource(detailed, "dark").tone, "light");
@@ -24,6 +38,9 @@ test("the standard basemap follows the theme; the others keep one look", () => {
   const satellite = basemapSource(findBasemap(basemaps, "satellite"), "dark");
   assert.equal(satellite.tone, "imagery");
   assert.equal(satellite.key, "satellite");
+  assert.equal(satellite.night, findBasemap(basemaps, "satellite").night);
+  assert.equal(satellite.continents, findBasemap(basemaps, "satellite").continents);
+  assert.equal(basemapSource(detailed, "light").night, null);
   assert.equal(findBasemap(basemaps, "nope").id, "standard");
   for (const tone of ["light", "dark", "imagery"]) {
     assert.deepEqual(Object.keys(TONE_COLORS[tone]).sort(), ["casing", "grid", "gridMajor", "halo", "label", "line", "onLine", "zone", "zoneLabel"]);
@@ -47,12 +64,53 @@ const VECTOR_STYLE = {
 test("the satellite style puts imagery under the vector style's boundaries and names only", () => {
   const raster = { tiles: "https://imagery.example/{z}/{y}/{x}.jpg", tileSize: 256, maxzoom: 14 };
   const style = satelliteStyle(VECTOR_STYLE, raster);
-  assert.deepEqual(style.layers.map((layer) => layer.id), ["background", SATELLITE_SOURCE, "boundary_2", "water_name", "label_city"]);
+  assert.deepEqual(style.layers.map((layer) => layer.id), ["background", SATELLITE_SOURCE, "boundary_2", "water_name", "label_city", CONTINENT_LAYER]);
   assert.deepEqual(style.sources[SATELLITE_SOURCE], { type: "raster", tiles: [raster.tiles], tileSize: 256, maxzoom: 14 });
   assert.equal(style.sources.ne2_shaded, undefined);
   assert.equal(style.glyphs, VECTOR_STYLE.glyphs);
   assert.equal(style.layers.find((layer) => layer.id === "label_city").paint["text-color"], "#ffffff");
   assert.equal(VECTOR_STYLE.layers.length, 6, "the fetched style is not changed");
+});
+
+test("the satellite style draws ocean and sea names in blue and continent names on top", () => {
+  const raster = { tiles: "https://imagery.example/{z}/{y}/{x}.jpg", maxzoom: 14 };
+  const continents = continentFeatures([{ id: "europe", latitude: 52, longitude: 18 }], { europe: "Avrupa" }, "tr");
+  const style = satelliteStyle(VECTOR_STYLE, raster, { continents });
+  assert.equal(style.layers.at(-1).id, CONTINENT_LAYER);
+  assert.equal(style.sources[CONTINENT_SOURCE].data, continents);
+  const continentLayer = style.layers.at(-1);
+  assert.equal(continentLayer.layout["text-transform"], "none");
+  assert.deepEqual(continentLayer.layout["text-field"], ["get", "label"]);
+  assert.ok(continentLayer.layout["text-letter-spacing"] >= 0.2);
+  assert.ok(continentLayer.maxzoom <= 4);
+  const water = style.layers.find((layer) => layer.id === "water_name");
+  assert.equal(water.paint["text-color"], "#8fd0ff");
+  assert.equal(style.layers.find((layer) => layer.id === "label_city").paint["text-color"], "#ffffff");
+  const plain = satelliteStyle(VECTOR_STYLE, raster);
+  assert.deepEqual(plain.sources[CONTINENT_SOURCE].data, { type: "FeatureCollection", features: [] });
+});
+
+test("continent names are uppercased in the app's language, not the browser's", () => {
+  const points = [
+    { id: "northAmerica", latitude: 50, longitude: -102 },
+    { id: "asia", latitude: 46, longitude: 92 },
+    { id: "unnamed", latitude: 0, longitude: 0 },
+  ];
+  const names = { northAmerica: "Kuzey Amerika", asia: "Asya" };
+  const turkish = continentFeatures(points, names, "tr");
+  assert.equal(turkish.type, "FeatureCollection");
+  assert.deepEqual(turkish.features.map((feature) => feature.properties.label), ["KUZEY AMERİKA", "ASYA"]);
+  assert.deepEqual(turkish.features[0].geometry, { type: "Point", coordinates: [-102, 50] });
+  const english = continentFeatures(points, { northAmerica: "North America" }, "en");
+  assert.deepEqual(english.features.map((feature) => feature.properties.label), ["NORTH AMERICA"]);
+});
+
+test("the night layer goes right above the imagery, under boundaries and names", () => {
+  const raster = { tiles: "https://imagery.example/{z}/{y}/{x}.jpg", maxzoom: 14 };
+  assert.equal(firstLayerAboveImagery(satelliteStyle(VECTOR_STYLE, raster).layers), "boundary_2");
+  const withFallback = satelliteStyle(VECTOR_STYLE, { ...raster, fallback: { tiles: "https://coarse.example/{z}/{y}/{x}.jpeg" } });
+  assert.equal(firstLayerAboveImagery(withFallback.layers), "boundary_2");
+  assert.equal(firstLayerAboveImagery(VECTOR_STYLE.layers), undefined);
 });
 
 test("styles keep their relief raster on request and take their palette's colours", () => {

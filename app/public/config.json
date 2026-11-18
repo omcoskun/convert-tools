@@ -127,7 +127,7 @@
         "id": "satellite",
         "style": "https://tiles.openfreemap.org/styles/positron",
         "raster": {
-          "tiles": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg",
+          "tiles": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/g/{z}/{y}/{x}.jpg",
           "tileSize": 256,
           "maxzoom": 14,
           "fallback": {
@@ -136,9 +136,23 @@
             "maxzoom": 8
           }
         },
+        "night": {
+          "lights": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png",
+          "zoom": 3
+        },
+        "continents": [
+          { "id": "northAmerica", "latitude": 50, "longitude": -102 },
+          { "id": "southAmerica", "latitude": -14, "longitude": -59 },
+          { "id": "europe", "latitude": 52, "longitude": 18 },
+          { "id": "africa", "latitude": 6, "longitude": 20 },
+          { "id": "asia", "latitude": 46, "longitude": 92 },
+          { "id": "oceania", "latitude": -24, "longitude": 134 },
+          { "id": "antarctica", "latitude": -80, "longitude": 30 }
+        ],
         "attribution": [
-          { "text": "Sentinel-2 cloudless by EOX (contains modified Copernicus Sentinel data 2016 & 2017), CC BY 4.0", "href": "https://s2maps.eu" },
+          { "text": "Sentinel-2 cloudless 2025 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2025), CC BY-NC-SA 4.0", "href": "https://s2maps.eu" },
           { "text": "NASA Blue Marble (GIBS)", "href": "https://earthdata.nasa.gov/gibs" },
+          { "text": "NASA Black Marble (GIBS)", "href": "https://earthdata.nasa.gov/gibs" },
           { "text": "OpenFreeMap", "href": "https://openfreemap.org" },
           { "text": "© OpenMapTiles", "href": "https://www.openmaptiles.org/" },
           { "text": "© OpenStreetMap", "href": "https://www.openstreetmap.org/copyright" }

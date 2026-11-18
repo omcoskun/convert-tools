@@ -14,9 +14,15 @@
  *   style: string,
  *   darkStyle?: string,
  *   raster?: { tiles: string, tileSize?: number, maxzoom?: number, fallback?: { tiles: string, tileSize?: number, maxzoom?: number } },
+ *   night?: { lights: string, zoom: number },
+ *   continents?: Continent[],
  *   attribution: Credit[],
  * }} Basemap
+ *   night: the live night side drawn over the imagery (night-layer.js), its
+ *   city lights from the `lights` tile template at `zoom`. continents: where
+ *   the continent names go.
  */
+/** @typedef {{ id: string, latitude: number, longitude: number }} Continent */
 
 /** The basemap with `id`, else the first one. */
 export function findBasemap(basemaps, id) {
@@ -34,6 +40,8 @@ export function findBasemap(basemaps, id) {
  *   palette: "positron" | "dark" | "none",
  *   keepRaster: boolean,
  *   raster: Basemap["raster"] | null,
+ *   night: Basemap["night"] | null,
+ *   continents: Continent[] | null,
  * }}
  *   key changes exactly when the map must load another style. A basemap with
  *   a dark variant is the app's own quiet map: it takes the house colours
@@ -41,10 +49,19 @@ export function findBasemap(basemaps, id) {
  */
 export function basemapSource(basemap, mode) {
   if (basemap.raster) {
-    return { key: basemap.id, url: basemap.style, tone: "imagery", palette: "none", keepRaster: false, raster: basemap.raster };
+    return {
+      key: basemap.id,
+      url: basemap.style,
+      tone: "imagery",
+      palette: "none",
+      keepRaster: false,
+      raster: basemap.raster,
+      night: basemap.night ?? null,
+      continents: basemap.continents ?? null,
+    };
   }
   if (!basemap.darkStyle) {
-    return { key: basemap.id, url: basemap.style, tone: "light", palette: "none", keepRaster: true, raster: null };
+    return { key: basemap.id, url: basemap.style, tone: "light", palette: "none", keepRaster: true, raster: null, night: null, continents: null };
   }
   const dark = mode === "dark";
   return {
@@ -54,6 +71,8 @@ export function basemapSource(basemap, mode) {
     palette: dark ? "dark" : "positron",
     keepRaster: false,
     raster: null,
+    night: null,
+    continents: null,
   };
 }
 
@@ -108,14 +127,71 @@ const SATELLITE_FALLBACK_LAYER = "convert-satellite-fallback";
 // places and waters, recoloured to read on photographs.
 const OVERLAY_SOURCE_LAYERS = new Set(["boundary", "place", "water_name"]);
 
+// The live night side (night-layer.js): a canvas source drawn right above
+// the imagery, fading out as the map zooms in so measuring zooms stay day.
+export const NIGHT_SOURCE = "convert-night";
+export const NIGHT_LAYER = "convert-night";
+export const NIGHT_OPACITY = Object.freeze(["interpolate", ["linear"], ["zoom"], 3, 1, 6, 0]);
+
+// Continent names over the whole-world view, as Apple Maps writes them:
+// spaced capitals that give way to the country names as the map zooms in.
+export const CONTINENT_SOURCE = "convert-continents";
+export const CONTINENT_LAYER = "convert-continents";
+const EMPTY_COLLECTION = Object.freeze({ type: "FeatureCollection", features: Object.freeze([]) });
+
+// Ocean and sea names in blue, as on Apple's satellite map.
+const WATER_LABEL_COLOR = "#8fd0ff";
+
+/**
+ * The continent name points: each continent with a name, its label in
+ * capitals of the app's language ("KUZEY AMERİKA", not the browser
+ * locale's "KUZEY AMERIKA"), so the layer uses no text-transform.
+ * @param {Continent[]} continents
+ * @param {Record<string, string>} names by continent id
+ * @param {string} language the app language
+ */
+export function continentFeatures(continents, names, language) {
+  const locale = language === "tr" ? "tr-TR" : "en-US";
+  return {
+    type: "FeatureCollection",
+    features: (continents ?? [])
+      .filter(({ id }) => typeof names?.[id] === "string" && names[id] !== "")
+      .map(({ id, latitude, longitude }) => ({
+        type: "Feature",
+        properties: { id, label: names[id].toLocaleUpperCase(locale) },
+        geometry: { type: "Point", coordinates: [longitude, latitude] },
+      })),
+  };
+}
+
+/** The id of the layer right above the satellite imagery: the night layer goes under it. */
+export function firstLayerAboveImagery(layers) {
+  const index = (layers ?? []).findIndex((layer) => layer.id === SATELLITE_LAYER);
+  return index < 0 ? undefined : layers[index + 1]?.id;
+}
+
+/** The style's bold font for the continent names, else its first font. */
+function boldFont(layers) {
+  let found = null;
+  for (const layer of layers) {
+    const font = layer.type === "symbol" ? layer.layout?.["text-font"] : undefined;
+    if (!Array.isArray(font) || font.length === 0) continue;
+    if (/bold/i.test(font[0])) return font;
+    found ??= font;
+  }
+  return found ?? ["Noto Sans Bold"];
+}
+
 /**
  * The satellite style: `vectorStyle` (a fetched OpenMapTiles style) reduced to
  * its boundary lines and place and water names, recoloured for imagery, over
  * a raster source of `raster`. Glyphs, sprite and the vector source stay.
  * @param {object} vectorStyle
  * @param {NonNullable<Basemap["raster"]>} raster
+ * @param {{ continents?: object }} [options] continents: the continent name
+ *   points (continentFeatures), drawn above every other label
  */
-export function satelliteStyle(vectorStyle, raster) {
+export function satelliteStyle(vectorStyle, raster, { continents } = {}) {
   if (!vectorStyle || !Array.isArray(vectorStyle.layers)) return vectorStyle;
   const kept = vectorStyle.layers
     .filter((layer) => OVERLAY_SOURCE_LAYERS.has(layer["source-layer"]) && (layer.type === "symbol" || layer.type === "line"))
@@ -123,12 +199,13 @@ export function satelliteStyle(vectorStyle, raster) {
       if (layer.type === "line") {
         return { ...layer, paint: { ...layer.paint, "line-color": "rgba(255, 255, 255, 0.55)" } };
       }
+      const water = layer["source-layer"] === "water_name";
       return {
         ...layer,
         paint: {
           ...layer.paint,
-          "text-color": layer["source-layer"] === "water_name" ? "#cfe4ff" : "#ffffff",
-          "text-halo-color": "rgba(0, 0, 0, 0.72)",
+          "text-color": water ? WATER_LABEL_COLOR : "#ffffff",
+          "text-halo-color": water ? "rgba(0, 16, 36, 0.78)" : "rgba(0, 0, 0, 0.72)",
           "text-halo-width": 1.3,
           "text-halo-blur": 0.4,
         },
@@ -150,12 +227,36 @@ export function satelliteStyle(vectorStyle, raster) {
       // (stretched) instead of an empty background.
       ...(raster.fallback ? { [SATELLITE_FALLBACK_SOURCE]: rasterSource(raster.fallback, 8) } : {}),
       [SATELLITE_SOURCE]: rasterSource(raster, 14),
+      [CONTINENT_SOURCE]: { type: "geojson", data: continents ?? EMPTY_COLLECTION },
     },
     layers: [
       { id: "background", type: "background", paint: { "background-color": "#0b1622" } },
       ...(raster.fallback ? [{ id: SATELLITE_FALLBACK_LAYER, type: "raster", source: SATELLITE_FALLBACK_SOURCE, paint: { "raster-fade-duration": 0 } }] : []),
       { id: SATELLITE_LAYER, type: "raster", source: SATELLITE_SOURCE, paint: { "raster-fade-duration": 150, "raster-contrast": 0.06, "raster-saturation": 0.08 } },
       ...kept,
+      // Last, so its names win label collisions over country names.
+      {
+        id: CONTINENT_LAYER,
+        type: "symbol",
+        source: CONTINENT_SOURCE,
+        maxzoom: 3.5,
+        layout: {
+          "text-field": ["get", "label"],
+          "text-font": boldFont(kept),
+          "text-size": ["interpolate", ["linear"], ["zoom"], 0, 12, 3, 16],
+          "text-transform": "none",
+          "text-letter-spacing": 0.3,
+          "text-max-width": 8,
+          "text-allow-overlap": false,
+        },
+        paint: {
+          "text-color": "#f4f7fb",
+          "text-halo-color": "rgba(0, 0, 0, 0.6)",
+          "text-halo-width": 1.2,
+          "text-halo-blur": 0.4,
+          "text-opacity": ["interpolate", ["linear"], ["zoom"], 2.8, 1, 3.5, 0],
+        },
+      },
     ],
   };
 }
