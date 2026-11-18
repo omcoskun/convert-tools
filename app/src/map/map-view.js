@@ -41,7 +41,7 @@ export function flatLatitude(latitude, zoom, { height, padding = {} }) {
 }
 
 export const SPACE_SKY = {
-  "sky-color": "#080f22",
+  "sky-color": "#000000",
   "horizon-color": "#a5c9ed",
   "fog-color": "#d7e5f0",
   "sky-horizon-blend": 0.7,

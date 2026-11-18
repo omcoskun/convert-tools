@@ -55,7 +55,7 @@ const stageSx = {
   minWidth: 0,
   minHeight: 0,
   overflow: "hidden",
-  bgcolor: "#030711",
+  bgcolor: "#000",
   "& > .map-space": { position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" },
   "& > .map-canvas.maplibregl-map": { background: "transparent" },
   fontFamily: UI_FONT,
@@ -370,7 +370,7 @@ export default function MapStage({
       aria-label={text.mapTitle}
       sx={{ ...stageSx, "--map-ink": toneColors.line, "--map-on-ink": toneColors.onLine }}
     >
-      <SpaceBackdrop />
+      <SpaceBackdrop subscribeView={map.subscribeView} readCamera={map.readCamera} loaded={map.loaded} />
       <div className="map-canvas" ref={map.containerRef} />
 
       {/* Shown while picking with keyboard focus on the canvas: Enter places the point here. */}

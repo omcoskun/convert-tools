@@ -95,7 +95,7 @@ test("the demo has no geodesy formulas of its own", () => {
   // decorative canvas drawing are presentation math, isolated in these
   // modules; night.js is the sun's position for the satellite map's
   // decorative night side, not geodesy.
-  const presentationMath = new Set([path.join("map", "map-view.js"), path.join("map", "SpaceBackdrop.jsx"), path.join("map", "night.js")]);
+  const presentationMath = new Set([path.join("map", "map-view.js"), path.join("map", "SpaceBackdrop.jsx"), path.join("map", "night.js"), path.join("map", "stars.js")]);
   const formula = /\bMath\.(sin|cos|tan|asin|acos|atan2?|sinh|cosh|tanh|atanh|sqrt|cbrt|hypot|log\w*|exp|expm1|pow|PI|E|SQRT\w*|LN\w*)\b|\*\*/;
   const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
   const offenders = sources.filter(({ name, text }) => !presentationMath.has(name) && formula.test(withoutComments(text))).map(({ name }) => name);

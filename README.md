@@ -227,9 +227,12 @@ Değişmeyen kurallar:
   ve Content-Security-Policy meta etiketi taşır.
 - Harita, MapLibre GL JS 6 ile çizilen bir vektör haritasıdır: uzaktan
   bakınca küre, yakınlaşınca (12. düzeyden sonra) Web Mercator; 2D modu
-  her ölçekte düz Web Mercator kullanır. Yıldızlı uzay arka planı yerel bir
-  canvas üzerinde ekran çözünürlüğüne göre çizilir; sürekli animasyon veya
-  ek görsel isteği yoktur. Kürenin kenarında atmosfer efekti bulunur.
+  her ölçekte düz Web Mercator kullanır. Kürenin arkasındaki uzay siyahtır;
+  yıldızlar yerel bir canvas'ta iki küçük, kendini tekrarlayan desene bir kez
+  çizilir ve kamera dönünce, kuzeye-güneye kayınca ya da eğilince kürenin
+  çok gerisindeymiş gibi kayar (kare başına üç dolgu; sürekli animasyon veya
+  ek görsel isteği yoktur, "hareketi azalt" ayarında yerinde durur).
+  Kürenin kenarında atmosfer efekti bulunur.
   3D'de uzaklaşma sınırı ekranın panellerden kalan alanına ve enleme göre
   hesaplanır; küre bu alana sığdığında daha fazla uzaklaşılamaz. 2D'de düz
   dünya en az harita yüksekliği kadar kalır ve kuzey/güney kenarı ekranın

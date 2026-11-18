@@ -710,6 +710,14 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
     return () => listeners.delete(listener);
   }, []);
 
+  /** The camera the space backdrop follows: centre, bearing, pitch and whether the globe is drawn; null before the map. */
+  const readCamera = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return null;
+    const { lng, lat } = map.getCenter();
+    return { longitude: lng, latitude: lat, bearing: map.getBearing(), pitch: map.getPitch(), globe: modeRef.current === "3d" };
+  }, []);
+
   /** Ground metres per screen pixel across the centre of the free map, from the core; null over space. */
   const measureScale = useCallback(() => {
     const map = mapRef.current;
@@ -1507,6 +1515,7 @@ export default function useMapStage({ basemaps, defaultBasemap, mode, language, 
     loaded,
     styleRevision,
     subscribeView,
+    readCamera,
     measureScale,
     contextMenu,
     closeContextMenu,

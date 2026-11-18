@@ -1,79 +1,141 @@
 import { useEffect, useRef } from "react";
+import { STAR_LAYERS, starTile, starTransform, unwrapLongitude } from "./stars.js";
 
-/** Static, deterministic stars: redrawn only on resize, with no animation loop. */
-export default function SpaceBackdrop() {
-  const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    const context = canvas.getContext("2d");
-    if (!context) return undefined;
-    let drawnWidth = 0;
-    let drawnHeight = 0;
-    // One small pre-rendered glow, drawn per bright star with drawImage.
-    function glowSprite(ratio) {
-      const size = Math.ceil(14 * ratio);
-      const sprite = document.createElement("canvas");
-      sprite.width = size;
-      sprite.height = size;
-      const inner = sprite.getContext("2d");
-      if (!inner) return null;
-      const gradient = inner.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-      gradient.addColorStop(0, "rgba(157, 191, 255, 0.24)");
-      gradient.addColorStop(1, "rgba(157, 191, 255, 0)");
-      inner.fillStyle = gradient;
-      inner.fillRect(0, 0, size, size);
-      return sprite;
-    }
-    function draw() {
-      const { width, height } = canvas.getBoundingClientRect();
-      if (!width || !height) return;
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      const pixelWidth = Math.round(width * ratio);
-      const pixelHeight = Math.round(height * ratio);
-      // ResizeObserver can report an unchanged size; resetting canvas.width
-      // would clear and repaint everything for nothing.
-      if (pixelWidth === drawnWidth && pixelHeight === drawnHeight) return;
-      drawnWidth = pixelWidth;
-      drawnHeight = pixelHeight;
-      canvas.width = pixelWidth;
-      canvas.height = pixelHeight;
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      context.fillStyle = "#030711";
-      context.fillRect(0, 0, width, height);
-      // A cloud only paints its own bounding square, not the whole canvas.
-      const cloud = (x, y, radius, color) => {
-        const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
-        gradient.addColorStop(0, color);
-        gradient.addColorStop(1, "transparent");
-        context.fillStyle = gradient;
-        context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-      };
-      cloud(width * 0.7, height * 0.25, width * 0.65, "rgba(37, 64, 114, 0.3)");
-      cloud(width * 0.15, height * 0.85, width * 0.5, "rgba(58, 43, 92, 0.22)");
-      const sprite = glowSprite(ratio);
-      let seed = 8457;
-      const random = () => {
-        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-        return seed / 4294967296;
-      };
-      const count = Math.round(width * height / 1100);
-      for (let index = 0; index < count; index += 1) {
-        const x = random() * width;
-        const y = random() * height;
-        const bright = random();
-        const radius = bright > 0.985 ? 1.35 : 0.35 + random() * 0.55;
-        if (bright > 0.985 && sprite) context.drawImage(sprite, x - 7, y - 7, 14, 14);
+// Black space with stars that move against the camera (stars.js). The stars
+// are drawn once into two repeating tiles; a camera change only refills the
+// canvas with the two patterns at a new transform: three fills a frame,
+// whatever the number of stars.
+
+const SPACE = "#000";
+// The camera the stars keep with prefers-reduced-motion and before the map exists.
+const STILL = Object.freeze({ longitude: 0, latitude: 0, bearing: 0, pitch: 0, globe: true });
+// Radius in CSS px of a bright star's halo.
+const GLOW = 6;
+const STAR_RGB = "220, 230, 255";
+const WARM_RGB = "255, 226, 194";
+
+const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+/**
+ * One tile of `layer`'s stars at about `ratio` device px per CSS px. Stars
+ * near an edge are drawn again across it, so the tile repeats seamlessly.
+ * Returns the canvas and its period in CSS px (the tile is a whole number of
+ * device px, so the period may differ from layer.size by a fraction).
+ */
+function renderTile(layer, ratio) {
+  const pixels = Math.round(layer.size * ratio);
+  const canvas = document.createElement("canvas");
+  canvas.width = pixels;
+  canvas.height = pixels;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  const scale = pixels / layer.size;
+  context.setTransform(scale, 0, 0, scale, 0, 0);
+  for (const star of starTile(layer)) {
+    const margin = star.glow ? GLOW : star.radius + 1;
+    for (const dx of [-layer.size, 0, layer.size]) {
+      for (const dy of [-layer.size, 0, layer.size]) {
+        const x = star.x + dx;
+        const y = star.y + dy;
+        if (x < -margin || y < -margin || x > layer.size + margin || y > layer.size + margin) continue;
+        if (star.glow) {
+          const halo = context.createRadialGradient(x, y, 0, x, y, GLOW);
+          halo.addColorStop(0, "rgba(170, 200, 255, 0.2)");
+          halo.addColorStop(1, "rgba(170, 200, 255, 0)");
+          context.fillStyle = halo;
+          context.fillRect(x - GLOW, y - GLOW, GLOW * 2, GLOW * 2);
+        }
         context.beginPath();
-        context.arc(x, y, radius, 0, Math.PI * 2);
-        const rgb = index % 7 === 0 ? "245, 218, 180" : "195, 215, 248";
-        context.fillStyle = `rgba(${rgb}, ${0.18 + bright * 0.65})`;
+        context.arc(x, y, star.radius, 0, Math.PI * 2);
+        context.fillStyle = `rgba(${star.warm ? WARM_RGB : STAR_RGB}, ${star.alpha})`;
         context.fill();
       }
     }
+  }
+  return { canvas, period: pixels / ratio };
+}
+
+/**
+ * The space behind the globe. Redrawn when the camera moves (subscribeView),
+ * the stage is resized or the map has loaded; not while the flat 2D map,
+ * which never shows space, is drawn.
+ * @param {{
+ *   subscribeView: (listener: () => void) => () => void,
+ *   readCamera: () => ({ longitude: number, latitude: number, bearing: number, pitch: number, globe: boolean } | null),
+ *   loaded: boolean,
+ * }} props
+ */
+export default function SpaceBackdrop({ subscribeView, readCamera, loaded }) {
+  const ref = useRef(null);
+  const drawRef = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    // Opaque: every draw fills the whole canvas, so the page composites it cheaply.
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) return undefined;
+    let size = canvas.getBoundingClientRect();
+    let tiles = null;
+    let drawn = "";
+    let unwrapped = null;
+    let longitude = 0;
+
+    function patterns(ratio) {
+      if (tiles?.ratio === ratio) return tiles.layers;
+      const layers = [];
+      for (const layer of STAR_LAYERS) {
+        const tile = renderTile(layer, ratio);
+        const pattern = tile && context.createPattern(tile.canvas, "repeat");
+        if (pattern) layers.push({ pattern, period: tile.period });
+      }
+      tiles = { ratio, layers };
+      return layers;
+    }
+
+    function draw() {
+      const { width, height } = size;
+      if (!width || !height) return;
+      const view = readCamera() ?? STILL;
+      if (!view.globe && drawn) return;
+      // The camera's longitude, continuous across ±180°.
+      unwrapped = unwrapped === null ? view.longitude : unwrapLongitude(unwrapped, longitude, view.longitude);
+      longitude = view.longitude;
+      const shown = reducedMotion() ? STILL : { ...view, longitude: unwrapped };
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const pixelWidth = Math.round(width * ratio);
+      const pixelHeight = Math.round(height * ratio);
+      // A zoom alone, or a repeated notice, leaves the stars where they are.
+      const key = [pixelWidth, pixelHeight, ratio, shown.longitude, shown.latitude, shown.bearing, shown.pitch].join();
+      if (key === drawn) return;
+      drawn = key;
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.fillStyle = SPACE;
+      context.fillRect(0, 0, pixelWidth, pixelHeight);
+      for (const { pattern, period } of patterns(ratio)) {
+        pattern.setTransform(new window.DOMMatrix(starTransform(shown, { width, height, ratio, size: period })));
+        context.fillStyle = pattern;
+        context.fillRect(0, 0, pixelWidth, pixelHeight);
+      }
+    }
+
+    drawRef.current = draw;
     draw();
-    const observer = new ResizeObserver(draw);
+    const unsubscribe = subscribeView(draw);
+    const observer = new ResizeObserver(([entry]) => {
+      size = entry.contentRect;
+      draw();
+    });
     observer.observe(canvas);
-    return () => observer.disconnect();
-  }, []);
+    return () => {
+      drawRef.current = null;
+      unsubscribe();
+      observer.disconnect();
+    };
+  }, [subscribeView, readCamera]);
+  // The first camera of the map, if it was set without a move.
+  useEffect(() => drawRef.current?.(), [loaded]);
   return <canvas ref={ref} className="map-space" aria-hidden="true" />;
 }
