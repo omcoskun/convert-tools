@@ -365,7 +365,7 @@
     "errors": {
       "INVALID_ARGUMENT": "Bir seçenek ya da argüman geçersiz.",
       "INVALID_NUMBER": "Sayı geçerli ve sonlu bir değer değil.",
-      "INPUT_LIMIT_EXCEEDED": "Sayının basamak ya da üs sayısı kesin aritmetik sınırını aşıyor.",
+      "INPUT_LIMIT_EXCEEDED": "Girdi hesaplamanın sınırını aşıyor: sayının basamak ya da üs sayısı kesin aritmetiğe göre çok büyük, ya da üç eksenli elipsoitte uzunluk bu elipsoit için çok uzun veya eksen oranı a/c 10'dan büyük.",
       "DIVISION_BY_ZERO": "Sıfıra bölme istendi.",
       "UNKNOWN_UNIT_CATEGORY": "Birim kategorisi tanınmıyor.",
       "UNKNOWN_UNIT": "Birim bu kategoride tanımlı değil.",
@@ -754,7 +754,7 @@
     "errors": {
       "INVALID_ARGUMENT": "An option or argument is invalid.",
       "INVALID_NUMBER": "The number is not a valid finite value.",
-      "INPUT_LIMIT_EXCEEDED": "The number has more digits or a larger exponent than exact arithmetic accepts.",
+      "INPUT_LIMIT_EXCEEDED": "The input is beyond what the calculation accepts: the number has too many digits or too large an exponent for exact arithmetic, or on a triaxial ellipsoid the length is too long for that ellipsoid or the axis ratio a/c is above 10.",
       "DIVISION_BY_ZERO": "A division by zero was requested.",
       "UNKNOWN_UNIT_CATEGORY": "The unit category is not recognised.",
       "UNKNOWN_UNIT": "The unit is not defined in this category.",

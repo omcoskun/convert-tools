@@ -51,8 +51,18 @@ import java.util.Set;
 final class TriaxialEngine {
     private static final int DIM = 10;
     private static final int[] SEQUENCE = {2, 4, 6, 8, 10, 12, 14, 16, 18, 20};
+    // Accept an extrapolated step when the last two diagonal entries agree to
+    // this, relative to the entry's size when it is above 1 (positions are
+    // unit b; the Jacobi values m and M grow along long lines, and an absolute
+    // 2e-15 is below their float resolution past |m| of about 9, which split
+    // every step down to MAX_SPLIT).
     private static final double STEP_TOLERANCE = 2e-15;
     private static final int MAX_SPLIT = 12;
+    // Limits of the solvers, reported as INPUT_LIMIT_EXCEEDED by
+    // TriaxialGeodesic: the inverse's work grows about as (a/c)^2, the
+    // direct's with its number of macro steps.
+    static final double MAX_AXIS_RATIO = 10;
+    static final int MAX_DIRECT_STEPS = 20000;
     private static final int RAYS = 180;
     private static final int REFINE_RAYS = 16;
     private static final int NEWTON_ITERATIONS = 40;
@@ -380,7 +390,7 @@ final class TriaxialEngine {
                 double[] last = table.get(k - 1)[k - 1];
                 double error = 0;
                 for (int i = 0; i < DIM; i++) {
-                    error = Math.max(error, Math.abs(row[k][i] - last[i]));
+                    error = Math.max(error, Math.abs(row[k][i] - last[i]) / Math.max(1, Math.abs(last[i])));
                 }
                 if (error <= STEP_TOLERANCE) {
                     return row[k];
@@ -452,6 +462,11 @@ final class TriaxialEngine {
     private static End finish(Shape u, double[] y) {
         double[][] RV = projectToSurface(u, new double[] {y[0], y[1], y[2]}, new double[] {y[3], y[4], y[5]});
         return new End(RV[0], RV[1], y[6], y[7], y[8]);
+    }
+
+    /** The longest direct line, in the unit of the axes: MAX_DIRECT_STEPS macro steps. */
+    static double maxDirectDistance(Shape model) {
+        return MAX_DIRECT_STEPS * model.unit().step * model.b;
     }
 
     static Direct direct(Shape model, double[] bet1, double[] omg1, double[] alp1, double s) {

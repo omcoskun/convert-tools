@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { performance } from "node:perf_hooks";
 import test from "node:test";
 
 import {
@@ -389,4 +390,31 @@ test("triaxial functions reject invalid input with coded errors", () => {
   code(() => directTriaxialGeodesic({ beta: 0, omega: 0 }, 10, -1, options), "INVALID_ARGUMENT");
   code(() => directTriaxialGeodesic({ beta: 0, omega: 0 }, "north", 1, options), "INVALID_NUMBER");
   code(() => cartesianToTriaxial({ x: 0, y: 0, z: 0 }, options), "INVALID_ARGUMENT");
+});
+
+test("a long direct line stays fast: the step tolerance follows the size of the Jacobi values", () => {
+  // 100 axis units is 16 laps of the Cayley ellipsoid, where m12 grows past
+  // 60; an absolute tolerance there split every step 4096 times (about 4 s).
+  const started = performance.now();
+  const end = directTriaxialGeodesic({ beta: 40, omega: 30 }, 45, 100, { ellipsoid: CAYLEY });
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed < 1000, `${elapsed.toFixed(0)} ms`);
+  assert.ok(Math.abs(end.beta - -60.252705166) < 1e-6, String(end.beta));
+  assert.ok(Math.abs(end.omega - -69.006025734) < 1e-6, String(end.omega));
+});
+
+test("geodesics accept a/c up to 10 and direct lines up to 20000 integration steps", () => {
+  const limit = (fn) => assert.throws(fn, (error) => error.code === "INPUT_LIMIT_EXCEEDED");
+  // Cayley: a step is 0.4 c²/a ≈ 0.1414, so the longest line is about 2828.
+  assert.ok(Number.isFinite(directTriaxialGeodesic({ beta: 40, omega: 30 }, 45, 2800, { ellipsoid: CAYLEY }).beta));
+  limit(() => directTriaxialGeodesic({ beta: 40, omega: 30 }, 45, 2900, { ellipsoid: CAYLEY }));
+  // The Earth's longest line is about 5.07e10 m, some 1260 times round it.
+  assert.ok(Number.isFinite(directTriaxialGeodesic({ beta: 40, omega: 30 }, 45, 5e10, { ellipsoid: EARTH3 }).beta));
+  limit(() => directTriaxialGeodesic({ beta: 40, omega: 30 }, 45, 5.1e10, { ellipsoid: EARTH3 }));
+  const ten = { ellipsoid: { a: 10, b: 5, c: 1 } };
+  assert.ok(inverseTriaxialGeodesic({ beta: 10, omega: 20 }, { beta: -30, omega: 150 }, ten).distance > 0);
+  limit(() => inverseTriaxialGeodesic({ beta: 10, omega: 20 }, { beta: -30, omega: 150 }, { ellipsoid: { a: 10.01, b: 5, c: 1 } }));
+  limit(() => directTriaxialGeodesic({ beta: 0, omega: 0 }, 45, 1, { ellipsoid: { a: 10.01, b: 5, c: 1 } }));
+  // The Cartesian conversions do not integrate and keep any shape.
+  assert.ok(Number.isFinite(triaxialToCartesian({ beta: 10, omega: 20 }, { ellipsoid: { a: 1e6, b: 1, c: 1 } }).x));
 });

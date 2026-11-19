@@ -3,7 +3,7 @@
   "codes": [
     { "code": "INVALID_ARGUMENT", "meaning": "An option or argument has the wrong shape or an impossible value." },
     { "code": "INVALID_NUMBER", "meaning": "A numeric input is not a valid finite number." },
-    { "code": "INPUT_LIMIT_EXCEEDED", "meaning": "A number has more digits or a larger exponent than the exact arithmetic accepts." },
+    { "code": "INPUT_LIMIT_EXCEEDED", "meaning": "An input is beyond what the computation accepts: a number with more digits or a larger exponent than the exact arithmetic takes, or a triaxial geodesic on an ellipsoid with a/c above 10 or longer than 20000 integration steps." },
     { "code": "DIVISION_BY_ZERO", "meaning": "An exact rational division by zero was requested." },
     { "code": "UNKNOWN_UNIT_CATEGORY", "meaning": "The unit category id is not in the catalogue." },
     { "code": "UNKNOWN_UNIT", "meaning": "The unit id is not in the requested category." },

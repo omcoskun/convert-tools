@@ -25,9 +25,17 @@ import {
 const DIM = 10;
 const SEQUENCE = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20];
 // Accept an extrapolated step when the last two diagonal entries agree to
-// this (unit b); the accepted entry is several orders more accurate.
+// this, relative to the entry's size when it is above 1 (positions are unit
+// b; the Jacobi values m and M grow along long lines, and an absolute 2e-15
+// is below their float resolution past |m| ≈ 9, which split every step down
+// to MAX_SPLIT). The accepted entry is several orders more accurate.
 const STEP_TOLERANCE = 2e-15;
 const MAX_SPLIT = 12;
+// Limits of the solvers, reported as INPUT_LIMIT_EXCEEDED by index.js: the
+// inverse's work grows about as (a/c)² (0.4 s at 10), the direct's with its
+// number of macro steps (about 0.3 s for the longest line).
+export const MAX_AXIS_RATIO = 10;
+export const MAX_DIRECT_STEPS = 20000;
 // Rays in the azimuth fan of the inverse problem.
 const RAYS = 180;
 // Fine intervals per coarse ray spacing in the refinement fan; 0 disables
@@ -137,7 +145,7 @@ function extrapolatedStep(u, y, H) {
     if (k > 0) {
       const last = table[k - 1][k - 1];
       let error = 0;
-      for (let i = 0; i < DIM; i += 1) error = Math.max(error, Math.abs(row[k][i] - last[i]));
+      for (let i = 0; i < DIM; i += 1) error = Math.max(error, Math.abs(row[k][i] - last[i]) / Math.max(1, Math.abs(last[i])));
       if (error <= STEP_TOLERANCE) return row[k];
     }
   }
@@ -184,6 +192,11 @@ function integrate(u, y0, s) {
   const out = new Array(DIM);
   for (let j = 0; j < DIM; j += 1) out[j] = y[j] + error[j];
   return out;
+}
+
+/** The longest direct line, in the unit of the axes: MAX_DIRECT_STEPS macro steps. */
+export function maxDirectDistance(model) {
+  return MAX_DIRECT_STEPS * unitModel(model).step * model.b;
 }
 
 function initialState(u, bet, omg, alp) {

@@ -9,13 +9,20 @@
 import { ConvertToolsError } from "../../errors.js";
 import { parseCoordinateNumber } from "../core/numbers.js";
 import { angle, cartToEllip, createTriaxialModel, degreesOf, ellipToCart } from "./ellipsoid3.js";
-import { solveTriaxialDirect, solveTriaxialInverse } from "./geodesic3.js";
+import { MAX_AXIS_RATIO, maxDirectDistance, solveTriaxialDirect, solveTriaxialInverse } from "./geodesic3.js";
 
 function readModel(options) {
   if (!options || typeof options !== "object") {
     throw new ConvertToolsError("INVALID_ARGUMENT", "options.ellipsoid { a, b, c } is required.");
   }
   return createTriaxialModel(options.ellipsoid);
+}
+
+/** The geodesic solvers take a/c up to MAX_AXIS_RATIO; their work grows with it. */
+function checkGeodesicShape(model) {
+  if (model.a / model.c > MAX_AXIS_RATIO) {
+    throw new ConvertToolsError("INPUT_LIMIT_EXCEEDED", `Geodesics need a/c <= ${MAX_AXIS_RATIO}.`);
+  }
 }
 
 function readPoint(value, name) {
@@ -91,10 +98,11 @@ export function cartesianToTriaxial(pointValue, options) {
  * @returns {import("../../types.js").TriaxialInverseResult}
  * @throws {import("../../errors.js").ConvertToolsError} INVALID_ARGUMENT,
  *   INVALID_NUMBER, LATITUDE_OUT_OF_RANGE, LONGITUDE_OUT_OF_RANGE,
- *   NO_CONVERGENCE
+ *   NO_CONVERGENCE, INPUT_LIMIT_EXCEEDED (a/c above 10)
  */
 export function inverseTriaxialGeodesic(startValue, endValue, options) {
   const model = readModel(options);
+  checkGeodesicShape(model);
   const start = readPoint(startValue, "start");
   const end = readPoint(endValue, "end");
   const solution = solveTriaxialInverse(model, start.bet, start.omg, end.bet, end.omg);
@@ -122,15 +130,22 @@ export function inverseTriaxialGeodesic(startValue, endValue, options) {
  * @param {import("../../types.js").TriaxialOptions} options
  * @returns {import("../../types.js").TriaxialDirectResult}
  * @throws {import("../../errors.js").ConvertToolsError} INVALID_ARGUMENT,
- *   INVALID_NUMBER, LATITUDE_OUT_OF_RANGE, LONGITUDE_OUT_OF_RANGE
+ *   INVALID_NUMBER, LATITUDE_OUT_OF_RANGE, LONGITUDE_OUT_OF_RANGE,
+ *   INPUT_LIMIT_EXCEEDED (a/c above 10, or a line longer than 20000
+ *   integration steps of 0.4 c²/a)
  */
 export function directTriaxialGeodesic(startValue, azimuthDegreesValue, distanceValue, options) {
   const model = readModel(options);
+  checkGeodesicShape(model);
   const start = readPoint(startValue, "start");
   const azimuth = parseCoordinateNumber(azimuthDegreesValue, "azimuthDegrees");
   const distance = parseCoordinateNumber(distanceValue, "distance");
   if (distance < 0) {
     throw new ConvertToolsError("INVALID_ARGUMENT", "distance must not be negative.");
+  }
+  const longest = maxDirectDistance(model);
+  if (distance > longest) {
+    throw new ConvertToolsError("INPUT_LIMIT_EXCEEDED", `distance must be at most ${longest} on this ellipsoid.`);
   }
   const solution = solveTriaxialDirect(model, start.bet, start.omg, angle(azimuth), distance);
   return Object.freeze({

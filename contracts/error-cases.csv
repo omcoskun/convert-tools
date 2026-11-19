@@ -61,3 +61,6 @@ units-unknown-category,units,1,volume,metre,foot,UNKNOWN_UNIT_CATEGORY
 geodesic-inverse-latitude,geodesic-inverse,91,0,0,0,LATITUDE_OUT_OF_RANGE
 geodesic-inverse-longitude,geodesic-inverse,0,0,0,181,LONGITUDE_OUT_OF_RANGE
 geodesic-direct-negative-distance,geodesic-direct,0,0,45,-1,INVALID_ARGUMENT
+triaxial-direct-too-long,triaxial-direct,1.4142135623730951 1 0.7071067811865476,40 30,45,100000,INPUT_LIMIT_EXCEEDED
+triaxial-direct-axis-ratio,triaxial-direct,11 1 1,0 0,45,1,INPUT_LIMIT_EXCEEDED
+triaxial-inverse-axis-ratio,triaxial-inverse,1e12 1 1,0 0,45 90,,INPUT_LIMIT_EXCEEDED

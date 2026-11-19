@@ -85,6 +85,15 @@ public final class TriaxialGeodesic {
         return TriaxialEngine.Shape.of(axes.a(), axes.b(), axes.c());
     }
 
+    /** The geodesic solvers take a/c up to 10; their work grows with it. */
+    private static TriaxialEngine.Shape geodesicShape(Axes axes) {
+        TriaxialEngine.Shape model = shape(axes);
+        if (axes.a() / axes.c() > TriaxialEngine.MAX_AXIS_RATIO) {
+            throw new ConvertToolsException(ErrorCode.INPUT_LIMIT_EXCEEDED, "Geodesics need a/c <= 10.");
+        }
+        return model;
+    }
+
     private static double heading(double[] pair) {
         double degrees = TriaxialEngine.degreesOf(pair);
         return degrees < 0 ? degrees + 360 : degrees + 0.0;
@@ -121,9 +130,14 @@ public final class TriaxialGeodesic {
         return new Point(TriaxialEngine.degreesOf(position[0]) + 0.0, TriaxialEngine.degreesOf(position[1]) + 0.0);
     }
 
-    /** Inverse problem: the shortest geodesic from start to end. */
+    /**
+     * Inverse problem: the shortest geodesic from start to end.
+     *
+     * @throws ConvertToolsException INPUT_LIMIT_EXCEEDED when a/c is above 10,
+     *     NO_CONVERGENCE when no geodesic is found
+     */
     public static InverseResult inverse(Point start, Point end, Axes ellipsoid) {
-        TriaxialEngine.Shape model = shape(ellipsoid);
+        TriaxialEngine.Shape model = geodesicShape(ellipsoid);
         Objects.requireNonNull(start, "start");
         Objects.requireNonNull(end, "end");
         TriaxialEngine.Inverse solution = TriaxialEngine.inverse(model,
@@ -143,9 +157,14 @@ public final class TriaxialGeodesic {
                 solution.ambiguous());
     }
 
-    /** Direct problem: the end of the geodesic of the given length and initial heading. */
+    /**
+     * Direct problem: the end of the geodesic of the given length and initial heading.
+     *
+     * @throws ConvertToolsException INPUT_LIMIT_EXCEEDED when a/c is above 10 or
+     *     the line is longer than 20000 integration steps of 0.4 c²/a
+     */
     public static DirectResult direct(Point start, double azimuthDegrees, double distance, Axes ellipsoid) {
-        TriaxialEngine.Shape model = shape(ellipsoid);
+        TriaxialEngine.Shape model = geodesicShape(ellipsoid);
         Objects.requireNonNull(start, "start");
         if (!Double.isFinite(azimuthDegrees)) {
             throw new ConvertToolsException(ErrorCode.INVALID_NUMBER, "azimuthDegrees must be finite.");
@@ -155,6 +174,11 @@ public final class TriaxialGeodesic {
         }
         if (distance < 0) {
             throw new ConvertToolsException(ErrorCode.INVALID_ARGUMENT, "distance must not be negative.");
+        }
+        double longest = TriaxialEngine.maxDirectDistance(model);
+        if (distance > longest) {
+            throw new ConvertToolsException(ErrorCode.INPUT_LIMIT_EXCEEDED,
+                    "distance must be at most " + longest + " on this ellipsoid.");
         }
         TriaxialEngine.Direct solution = TriaxialEngine.direct(model,
                 TriaxialEngine.angle(start.beta()), TriaxialEngine.angle(start.omega()),

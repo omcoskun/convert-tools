@@ -6,6 +6,7 @@ import io.github.mertc0604.converttools.coordinates.grid.Mgrs;
 import io.github.mertc0604.converttools.coordinates.projection.CrsTransformer;
 import io.github.mertc0604.converttools.geodesy.GeoPoint;
 import io.github.mertc0604.converttools.geodesy.Geodesic;
+import io.github.mertc0604.converttools.geodesy.TriaxialGeodesic;
 import io.github.mertc0604.converttools.units.LengthConverter;
 import io.github.mertc0604.converttools.units.UnitConverter;
 
@@ -74,8 +75,25 @@ public final class ErrorContractTest {
             Map.entry("geodesic-direct", v -> Geodesic.direct(
                     new GeoPoint(Double.parseDouble(v[0]), Double.parseDouble(v[1])),
                     Double.parseDouble(v[2]),
-                    Double.parseDouble(v[3])))
+                    Double.parseDouble(v[3]))),
+            Map.entry("triaxial-direct", v -> TriaxialGeodesic.direct(
+                    triaxialPoint(v[1]), Double.parseDouble(v[2]), Double.parseDouble(v[3]), triaxialAxes(v[0]))),
+            Map.entry("triaxial-inverse", v -> TriaxialGeodesic.inverse(
+                    triaxialPoint(v[1]), triaxialPoint(v[2]), triaxialAxes(v[0])))
     );
+
+    /** Triaxial cells hold space-separated numbers: semiaxes "a b c". */
+    private static TriaxialGeodesic.Axes triaxialAxes(String cell) {
+        String[] parts = cell.split(" ");
+        return new TriaxialGeodesic.Axes(
+                Double.parseDouble(parts[0]), Double.parseDouble(parts[1]), Double.parseDouble(parts[2]));
+    }
+
+    /** A triaxial point cell: "beta omega". */
+    private static TriaxialGeodesic.Point triaxialPoint(String cell) {
+        String[] parts = cell.split(" ");
+        return new TriaxialGeodesic.Point(Double.parseDouble(parts[0]), Double.parseDouble(parts[1]));
+    }
 
     private static void checkCases(Path file) throws IOException {
         List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);

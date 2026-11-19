@@ -106,8 +106,38 @@ derece (β −90..90, ω −180..180). Java: `TriaxialGeodesic.inverse`, `direct
 `InverseResult`, `DirectResult`. Hatalar mevcut kodlarla verilir:
 `INVALID_ARGUMENT` (yarı eksenler, negatif uzunluk, merkez noktası),
 `INVALID_NUMBER`, `LATITUDE_OUT_OF_RANGE` (β), `LONGITUDE_OUT_OF_RANGE` (ω),
-`NO_CONVERGENCE` (ters problemde hiçbir Newton başlangıcı yakınsamazsa). Yeni
-hata kodu yoktur.
+`NO_CONVERGENCE` (ters problemde hiçbir Newton başlangıcı yakınsamazsa),
+`INPUT_LIMIT_EXCEEDED` (aşağıdaki "Sınırlar"). Yeni hata kodu yoktur.
+
+### Sınırlar
+
+Jeodezik çözücüler iki sınır koyar; ikisi de `INPUT_LIMIT_EXCEEDED` verir ve
+`contracts/error-cases.csv` ile iki çekirdekte sınanır (19 Kasım 2026):
+
+- **Eksen oranı a/c ≤ 10** (ters ve doğrudan; Kartezyen dönüşümler her şekli
+  kabul eder). Ters problemin işi yaklaşık (a/c)² ile büyür: a/c = 10'da genel
+  çiftler 0,2–0,8 s, a = 10¹²'de hiç bitmiyordu. Hazır elipsoitler ve sözleşme
+  vektörleri en çok 2 kullanır; bilinen gök cisimleri 4'ün altındadır.
+- **Doğrudan uzunluk ≤ 20 000 makro adım** (adım 0,4 c²/a): Cayley'de ≈ 2828
+  birim (≈ 450 tur), Dünya üç eksenlisinde ≈ 5,07 × 10¹⁰ m (≈ 1260 tur). En
+  uzun hat 0,3–0,6 s sürer.
+
+Adım kabul ölçütü (`STEP_TOLERANCE` = 2e-15) 1'den büyük değerlerde değerin
+büyüklüğüne göredir. Mutlak ölçütte uzun hatlarda büyüyen Jacobi değerleri
+(|m| ≳ 9) bu hassasiyeti kayan noktada hiç tutturamıyor, her adım `MAX_SPLIT`
+derinliğine (4096 parça) bölünüyordu: Cayley'de 100 birimlik hat 3,9 s sürüyor,
+1000 birimlik hat bitmiyordu; şimdi 9 ms (Java'da 2877 ms'den 6 ms'ye). Tam
+Geod3Test (500 000 satır) bu değişiklikten sonra 19 Kasım'da iki dilde yeniden
+koşuldu: 0 başarısız satır, 701 alternatif, iki dilde farklı yargılanan satır
+0; Java 147 s. En büyük farklar iki dilde aynı: ters mesafe 1,87e-14,
+`|Δα1|·|m12|` 2,60e-14, doğrudan konum 1,88e-14, m12 3,49e-14, M12 4,40e-14,
+M21 6,39e-14 (aşağıdaki 17 Kasım tablosunda JavaScript sırasıyla 1,87e-14 /
+2,36e-14 / 1,89e-14 / 3,00e-14 / 3,93e-14 / 6,88e-14).
+
+Bilinen yavaş durum: b = c (prolate) bir elipsoitte karşıt noktalar arasında
+sonsuz sayıda en kısa jeodezik vardır (`ambiguous: true`); ters çözüm bu
+çiftlerde, oran küçük olsa da, 7–9 s (a/c = 10'da ≈ 25 s) sürer. Bu, sınırlardan
+önce de böyleydi.
 
 ## Geliştirme kanıtı
 
@@ -261,7 +291,8 @@ aynı karar (`rows judged differently in the two languages: 0`) ve aynı
 başlangıç azimutu (1e-6°'den fazla farklı satır yok). Java 500.000 satırı
 153 s'de çözdü. "Alternatif", çözücünün `ambiguous` bildirdiği, veri setinden
 farklı ama aynı uzunlukta ve 2. noktada biten bir hat verdiği satırdır (β = 0
-elipsinde 214, genel blokta 487).
+elipsinde 214, genel blokta 487). 19 Kasım'daki yeniden koşu (bağıl adım
+ölçütü ve sınırlardan sonra) "Sınırlar" bölümündedir.
 
 İlk koşuda iki dilde de 2 satır kaldı (497448 ve 497603, `|Δα1|·|m12|`
 2,4e-7 ve 4,2e-6): 1. noktanın cut locus'unda (β2 = −β1), eşlenik noktaya

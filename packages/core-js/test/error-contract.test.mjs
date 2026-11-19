@@ -11,6 +11,7 @@ import {
   convertLength,
   convertUnits,
   directGeodesic,
+  directTriaxialGeodesic,
   encodeGeoref,
   encodeMgrs,
   fromDecimalDegrees,
@@ -20,6 +21,7 @@ import {
   fromMgrs,
   fromUtmUps,
   inverseGeodesic,
+  inverseTriaxialGeodesic,
   transformCrs,
 } from "@convert-tools/core";
 import * as geodesy from "@convert-tools/core/geodesy";
@@ -27,6 +29,16 @@ import * as units from "@convert-tools/core/units";
 import { readCsv } from "./support/vectors.mjs";
 
 const CONTRACTS = new URL("../../../contracts/", import.meta.url);
+
+// Triaxial cells hold space-separated numbers: semiaxes "a b c", points "beta omega".
+const triaxialAxes = (cell) => {
+  const [a, b, c] = cell.split(" ").map(Number);
+  return { ellipsoid: { a, b, c } };
+};
+const triaxialPoint = (cell) => {
+  const [beta, omega] = cell.split(" ").map(Number);
+  return { beta, omega };
+};
 
 const OPERATIONS = {
   "decimal-degrees": ({ a, b }) => fromDecimalDegrees(a, b),
@@ -47,6 +59,8 @@ const OPERATIONS = {
     ),
   "geodesic-direct": ({ a, b, c, d }) =>
     directGeodesic({ latitude: Number(a), longitude: Number(b) }, Number(c), Number(d)),
+  "triaxial-direct": ({ a, b, c, d }) => directTriaxialGeodesic(triaxialPoint(b), Number(c), Number(d), triaxialAxes(a)),
+  "triaxial-inverse": ({ a, b, c }) => inverseTriaxialGeodesic(triaxialPoint(b), triaxialPoint(c), triaxialAxes(a)),
 };
 
 test("hata kodu listesi sözleşme dosyasıyla aynıdır", () => {

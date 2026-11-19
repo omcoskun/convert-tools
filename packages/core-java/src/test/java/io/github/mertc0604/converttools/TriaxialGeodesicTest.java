@@ -54,6 +54,8 @@ public final class TriaxialGeodesicTest {
         sphere();
         roundTripAndZero();
         errors();
+        longDirectLineIsFast();
+        limits();
         System.out.println("Java triaxial geodesic tests passed.");
     }
 
@@ -508,5 +510,37 @@ public final class TriaxialGeodesicTest {
         expect(() -> TriaxialGeodesic.direct(new Point(0, 0), 10, -1, CAYLEY), ErrorCode.INVALID_ARGUMENT);
         expect(() -> TriaxialGeodesic.direct(new Point(0, 0), Double.NaN, 1, CAYLEY), ErrorCode.INVALID_NUMBER);
         expect(() -> TriaxialGeodesic.fromCartesian(new Cartesian(0, 0, 0), CAYLEY), ErrorCode.INVALID_ARGUMENT);
+    }
+
+    /**
+     * 100 axis units is 16 laps of the Cayley ellipsoid, where m12 grows past
+     * 60; an absolute step tolerance there split every step 4096 times.
+     */
+    private static void longDirectLineIsFast() {
+        long started = System.nanoTime();
+        TriaxialGeodesic.DirectResult end = TriaxialGeodesic.direct(new Point(40, 30), 45, 100, CAYLEY);
+        double elapsed = (System.nanoTime() - started) / 1e6;
+        check(elapsed < 1000, "long Cayley direct took " + elapsed + " ms");
+        check(Math.abs(end.beta() - -60.252705166) < 1e-6, "long Cayley direct beta " + end.beta());
+        check(Math.abs(end.omega() - -69.006025734) < 1e-6, "long Cayley direct omega " + end.omega());
+        System.out.println("ok long direct line (" + Math.round(elapsed) + " ms)");
+    }
+
+    /** a/c up to 10 and direct lines up to 20000 integration steps of 0.4 c²/a. */
+    private static void limits() {
+        Point start = new Point(40, 30);
+        check(Double.isFinite(TriaxialGeodesic.direct(start, 45, 2800, CAYLEY).beta()), "Cayley 2800");
+        expect(() -> TriaxialGeodesic.direct(start, 45, 2900, CAYLEY), ErrorCode.INPUT_LIMIT_EXCEEDED);
+        check(Double.isFinite(TriaxialGeodesic.direct(start, 45, 5e10, EARTH3).beta()), "Earth 5e10");
+        expect(() -> TriaxialGeodesic.direct(start, 45, 5.1e10, EARTH3), ErrorCode.INPUT_LIMIT_EXCEEDED);
+        Point p1 = new Point(10, 20);
+        Point p2 = new Point(-30, 150);
+        check(TriaxialGeodesic.inverse(p1, p2, new Axes(10, 5, 1)).distance() > 0, "a/c = 10");
+        expect(() -> TriaxialGeodesic.inverse(p1, p2, new Axes(10.01, 5, 1)), ErrorCode.INPUT_LIMIT_EXCEEDED);
+        expect(() -> TriaxialGeodesic.direct(new Point(0, 0), 45, 1, new Axes(10.01, 5, 1)),
+                ErrorCode.INPUT_LIMIT_EXCEEDED);
+        // The Cartesian conversions do not integrate and keep any shape.
+        check(Double.isFinite(TriaxialGeodesic.toCartesian(p1, new Axes(1e6, 1, 1)).x()), "Cartesian any shape");
+        System.out.println("ok limits");
     }
 }

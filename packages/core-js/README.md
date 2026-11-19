@@ -140,8 +140,11 @@ düzlemden ayrılan bir çizgi ya da antipodal umbilikler) sonuçtaki `ambiguous
 alanı `true`'dur ve döndürülen yollardan yalnızca biridir; çakışık noktalarda
 `false`'dur. GeographicLib'in eş uzunluktaki jeodezikler ve umbilik noktalardaki
 azimut etiketi arasındaki seçimi uygulanır (bkz. doğrulama belgesi).
-`triaxialToCartesian` ve `cartesianToTriaxial` koordinat dönüşümüdür. Yöntem ve
-doğrulama: [docs/TRIAXIAL_VALIDATION.md](../../docs/TRIAXIAL_VALIDATION.md).
+`triaxialToCartesian` ve `cartesianToTriaxial` koordinat dönüşümüdür. Jeodezik
+çözücüler a/c ≤ 10 olan elipsoitleri ve en çok 20 000 integrasyon adımı (adım
+0,4 c²/a) uzunluğundaki doğrudan hatları kabul eder; ötesi
+`INPUT_LIMIT_EXCEEDED` verir. Yöntem ve doğrulama:
+[docs/TRIAXIAL_VALIDATION.md](../../docs/TRIAXIAL_VALIDATION.md).
 
 ## Biçim kuralları
 
