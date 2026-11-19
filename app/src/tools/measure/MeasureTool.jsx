@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { coordinateResults } from "@convert-tools/core";
+import { coordinateResults } from "@omcoskun/convert-tools";
 import CallSnippet from "../../components/CallSnippet.jsx";
 import Chips from "../../components/Chips.jsx";
 import Disclosure from "../../components/Disclosure.jsx";

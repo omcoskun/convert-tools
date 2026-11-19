@@ -1,9 +1,9 @@
 // The length tool's calculations (spec 8.4). Every value comes from
-// @convert-tools/core: the categories of UNIT_CATEGORIES, one conversion
+// @omcoskun/convert-tools: the categories of UNIT_CATEGORIES, one conversion
 // with convertUnits, every unit with convertToAll, and the exact call that
 // produced the result. Pure: no React, no DOM.
 
-import { UNIT_CATEGORIES, convertToAll, convertUnits, getCategory } from "@convert-tools/core";
+import { UNIT_CATEGORIES, convertToAll, convertUnits, getCategory } from "@omcoskun/convert-tools";
 import { attempt } from "../../lib/attempt.js";
 
 /** The unit categories of the core, in its order (today only "length"). */
@@ -94,7 +94,7 @@ export function fractionDigits(value) {
 }
 
 /**
- * The exact @convert-tools/core call that produced the result.
+ * The exact @omcoskun/convert-tools call that produced the result.
  * @param {{ categoryId: string, input: string, exactInput?: object | null, fromId: string, toId: string, precision: number | string }} request
  */
 export function lengthSnippet({ categoryId, input, exactInput = null, fromId, toId, precision }) {

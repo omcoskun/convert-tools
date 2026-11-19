@@ -70,7 +70,7 @@ jobs:
 
       - name: Java rows
         run: |
-          java -cp build/full-validation io.github.mertc0604.converttools.GeodTestFullSet \
+          java -cp build/full-validation io.github.omcoskun.converttools.GeodTestFullSet \
             "$RUNNER_TEMP/data/GeodTest.dat" > "$RUNNER_TEMP/java-geodtest.txt"
 
       - name: Judge (JavaScript and Java against the limits)
@@ -129,7 +129,7 @@ jobs:
 
       - name: Java rows
         run: |
-          java -cp build/full-validation io.github.mertc0604.converttools.Geod3TestFullSet \
+          java -cp build/full-validation io.github.omcoskun.converttools.Geod3TestFullSet \
             "$RUNNER_TEMP/data/Geod3Test-v1.txt" "$RUNNER_TEMP/java-geod3test.tsv"
 
       - name: Judge (JavaScript and Java against the limits)

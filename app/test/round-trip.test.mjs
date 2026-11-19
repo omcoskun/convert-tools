@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatDdm, formatDms, inverseGeodesic } from "@convert-tools/core";
+import { formatDdm, formatDms, inverseGeodesic } from "@omcoskun/convert-tools";
 import { readPointText } from "../src/lib/point-text.js";
 import { plainNumber } from "../src/lib/number-text.js";
 import { INPUT_FORMATS, formatOutputs, readPosition, valuesFrom } from "../src/tools/positions/positions.js";

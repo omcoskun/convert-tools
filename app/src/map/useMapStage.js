@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { inverseGeodesic } from "@convert-tools/core";
+import { inverseGeodesic } from "@omcoskun/convert-tools";
 import { readPref, writePref } from "../lib/prefs.js";
 import {
   CONTINENT_SOURCE,

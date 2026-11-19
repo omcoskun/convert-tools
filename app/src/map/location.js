@@ -2,7 +2,7 @@
 // device's position, a geodesic circle computed by the core on WGS 84.
 // Tested in test/location.test.mjs.
 
-import { directGeodesic } from "@convert-tools/core";
+import { directGeodesic } from "@omcoskun/convert-tools";
 
 /**
  * A closed ring of `steps` + 1 points `metres` from `center` along the

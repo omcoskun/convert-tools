@@ -18,7 +18,7 @@
 // therefore get a wider area tolerance, as their azimuths do.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { directGeodesic, inverseGeodesic } from "@convert-tools/core/geodesy";
+import { directGeodesic, inverseGeodesic } from "@omcoskun/convert-tools/geodesy";
 import {
   MaxError,
   angularDifference,

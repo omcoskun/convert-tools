@@ -92,7 +92,7 @@ sağlamlık, çift hassasiyete yakın doğruluk, kod boyu.
 
 ## API
 
-JavaScript (`@convert-tools/core` ve `@convert-tools/core/geodesy`):
+JavaScript (`@omcoskun/convert-tools` ve `@omcoskun/convert-tools/geodesy`):
 `inverseTriaxialGeodesic(start, end, { ellipsoid: { a, b, c } })` →
 `distance`, `initialAzimuthDegrees`, `finalAzimuthDegrees` ([0, 360); çakışık
 noktalarda `null`), `reducedLength`, `geodesicScale12`, `geodesicScale21`,

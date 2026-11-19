@@ -1,5 +1,5 @@
 {
-  "description": "Stable error codes of @convert-tools/core (ConvertToolsError.code) and the Java core (ConvertToolsException.code()). Both cores must define exactly this list. Messages are English developer text and may change; codes may not.",
+  "description": "Stable error codes of @omcoskun/convert-tools (ConvertToolsError.code) and the Java core (ConvertToolsException.code()). Both cores must define exactly this list. Messages are English developer text and may change; codes may not.",
   "codes": [
     { "code": "INVALID_ARGUMENT", "meaning": "An option or argument has the wrong shape or an impossible value." },
     { "code": "INVALID_NUMBER", "meaning": "A numeric input is not a valid finite number." },

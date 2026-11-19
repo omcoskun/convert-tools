@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as core from "@convert-tools/core";
+import * as core from "@omcoskun/convert-tools";
 import {
   CRS_KINDS,
   axesOf,

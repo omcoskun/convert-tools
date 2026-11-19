@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
-import { getCategory } from "@convert-tools/core";
+import { getCategory } from "@omcoskun/convert-tools";
 import { LANG_GROUPS } from "../src/runtime.js";
 import { readJson, sourceFiles } from "./support/files.mjs";
 

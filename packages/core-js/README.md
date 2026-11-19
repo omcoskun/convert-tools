@@ -1,4 +1,4 @@
-# @convert-tools/core
+# @omcoskun/convert-tools
 
 Çalışma zamanı bağımlılığı olmayan kesin uzunluk dönüşümü, koordinat
 biçimleri (DD, DMS, DDM, UTM/UPS, MGRS, GARS, GEOREF), EPSG dönüşümleri ve
@@ -9,11 +9,11 @@ kullanır; iki çekirdek de `contracts/` altındaki aynı dosyaları geçer.
 
 ```js
 // ESM
-import { convertLength } from "@convert-tools/core/length";
-import { encodeMgrs, decodeMgrs, inverseGeodesic } from "@convert-tools/core/geodesy";
+import { convertLength } from "@omcoskun/convert-tools/length";
+import { encodeMgrs, decodeMgrs, inverseGeodesic } from "@omcoskun/convert-tools/geodesy";
 
 // CommonJS
-const { convertLength } = require("@convert-tools/core/length");
+const { convertLength } = require("@omcoskun/convert-tools/length");
 ```
 
 ```js
@@ -29,10 +29,10 @@ Genel alt yollar:
 
 | Alt yol | İçerik |
 |---|---|
-| `@convert-tools/core` | hepsi |
-| `@convert-tools/core/length` | uzunluk dönüşümü ve kesin rasyonel aritmetik |
-| `@convert-tools/core/units` | `length` ile aynı (geçiş uyumluluğu için korunur) |
-| `@convert-tools/core/geodesy` | koordinat biçimleri, EPSG, geodezik |
+| `@omcoskun/convert-tools` | hepsi |
+| `@omcoskun/convert-tools/length` | uzunluk dönüşümü ve kesin rasyonel aritmetik |
+| `@omcoskun/convert-tools/units` | `length` ile aynı (geçiş uyumluluğu için korunur) |
+| `@omcoskun/convert-tools/geodesy` | koordinat biçimleri, EPSG, geodezik |
 
 `import` koşulu `src/` altındaki ESM kaynağını, `require` koşulu
 `dist/cjs/` altındaki CommonJS kopyasını yükler. CommonJS kopyası Babel ile
@@ -54,7 +54,7 @@ Geçersiz girdi her zaman hata fırlatır; `NaN`, sessizce kırpılmış değer 
 yaklaşık sonuç döndürülmez. Tek hata tipi `ConvertToolsError`'dır:
 
 ```js
-import { ConvertToolsError, decodeMgrs } from "@convert-tools/core/geodesy";
+import { ConvertToolsError, decodeMgrs } from "@omcoskun/convert-tools/geodesy";
 
 try {
   decodeMgrs("32NQQ7070975688");
@@ -125,7 +125,7 @@ modüldür; konumlar elipsoidal enlem β ve boylam ω (derece), azimut sabit-ω
 çizgisinden saat yönünde, uzunluklar yarı eksenlerin biriminde:
 
 ```js
-import { inverseTriaxialGeodesic, directTriaxialGeodesic } from "@convert-tools/core/geodesy";
+import { inverseTriaxialGeodesic, directTriaxialGeodesic } from "@omcoskun/convert-tools/geodesy";
 
 const ellipsoid = { a: Math.SQRT2, b: 1, c: Math.SQRT1_2 };
 inverseTriaxialGeodesic({ beta: 10, omega: 20 }, { beta: -30, omega: 100 }, { ellipsoid });
@@ -168,7 +168,7 @@ azimut etiketi arasındaki seçimi uygulanır (bkz. doğrulama belgesi).
 ## Haritada geodezik hat
 
 ```js
-import { sampleGeodesicPath } from "@convert-tools/core/geodesy";
+import { sampleGeodesicPath } from "@omcoskun/convert-tools/geodesy";
 
 const path = sampleGeodesicPath(start, end, { maxSegmentMetres: 25000, maxPoints: 2049 });
 ```

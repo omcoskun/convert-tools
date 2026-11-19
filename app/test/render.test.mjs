@@ -5,8 +5,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import "./support/jsx-loader.mjs";
-import * as core from "@convert-tools/core";
-import { ERROR_CODES, directGeodesic, measureGeodesicPolyline } from "@convert-tools/core";
+import * as core from "@omcoskun/convert-tools";
+import { ERROR_CODES, directGeodesic, measureGeodesicPolyline } from "@omcoskun/convert-tools";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { readJson, vector } from "./support/files.mjs";

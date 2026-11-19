@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inverseGeodesic } from "@convert-tools/core";
+import { inverseGeodesic } from "@omcoskun/convert-tools";
 import { accuracyRing, locationErrorKey } from "../src/map/location.js";
 
 test("the accuracy ring is closed and every vertex is the accuracy away on WGS 84", () => {

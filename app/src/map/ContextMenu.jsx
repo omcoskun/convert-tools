@@ -4,7 +4,7 @@
 // inside it. Arrow keys, Home and End move between the items; Esc, Tab and a
 // press outside close it.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { encodeMgrs } from "@convert-tools/core";
+import { encodeMgrs } from "@omcoskun/convert-tools";
 import Icon from "../components/Icon.jsx";
 import { useLanguage } from "../context.js";
 import { COLORS, MONO_FONT, MOTION, PHONE, RADIUS, SHADOW, TYPE, UI_FONT } from "../theme.js";

@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { convertLength, coordinateResults, transformCrs } from "@convert-tools/core";
+import { convertLength, coordinateResults, transformCrs } from "@omcoskun/convert-tools";
 import { validateRuntime } from "../src/runtime.js";
 import { readPointText } from "../src/lib/point-text.js";
 import { checkModel, modelOptions, runDirect, runInverse, runRoute } from "../src/tools/measure/measure.js";

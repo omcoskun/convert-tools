@@ -7,7 +7,7 @@
 // in every mode, and the route's other points sit between them. So two
 // points and the route show the same points, and the direct mode starts at A.
 
-import { WGS84 } from "@convert-tools/core";
+import { WGS84 } from "@omcoskun/convert-tools";
 import { formatPairForCopy } from "../../lib/coordinate-paste.js";
 import { degreesText } from "../../lib/number-text.js";
 import { readPointText } from "../../lib/point-text.js";

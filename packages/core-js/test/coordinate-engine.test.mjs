@@ -20,7 +20,7 @@ import {
   transformCrs,
   utmUpsForward,
   utmUpsInverse,
-} from "@convert-tools/core/geodesy";
+} from "@omcoskun/convert-tools/geodesy";
 
 const closeTo = (actual, expected, tolerance, message) => {
   assert.ok(

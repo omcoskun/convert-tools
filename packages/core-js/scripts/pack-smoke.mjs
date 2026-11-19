@@ -1,4 +1,4 @@
-// Packs @convert-tools/core with `npm pack`, installs the tarball into an
+// Packs @omcoskun/convert-tools with `npm pack`, installs the tarball into an
 // empty project and loads every public subpath through both `import` and
 // `require`. Fails if the tarball contents, the two module systems or a
 // known GeoConvert value disagree.
@@ -58,10 +58,10 @@ try {
   // 36SVK8801520370: `echo "39.933365 32.859742" | GeoConvert -m -p 0`.
   // 26PJD: GeoConvert reports "Block JD not in zone/band 26P".
   const checks = (load) => `
-    const root = ${load("@convert-tools/core")};
-    const length = ${load("@convert-tools/core/length")};
-    const units = ${load("@convert-tools/core/units")};
-    const geodesy = ${load("@convert-tools/core/geodesy")};
+    const root = ${load("@omcoskun/convert-tools")};
+    const length = ${load("@omcoskun/convert-tools/length")};
+    const units = ${load("@omcoskun/convert-tools/units")};
+    const geodesy = ${load("@omcoskun/convert-tools/geodesy")};
     const out = {};
     out.length = length.convertLength("1", "nautical-mile", "metre").exactValue;
     out.units = units.convertUnits("3", "length", "foot", "inch").exactValue;

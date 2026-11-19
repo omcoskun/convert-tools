@@ -1,9 +1,9 @@
 // Plain helpers for the CRS tool (spec 8.3). Every coordinate value comes
-// from transformCrs in @convert-tools/core; this file maps the source and
+// from transformCrs in @omcoskun/convert-tools; this file maps the source and
 // target selects to EPSG codes and back, and writes the result for display
 // and as the library call.
 
-import { SUPPORTED_CRS, coordinateResults, normalizeEpsg, transformCrs } from "@convert-tools/core";
+import { SUPPORTED_CRS, coordinateResults, normalizeEpsg, transformCrs } from "@omcoskun/convert-tools";
 import { attempt } from "../../lib/attempt.js";
 import { CRS_KINDS } from "../../lib/crs-kinds.js";
 import { degreesText } from "../../lib/number-text.js";
@@ -56,7 +56,7 @@ export function axesOf(code) {
 
 /**
  * @param {{ source: string, target: string, x: string, y: string }} request
- * @returns {{ ok: true, value: import("@convert-tools/core").CrsTransformResult } | { ok: false, code: string }}
+ * @returns {{ ok: true, value: import("@omcoskun/convert-tools").CrsTransformResult } | { ok: false, code: string }}
  */
 export function runTransform(request) {
   return attempt(() => transformCrs(request.source, request.target, request.x, request.y));

@@ -32,7 +32,7 @@
 // (docs/TRIAXIAL_VALIDATION.md), so it cannot set the limits.
 // --rows-out writes the JavaScript per-row outputs (columns: ROW_COLUMNS of
 // lib/geod3-judge.mjs). --java-rows reads the file in the same layout that
-// io.github.mertc0604.converttools.Geod3TestFullSet writes and judges the
+// io.github.omcoskun.converttools.Geod3TestFullSet writes and judges the
 // Java rows with the same code. --outliers writes one line per failed
 // measure: "language row block measure value".
 // The exit status is 1 when a row fails in either language, or the row count

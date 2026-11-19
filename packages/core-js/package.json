@@ -1,6 +1,6 @@
 {
-  "name": "@convert-tools/core",
-  "version": "3.0.0",
+  "name": "@omcoskun/convert-tools",
+  "version": "1.0.0",
   "description": "Dependency-free exact length, coordinate conversion and WGS84 geodesy core",
   "keywords": [
     "unit-conversion",
@@ -12,7 +12,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mertc0604/convert-tools.git",
+    "url": "git+https://github.com/omcoskun/convert-tools.git",
     "directory": "packages/core-js"
   },
   "type": "module",

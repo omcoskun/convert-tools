@@ -23,9 +23,9 @@ import {
   inverseGeodesic,
   inverseTriaxialGeodesic,
   transformCrs,
-} from "@convert-tools/core";
-import * as geodesy from "@convert-tools/core/geodesy";
-import * as units from "@convert-tools/core/units";
+} from "@omcoskun/convert-tools";
+import * as geodesy from "@omcoskun/convert-tools/geodesy";
+import * as units from "@omcoskun/convert-tools/units";
 import { readCsv } from "./support/vectors.mjs";
 
 const CONTRACTS = new URL("../../../contracts/", import.meta.url);

@@ -5,7 +5,7 @@
 // 39°56'00.11400"N and 39°56.0019000'N, compared here in the ':' form.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatDdm, formatDms } from "@convert-tools/core";
+import { formatDdm, formatDms } from "@omcoskun/convert-tools";
 import { readVectors } from "./support/vectors.mjs";
 
 const colonForm = {

@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fromDms } from "@convert-tools/core";
+import { fromDms } from "@omcoskun/convert-tools";
 import { formatPairForCopy, parseCoordinatePaste, parseNumberPair } from "../src/lib/coordinate-paste.js";
 
 const point = (latitude, longitude) => ({ latitude, longitude });

@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { sampleGeodesicPath } from "@convert-tools/core";
+import { sampleGeodesicPath } from "@omcoskun/convert-tools";
 import { EMPTY_SCENE, fitTargets, longitudeWithin, pinClassName, polarStretches, sceneBounds, sceneFeatures, scenePoints } from "../src/map/scene.js";
 import { LINE_COLORS, gradientColor } from "../src/map/map-adapter.js";
 

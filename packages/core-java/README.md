@@ -246,7 +246,7 @@ OUT=$(mktemp -d)
 find packages/core-java/src/main/java packages/core-java/src/test/java \
     -name '*.java' -print0 \
   | xargs -0 javac --release 17 -Xlint:all -Werror -d "$OUT"
-java -cp "$OUT" io.github.mertc0604.converttools.GeodTestFullSet \
+java -cp "$OUT" io.github.omcoskun.converttools.GeodTestFullSet \
     /path/to/GeodTest.dat
 ```
 

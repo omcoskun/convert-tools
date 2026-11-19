@@ -25,7 +25,7 @@
 // --reference runs GeodSolve (-i -f -p 9 and -f -p 9) on the same rows and
 // takes its maxima as the reference; without it the floor alone applies.
 // --java-output reads the "MAX <block> <measure> <value> <row>" lines that
-// io.github.mertc0604.converttools.GeodTestFullSet prints and judges the Java
+// io.github.omcoskun.converttools.GeodTestFullSet prints and judges the Java
 // numbers with the same limits. One table is printed per language, with the
 // 0-based row index of each worst case. The exit status is 1 when a limit is
 // exceeded, a solver throws, the row count or MD5 is wrong, or the

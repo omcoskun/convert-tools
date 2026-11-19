@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { UNIT_CATEGORIES, getCategory } from "@convert-tools/core";
+import { UNIT_CATEGORIES, getCategory } from "@omcoskun/convert-tools";
 import {
   categories,
   exactFraction,

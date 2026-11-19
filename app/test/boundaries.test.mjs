@@ -1,6 +1,6 @@
 // Architectural rules of the demo, checked on the source text:
 //   - only src/ui/index.js imports the component library;
-//   - the core is used through "@convert-tools/core" and nothing else;
+//   - the core is used through "@omcoskun/convert-tools" and nothing else;
 //   - the demo computes no geodesy of its own;
 //   - MapLibre is loaded on demand, by src/map/maplibre.js only;
 //   - the removed Next/Worker/Cesium/TypeScript stack stays removed.
@@ -37,7 +37,7 @@ test("only src/ui/index.js imports @mui/* or @emotion/*", () => {
 });
 
 test("packages come from an allow-list and the core only from its root entry", () => {
-  const allowed = new Set(["react", "react-dom/client", "@convert-tools/core"]);
+  const allowed = new Set(["react", "react-dom/client", "@omcoskun/convert-tools"]);
   const offenders = [];
   for (const { name, text } of sources) {
     for (const specifier of specifiers(text)) {
@@ -47,7 +47,7 @@ test("packages come from an allow-list and the core only from its root entry", (
       if (!allowed.has(specifier)) offenders.push(`${name}: ${specifier}`);
     }
   }
-  assert.deepEqual(offenders, [], "no subpath such as @convert-tools/core/geodesy");
+  assert.deepEqual(offenders, [], "no subpath such as @omcoskun/convert-tools/geodesy");
 });
 
 test("maplibre-gl is imported only dynamically, by src/map/maplibre.js", () => {
@@ -91,7 +91,7 @@ test("no stylesheets are imported or kept in src/", () => {
 });
 
 test("the demo has no geodesy formulas of its own", () => {
-  // Geodesy belongs in @convert-tools/core. Camera projection geometry and
+  // Geodesy belongs in @omcoskun/convert-tools. Camera projection geometry and
   // decorative canvas drawing are presentation math, isolated in these
   // modules; night.js is the sun's position for the satellite map's
   // decorative night side, not geodesy.

@@ -1,9 +1,9 @@
 // The reference page's tables (spec 8.6). Every value comes from
-// @convert-tools/core (WGS84, SUPPORTED_CRS, the unit definitions,
+// @omcoskun/convert-tools (WGS84, SUPPORTED_CRS, the unit definitions,
 // ERROR_CODES) or from config.json (the accuracy figures of the root
 // README). Pure: no React, no DOM.
 
-import { ERROR_CODES, SUPPORTED_CRS, UNIT_CATEGORIES, WGS84, formatRational } from "@convert-tools/core";
+import { ERROR_CODES, SUPPORTED_CRS, UNIT_CATEGORIES, WGS84, formatRational } from "@omcoskun/convert-tools";
 import { CRS_KINDS } from "../../lib/crs-kinds.js";
 import { plainNumber } from "../../lib/number-text.js";
 

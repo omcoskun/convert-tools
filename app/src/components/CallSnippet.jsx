@@ -5,7 +5,7 @@ import { Box } from "../ui/index.js";
 import CopyButton from "./CopyButton.jsx";
 
 /**
- * "Library call": the exact @convert-tools/core call that produced a
+ * "Library call": the exact @omcoskun/convert-tools call that produced a
  * result, in mono, wrapped, with a copy button. Each tool ends its details
  * with one.
  * @param {{ code: string }} props

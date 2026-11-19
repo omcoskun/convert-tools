@@ -12,7 +12,7 @@
 // the reported bounds hold on every row of the GeodSolve vectors.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inverseGeodesic, measureGeodesicPolyline } from "@convert-tools/core";
+import { inverseGeodesic, measureGeodesicPolyline } from "@omcoskun/convert-tools";
 import { angularDifference, readVectors } from "./support/vectors.mjs";
 
 const WGS84 = { id: "WGS84", a: 6378137, f: 1 / 298.257223563 };

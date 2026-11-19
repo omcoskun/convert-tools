@@ -1,6 +1,6 @@
 {
   "name": "convert-tools",
-  "version": "3.0.0",
+  "version": "1.0.0",
   "description": "Kesin uzunluk ve koordinat dönüşüm kütüphanesi (JS + Java) ve tanıtım uygulaması",
   "private": true,
   "type": "module",
@@ -14,10 +14,10 @@
   "scripts": {
     "dev": "npm run dev --workspace @convert-tools/app",
     "build": "npm run build:core && npm run build --workspace @convert-tools/app",
-    "build:core": "npm run build --workspace @convert-tools/core",
+    "build:core": "npm run build --workspace @omcoskun/convert-tools",
     "build:app": "npm run build --workspace @convert-tools/app",
-    "test:core": "npm test --workspace @convert-tools/core",
-    "test:pack": "npm run test:pack --workspace @convert-tools/core",
+    "test:core": "npm test --workspace @omcoskun/convert-tools",
+    "test:pack": "npm run test:pack --workspace @omcoskun/convert-tools",
     "test:java": "sh packages/core-java/scripts/test.sh",
     "test:tools": "node --test \"contracts/tools/test/*.test.mjs\"",
     "vectors": "node contracts/tools/generate-vectors.mjs",

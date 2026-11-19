@@ -4,10 +4,10 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.mertc0604</groupId>
-  <artifactId>convert-tools-core</artifactId>
-  <version>3.0.0</version>
-  <name>Convert Tools Core</name>
+  <groupId>io.github.omcoskun</groupId>
+  <artifactId>convert-tools</artifactId>
+  <version>1.0.0</version>
+  <name>Convert Tools</name>
   <description>Dependency-free exact length, coordinate conversion and WGS84 geodesy core</description>
 
   <properties>

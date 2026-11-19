@@ -1,5 +1,5 @@
 import { useId, useMemo } from "react";
-import { coordinateResults, formatDms } from "@convert-tools/core";
+import { coordinateResults, formatDms } from "@omcoskun/convert-tools";
 import { useLanguage } from "../context.js";
 import { attempt } from "../lib/attempt.js";
 import { formatPairForCopy, pastedText } from "../lib/coordinate-paste.js";

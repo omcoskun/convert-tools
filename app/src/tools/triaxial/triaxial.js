@@ -1,5 +1,5 @@
 // The triaxial tool's calculations (spec 8.5). Every value comes from
-// @convert-tools/core: the inverse and direct geodesic on a triaxial
+// @omcoskun/convert-tools: the inverse and direct geodesic on a triaxial
 // ellipsoid and the conversions to and from Cartesian coordinates, plus
 // the exact call that produced each result. Pure: no React, no DOM.
 
@@ -8,7 +8,7 @@ import {
   directTriaxialGeodesic,
   inverseTriaxialGeodesic,
   triaxialToCartesian,
-} from "@convert-tools/core";
+} from "@omcoskun/convert-tools";
 import { attempt } from "../../lib/attempt.js";
 import { plainNumber } from "../../lib/number-text.js";
 
@@ -99,7 +99,7 @@ function literal(value) {
 const pointLiteral = (beta, omega) => `{ beta: ${literal(beta)}, omega: ${literal(omega)} }`;
 
 /**
- * The exact @convert-tools/core call that produced a result ("Kütüphane
+ * The exact @omcoskun/convert-tools call that produced a result ("Kütüphane
  * çağrısı").
  * @param {"inverse" | "direct" | "toCartesian" | "fromCartesian"} mode
  * @param {object} form the inputs of that mode

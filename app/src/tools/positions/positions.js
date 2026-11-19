@@ -1,5 +1,5 @@
 // Plain helpers for the position tool (Konum, spec 8.2). Every coordinate
-// value comes from @convert-tools/core; this file only picks the parser,
+// value comes from @omcoskun/convert-tools; this file only picks the parser,
 // applies the output options and formats the resolution metadata the core
 // returns for display.
 
@@ -16,7 +16,7 @@ import {
   fromGeoref,
   fromMgrs,
   fromUtmUps,
-} from "@convert-tools/core";
+} from "@omcoskun/convert-tools";
 import { attempt } from "../../lib/attempt.js";
 import { plainNumber } from "../../lib/number-text.js";
 import { readPointText } from "../../lib/point-text.js";
@@ -81,7 +81,7 @@ export const ANGLE_DIGITS = Object.freeze([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
  * readPoint with the options of the input: an MGRS square is read at its
  * centre (fromMgrs) or, with mgrsCorner, at its south-west corner
  * (decodeMgrs(value, false)); the source then says sourceCorner: true.
- * @throws {import("@convert-tools/core").ConvertToolsError} as readPoint
+ * @throws {import("@omcoskun/convert-tools").ConvertToolsError} as readPoint
  */
 export function readPointWithOptions(format, values, { mgrsCorner = false } = {}) {
   if (format !== "mgrs" || !mgrsCorner) return readPoint(format, values);
@@ -181,7 +181,7 @@ const step = (digits) => Number(`1e-${digits}`);
  * @param {{ latitude: number, longitude: number }} source
  * @param {{ mgrsPrecision?: number, georefPrecision?: number, dmsDigits?: number, ddmDigits?: number }} options
  * @returns {object} the keys of coordinateResults
- * @throws {import("@convert-tools/core").ConvertToolsError} INVALID_PRECISION, …
+ * @throws {import("@omcoskun/convert-tools").ConvertToolsError} INVALID_PRECISION, …
  */
 export function formatOutputs(source, options = {}) {
   const { mgrsPrecision, georefPrecision, dmsDigits, ddmDigits } = { ...DEFAULT_OUTPUT_OPTIONS, ...options };

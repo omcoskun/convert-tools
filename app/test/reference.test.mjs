@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { ERROR_CODES, SUPPORTED_CRS } from "@convert-tools/core";
+import { ERROR_CODES, SUPPORTED_CRS } from "@omcoskun/convert-tools";
 import { accuracyRows, crsRows, errorRows, unitRows, wgs84Rows } from "../src/tools/reference/reference.js";
 import { REPO_ROOT, readJson } from "./support/files.mjs";
 

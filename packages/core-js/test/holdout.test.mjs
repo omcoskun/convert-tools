@@ -40,7 +40,7 @@ import {
   inverseGeodesic,
   inverseTriaxialGeodesic,
   triaxialToCartesian,
-} from "@convert-tools/core/geodesy";
+} from "@omcoskun/convert-tools/geodesy";
 import { pathToFileURL } from "node:url";
 import { MaxError, readCsv } from "./support/vectors.mjs";
 

@@ -1,9 +1,10 @@
 # Değişiklik günlüğü
 
-Bu dosya `@convert-tools/core` (JavaScript) ve `convert-tools-core` (Java)
-için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
+Bu dosya `@omcoskun/convert-tools` (JavaScript) ve `io.github.omcoskun:convert-tools` (Java) için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
 
-## Sürüm yayımlanmadı
+## 1.0.0 — 2026-11-19
+
+İlk yayım. Paketler yeni adlarıyla GitHub Packages'ta yayımlanır: JavaScript `@omcoskun/convert-tools`, Java `io.github.omcoskun:convert-tools` (Java paketi `io.github.omcoskun.converttools`). Eski adlar (`@convert-tools/core`, `io.github.mertc0604:convert-tools-core`) hiç yayımlanmadı. Aşağıdakiler iç 3.0.0 etiketinden bu yana yapılan değişikliklerdir.
 
 ### Kırıcı değişiklikler
 
@@ -153,14 +154,18 @@ için ortaktır; iki çekirdek aynı sürüm numarasını taşır.
   `uncertaintyRatio` ölçüsüyle raporlanan belirsizliği her satırda denetler
   (sınır 1).
 
-## 3.0.0 — 2026-11-13
+## Yayım öncesi geçmiş
+
+Aşağıdaki girdiler eski `@convert-tools/core` ve `io.github.mertc0604:convert-tools-core` adlarına aittir. Bu numaralarla hiçbir yayım yapılmadı; yalnızca repo içinde kullanıldılar.
+
+### 3.0.0 (iç etiket) — 2026-11-13
 
 Doğruluk kriteri artık `contracts/` altındaki dilden bağımsız dosyalardır:
 GeographicLib 2.7'den üretilen vektörler, `error-codes.json` ve
 `error-cases.csv`. İki çekirdek de bu dosyaların tamamını geçer. Doğrulama
 sonuçları: `docs/UTM_MGRS_VALIDATION.md`.
 
-### Kırıcı değişiklikler
+#### Kırıcı değişiklikler
 
 **Hatalar**
 
@@ -213,7 +218,7 @@ sonuçları: `docs/UTM_MGRS_VALIDATION.md`.
 - TypeScript bildirim dosyaları (`*.d.ts`) ve `exports` içindeki `types`
   koşulları kaldırıldı; tipler JSDoc ile belgelenir.
 
-### Eklenenler
+#### Eklenenler
 
 - JS: CommonJS desteği. `exports` içinde `import` → `src/` (ESM),
   `require` → `dist/cjs/` (Babel yalnız modül dönüşümü yapar; BigInt ve
@@ -223,7 +228,7 @@ sonuçları: `docs/UTM_MGRS_VALIDATION.md`.
 - Java: `ConvertToolsException`, `ErrorCode`, `UtmUps.latitudeBandIndex`,
   `UtmUps.utmForward(lat, lon, zone, north)`.
 
-### Sözleşme dosyaları
+#### Sözleşme dosyaları
 
 - `contracts/test-vectors/` kodun kendi çıktısından değil, GeographicLib 2.7
   ve bağımsız bir EPSG:3857 formülünden üretilir

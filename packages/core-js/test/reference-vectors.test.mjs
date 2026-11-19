@@ -17,7 +17,7 @@ import {
   transformCrs,
   utmUpsForward,
   utmUpsInverse,
-} from "@convert-tools/core/geodesy";
+} from "@omcoskun/convert-tools/geodesy";
 import { utmForward } from "../src/geodesy/projections/utm-ups.js";
 import {
   MaxError,

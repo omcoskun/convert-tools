@@ -6,7 +6,7 @@ import {
   inverseGeodesic,
   measureGeodesicPolyline,
   sampleGeodesicPath,
-} from "@convert-tools/core/geodesy";
+} from "@omcoskun/convert-tools/geodesy";
 import { groundErrorMetres } from "./support/vectors.mjs";
 
 const VECTOR_URL = new URL(

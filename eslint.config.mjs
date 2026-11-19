@@ -153,8 +153,8 @@ export default defineConfig([
         {
           patterns: [
             { group: ["@mui/*", "@emotion/*"], message: "Import UI components from src/ui/index.js." },
-            { group: ["@convert-tools/core/*"], message: "Import the core from @convert-tools/core only." },
-            { group: ["**/packages/**"], message: "Import the core from @convert-tools/core only." },
+            { group: ["@omcoskun/convert-tools/*"], message: "Import the core from @omcoskun/convert-tools only." },
+            { group: ["**/packages/**"], message: "Import the core from @omcoskun/convert-tools only." },
           ],
         },
       ],

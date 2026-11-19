@@ -1,5 +1,5 @@
 // The measure tool's calculations (spec 8.1). Every value comes from
-// @convert-tools/core: this module picks the calls for the three modes,
+// @omcoskun/convert-tools: this module picks the calls for the three modes,
 // reads the model, turns results into scene lines and writes the exact call
 // that produced them. Pure: no React, no DOM.
 
@@ -9,7 +9,7 @@ import {
   inverseGeodesic,
   measureGeodesicPolyline,
   sampleGeodesicPath,
-} from "@convert-tools/core";
+} from "@omcoskun/convert-tools";
 import { attempt } from "../../lib/attempt.js";
 import { fixedDecimal, localeDecimal } from "../../lib/locale-decimal.js";
 import { boundText, meaningfulDecimals, roundedDecimal } from "../../lib/meaningful-digits.js";
@@ -359,7 +359,7 @@ function literal(value) {
 const pointLiteral = (point) => `{ latitude: ${literal(point.latitude)}, longitude: ${literal(point.longitude)} }`;
 
 /**
- * The exact @convert-tools/core call that produced a result ("Kütüphane
+ * The exact @omcoskun/convert-tools call that produced a result ("Kütüphane
  * çağrısı"), as JavaScript that gives the same result when run.
  * @param {"inverse" | "direct" | "route"} mode
  * @param {{ points: { latitude: string, longitude: string }[], azimuth?: string, distanceMetres?: string }} input

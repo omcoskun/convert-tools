@@ -8,7 +8,7 @@ import {
   formatRational,
   parseDecimal,
   toRational,
-} from "@convert-tools/core/units";
+} from "@omcoskun/convert-tools/units";
 
 function jsonRational(value) {
   const rational = toRational(value);

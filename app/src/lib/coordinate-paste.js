@@ -1,12 +1,12 @@
 // Reads coordinate pairs out of pasted text, so a point copied from a web map
 // ("41.73987943886398, 34.01769942871567", latitude first) fills both fields
 // at once. Pure text handling: decimal values keep the pasted digits (no
-// float round trip), and DMS/DDM text is converted by @convert-tools/core.
+// float round trip), and DMS/DDM text is converted by @omcoskun/convert-tools.
 //
 // Anything that is not clearly a pair yields null, and the caller lets the
 // paste through as a normal paste into the one field.
 
-import { fromDms } from "@convert-tools/core";
+import { fromDms } from "@omcoskun/convert-tools";
 
 // Hemisphere letters, English and Turkish (Kuzey, Güney, Doğu, Batı). Upper
 // case only: lower-case d, m and s are unit letters in some DMS notations.

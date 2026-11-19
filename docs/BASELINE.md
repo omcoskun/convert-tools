@@ -34,8 +34,8 @@ Java (Maven yerine CI'daki gibi `javac` ile):
 mkdir -p build/java-contract
 find packages/core-java/src/main/java packages/core-java/src/test/java -name '*.java' -print0 \
   | xargs -0 javac --release 17 -Xlint:all -Werror -d build/java-contract
-java -ea -cp build/java-contract io.github.mertc0604.converttools.ContractTest contracts/test-vectors
-java -ea -cp build/java-contract io.github.mertc0604.converttools.CoordinateContractTest contracts/test-vectors
+java -ea -cp build/java-contract io.github.omcoskun.converttools.ContractTest contracts/test-vectors
+java -ea -cp build/java-contract io.github.omcoskun.converttools.CoordinateContractTest contracts/test-vectors
 ```
 
 Sonuç: `Java contract tests passed.` ve `Java coordinate contract tests passed.`

@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { encodeMgrs } from "@convert-tools/core";
+import { encodeMgrs } from "@omcoskun/convert-tools";
 import { readJson } from "./support/files.mjs";
 import {
   CONTINENT_LAYER,

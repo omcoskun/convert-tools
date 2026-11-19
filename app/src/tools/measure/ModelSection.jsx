@@ -1,4 +1,4 @@
-import { WGS84 } from "@convert-tools/core";
+import { WGS84 } from "@omcoskun/convert-tools";
 import DataList, { DataRow } from "../../components/DataList.jsx";
 import Disclosure from "../../components/Disclosure.jsx";
 import Field from "../../components/Field.jsx";

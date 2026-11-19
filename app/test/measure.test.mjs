@@ -1,10 +1,10 @@
 // The measure tool's calculations (tools/measure/measure.js). Every value is
-// compared with a direct call of @convert-tools/core or with GeodSolve 2.7
+// compared with a direct call of @omcoskun/convert-tools or with GeodSolve 2.7
 // (contracts/test-vectors/geodesic-wgs84.csv), never with the demo itself.
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { directGeodesic, inverseGeodesic, measureGeodesicPolyline, sampleGeodesicPath } from "@convert-tools/core";
+import { directGeodesic, inverseGeodesic, measureGeodesicPolyline, sampleGeodesicPath } from "@omcoskun/convert-tools";
 import { localeDecimal, signedDecimal } from "../src/lib/locale-decimal.js";
 import { unwrapPath } from "../src/map/map-adapter.js";
 import {

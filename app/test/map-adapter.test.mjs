@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { sampleGeodesicPath } from "@convert-tools/core";
+import { sampleGeodesicPath } from "@omcoskun/convert-tools";
 import {
   GLOBE_MAX_ZOOM,
   LINE_WIDTHS,

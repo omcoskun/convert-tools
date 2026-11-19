@@ -10,7 +10,7 @@ import {
   inverseGeodesic,
   measureGeodesicPolyline,
   sampleGeodesicPath,
-} from "@convert-tools/core/geodesy";
+} from "@omcoskun/convert-tools/geodesy";
 import {
   createGeodesicLine,
   positionOnLine,

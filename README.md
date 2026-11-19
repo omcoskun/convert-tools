@@ -2,7 +2,7 @@
 
 Kesin uzunluk dönüşümü, WGS 84 koordinat biçimleri, EPSG dönüşümleri ve
 elipsoidal geodezik ölçüm için **kütüphane**: JavaScript çekirdeği
-`@convert-tools/core` ve onun Java 17 eşi. İki çekirdek dilden bağımsız aynı
+`@omcoskun/convert-tools` ve onun Java 17 eşi. İki çekirdek dilden bağımsız aynı
 sözleşme vektörlerini geçer. `app/` bu kütüphanenin ince bir tanıtım
 arayüzüdür; hesap yapmaz.
 
@@ -25,8 +25,8 @@ arayüzüdür; hesap yapmaz.
 
 ```text
 packages/
-  core-js/        @convert-tools/core: çalışma zamanı bağımlılığı yok (ESM + CommonJS)
-  core-java/      Java 17 eşi: io.github.mertc0604:convert-tools-core
+  core-js/        @omcoskun/convert-tools: çalışma zamanı bağımlılığı yok (ESM + CommonJS)
+  core-java/      Java 17 eşi: io.github.omcoskun:convert-tools
 contracts/
   test-vectors/   GeographicLib ile üretilmiş ortak doğruluk vektörleri (CSV)
   error-codes.json, error-cases.csv
@@ -105,7 +105,7 @@ Doğruluk modelinin sınırları:
 ## JavaScript kullanımı
 
 ```js
-import { convertLength, encodeMgrs, inverseGeodesic } from "@convert-tools/core";
+import { convertLength, encodeMgrs, inverseGeodesic } from "@omcoskun/convert-tools";
 
 convertLength("1", "nautical-mile", "metre").value; // "1852"
 encodeMgrs(39.933365, 32.859742);                   // "36SVK8801520370"
@@ -126,7 +126,7 @@ try {
 
 Alt yollar, CommonJS, desteklenen çalışma ortamları ve biçim kuralları:
 [`packages/core-js/README.md`](packages/core-js/README.md). Sürüm değişiklikleri
-ve 3.0.0'ın kırıcı değişiklikleri:
+(1.0.0 ve yayım öncesi geçmiş):
 [`packages/core-js/CHANGELOG.md`](packages/core-js/CHANGELOG.md).
 
 ## Java kullanımı
@@ -177,7 +177,7 @@ araç vardır; her biri kendi adresiyle açılır:
   seçimlerini korur. Bu durum yalnız sayfa açıkken tutulur, kaydedilmez.
 - **Araçlar arası aktarım.** Konum'daki nokta Ölçüm'e A veya B olarak ya da
   CRS'ye gönderilebilir; CRS'deki nokta Konum'a gönderilebilir.
-- **Kütüphane çağrısı.** Her araç, sonucu üreten `@convert-tools/core`
+- **Kütüphane çağrısı.** Her araç, sonucu üreten `@omcoskun/convert-tools`
   çağrısını kopyalanabilir biçimde gösterir.
 - **Haritadan seçim ve yapıştırma.** Ölçüm'de A ve B haritadan seçilebilir ve
   sürüklenebilir; rotaya haritadan nokta eklenebilir. Konum ve CRS'de haritaya
@@ -198,7 +198,7 @@ araç vardır; her biri kendi adresiyle açılır:
 
 Değişmeyen kurallar:
 
-- Bütün değerler `@convert-tools/core` kök girişinden gelir. Arayüzde hesap
+- Bütün değerler `@omcoskun/convert-tools` kök girişinden gelir. Arayüzde hesap
   formülü yoktur; `app/test/boundaries.test.mjs` ve ESLint bunu denetler.
 - `app/public/config.json` başlangıç değerlerini, örnekleri ve ön ayarları,
   `app/public/lang.json` Türkçe ve İngilizce metinleri ve hata kodlarının
