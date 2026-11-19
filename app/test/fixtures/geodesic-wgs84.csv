@@ -1,2 +1,0 @@
-id,startLatitude,startLongitude,endLatitude,endLongitude,distanceMetres,initialBearingDegrees,finalBearingDegrees,toleranceMetres,reducedLengthMetres,arcDegrees,geodesicScale12,geodesicScale21,areaSquareMetres
-ankara-istanbul,39.933365,32.859742,41.008238,28.978359,350091.704424932,-68.81593899004106,-71.33586213139242,0.0000001,349915.748558975,3.15105234454386,0.9984922902818902,0.9984924152990685,-1780547722803.95

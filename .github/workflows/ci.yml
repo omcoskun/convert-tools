@@ -19,8 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Both LTS lines. The app's render tests need module.registerHooks
-        # (Node 22.15 or later).
+        # Both LTS lines.
         node: ["22.23.4", "24.22.2"]
     steps:
       - name: Checkout
@@ -41,10 +40,7 @@ jobs:
       - name: Core tests
         run: npm run test:core
 
-      - name: App tests
-        run: npm run test:app
-
-      - name: Build core and demo
+      - name: Build core
         run: npm run build
 
       - name: Package smoke test

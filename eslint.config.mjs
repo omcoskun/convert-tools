@@ -26,24 +26,6 @@ const SHARED_GLOBALS = readonly([
 
 const NODE_GLOBALS = { ...SHARED_GLOBALS, ...readonly(["Buffer", "process"]) };
 
-// process.env.IWC is replaced at build time by webpack's DefinePlugin.
-const BROWSER_GLOBALS = {
-  ...SHARED_GLOBALS,
-  ...readonly([
-    "DOMPoint",
-    "Element",
-    "Image",
-    "ResizeObserver",
-    "cancelAnimationFrame",
-    "document",
-    "navigator",
-    "performance",
-    "process",
-    "requestAnimationFrame",
-    "window",
-  ]),
-};
-
 // eslint:recommended (ESLint 9.39).
 const RECOMMENDED = {
   "constructor-super": "error",
@@ -137,31 +119,5 @@ export default defineConfig([
     // The core runs in browsers and Node alike: shared web APIs only.
     files: ["packages/core-js/src/**/*.js"],
     languageOptions: { globals: SHARED_GLOBALS },
-  },
-  {
-    files: ["app/src/**/*.js", "app/src/**/*.jsx"],
-    languageOptions: {
-      globals: BROWSER_GLOBALS,
-      parserOptions: { ecmaFeatures: { jsx: true } },
-    },
-    rules: {
-      // ESLint 9 does not count JSX tags as uses of a variable, so imported
-      // components (capitalised) are exempt; everything else is still checked.
-      "no-unused-vars": ["error", { varsIgnorePattern: "^[A-Z]" }],
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            { group: ["@mui/*", "@emotion/*"], message: "Import UI components from src/ui/index.js." },
-            { group: ["@omcoskun/convert-tools/*"], message: "Import the core from @omcoskun/convert-tools only." },
-            { group: ["**/packages/**"], message: "Import the core from @omcoskun/convert-tools only." },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    files: ["app/src/ui/index.js"],
-    rules: { "no-restricted-imports": "off" },
   },
 ]);

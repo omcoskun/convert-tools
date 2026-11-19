@@ -1,2 +1,0 @@
-id,operation,latitude,longitude,target_crs,expected_zone,expected_hemisphere,expected_x,expected_y,output_tolerance,roundtrip_tolerance_metres
-crs-mercator-ankara,CRS,39.933365,32.859742,EPSG:3857,,,3657929.7470383444,4856263.78244475,0.000001,0.000001

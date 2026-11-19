@@ -2,7 +2,6 @@
 node_modules/
 
 # build output
-/app/build/
 /packages/core-js/dist/
 /packages/core-java/target/
 # Java contract-test classes (packages/core-java/scripts/test.sh, CI)

@@ -11,14 +11,15 @@ Paketler GitHub Packages'ta gizli olarak yayımlanır; kurmak için repoya eriş
 ve `read:packages` yetkili bir classic kişisel erişim token'ı (PAT) gerekir.
 
 **npm.** Projenin `.npmrc` dosyasına paketin nereden geleceğini, kendi
-`~/.npmrc` dosyanıza token'ı yazın (token hiçbir zaman repoya girmez):
+`~/.npmrc` dosyanıza token'ı, `ghp_X…` yerine kendi token'ınızı işaretsiz
+yazarak ekleyin (token hiçbir zaman repoya girmez):
 
 ```text
 # proje/.npmrc
 @omcoskun:registry=https://npm.pkg.github.com
 
 # ~/.npmrc
-//npm.pkg.github.com/:_authToken=<token>
+//npm.pkg.github.com/:_authToken=ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
 ```bash
