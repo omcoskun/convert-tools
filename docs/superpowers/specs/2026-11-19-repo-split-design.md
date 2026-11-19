@@ -385,11 +385,27 @@ Her aşamanın sonunda her şey çalışır durumdadır.
      Settings → Pages bölümünden yapar ya da sahibin onayıyla şu komut
      çalıştırılır: `gh api -X DELETE repos/omcoskun/convert-tools/pages`.
 6. **Daha sonra (bu işin dışında).** Sahip hazır olduğunda kütüphane reposunu
-   gizli yapar. Başka bir şey değişmez:
-   - npm paketi zaten gizli;
-   - Maven paketi repoyla birlikte gizli olur;
-   - harita CI'ının erişimi sürer;
-   - harita, sahibin sitesine taşınana kadar herkese açık kalır.
+   gizli yapar.
+
+   **İlk yayımda olan (2026-11-19).** Herkese açık repodan `GITHUB_TOKEN`
+   ile yapılan 1.0.0 yayımında npm paketi belgenin söylediğinin tersine
+   herkese açık çıktı. Paket sayfası oturum açmadan açılıyor. Herkese açık
+   bir paket gizli yapılamaz. Sahip paketi şimdilik bırakmaya karar verdi,
+   çünkü kaynak kod da şu an herkese açık.
+
+   **Repo gizli yapılırken sırayla:**
+   1. Repo gizli yapılır. Maven paketi repoyla birlikte gizli olur.
+   2. Sahip npm paketini siler: paket ayarları → Danger Zone → Delete this
+      package. Bu, 5000 indirmenin altında mümkündür.
+   3. Bir sonraki sürüm tag'i (örneğin `v1.0.1`) gizli repodan paketi yeniden
+      yayımlar.
+   4. Paketin gizli çıktığı oturum açmadan denetlenir: paket sayfası 404
+      dönmeli.
+   5. Sahip, yeni pakette `convert-tools-map` reposuna yeniden "Manage
+      Actions access" verir.
+   6. Harita kilit dosyasını yeni sürüme günceller.
+
+   Harita, sahibin sitesine taşınana kadar herkese açık kalır.
 
 ### Dokunulmayanlar
 
