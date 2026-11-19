@@ -7,8 +7,9 @@ formatları, CRS dönüşümü ve WGS 84 geodezi çekirdeğidir. JavaScript
 
 ## Kurulum
 
-Paket GitHub Packages'ta yayımlanır; kurmak için repoya erişim ve `read:packages`
-yetkili bir classic kişisel erişim token'ı (PAT) gerekir. Paket adı
+Paket GitHub Packages'ta yayımlanır ve repoyla aynı görünürlüktedir. Kurmak
+için `read:packages` yetkili bir classic kişisel erişim token'ı (PAT) gerekir;
+repo gizli yapıldıktan sonra repoya erişim de gerekir. Paket adı
 `io.github.omcoskun.converttools`.
 
 **Maven.** `~/.m2/settings.xml` içinde `github` kimlikli bir sunucu tanımlayın

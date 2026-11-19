@@ -5,8 +5,10 @@ name: Release
 # tarball and the jar for teams without GitHub access. The irreversible steps
 # come last: Maven, then npm (neither accepts the same version twice). If a
 # step fails after a publish, the tag is not re-run; the next patch version is
-# released instead. Nothing here changes a package's visibility: the npm
-# package is private when first published and must stay so.
+# released instead. Nothing here changes a package's visibility. Check it
+# signed-out after a first publish: 1.0.0, published from this repo while it
+# was public, came out public (see
+# docs/superpowers/specs/2026-11-19-repo-split-design.md, step 6).
 
 on:
   push:
@@ -25,6 +27,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The job token can write packages and releases; keep it out of
+          # .git/config so lint, tests and build scripts cannot read it.
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

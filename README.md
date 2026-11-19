@@ -100,8 +100,10 @@ Doğruluk modelinin sınırları:
 
 ## Kurulum
 
-Paketler GitHub Packages'ta gizli olarak yayımlanır; kurmak için repoya erişim
-ve `read:packages` yetkili bir classic kişisel erişim token'ı (PAT) gerekir.
+Paketler GitHub Packages'ta yayımlanır. Kurmak için `read:packages` yetkili
+bir classic kişisel erişim token'ı (PAT) gerekir; repo gizli yapıldıktan sonra
+repoya erişim de gerekir. 1.0.0 şu an herkese açıktır; kütüphane gizli
+yapılınca paketler gizli olarak yeniden yayımlanacak.
 
 **npm.** Projenin `.npmrc` dosyasına paketin nereden geleceğini, kendi
 `~/.npmrc` dosyanıza token'ı, `ghp_X…` yerine kendi token'ınızı işaretsiz

@@ -328,7 +328,9 @@ durur: `/Users/omcoskun/Desktop/Projects/convert-tools-map`.
 
 - **Harita CI'ı.** Sahip, paketin ayarlarındaki "Manage Actions access"
   bölümünden `convert-tools-map` reposunu Read yetkisiyle ekler. Bu, ilk
-  yayımdan ve harita reposu GitHub'da açıldıktan sonra yapılır.
+  yayımdan ve harita reposu GitHub'da açıldıktan sonra yapılır. 1.0.0
+  herkese açık çıktığı için bu şimdilik gerekmedi; paket gizli olarak yeniden
+  yayımlanınca gerekir (adım 6).
 - **Sahibin bilgisayarı.** Sahip, `read:packages` yetkili bir classic PAT
   oluşturur. Onu `~/.npmrc` dosyasına
   `//npm.pkg.github.com/:_authToken=...` satırı olarak kendisi yazar.
@@ -404,6 +406,11 @@ Her aşamanın sonunda her şey çalışır durumdadır.
    5. Sahip, yeni pakette `convert-tools-map` reposuna yeniden "Manage
       Actions access" verir.
    6. Harita kilit dosyasını yeni sürüme günceller.
+   7. Haritanın Dependabot'u gizli paketi kendiliğinden okuyamaz. Haritanın
+      `.github/dependabot.yml` dosyasına GitHub Packages için bir
+      `registries` girdisi ve `read:packages` yetkili bir token tutan bir
+      Dependabot secret'ı eklenir. Eklenmezse Dependabot'un npm güncellemeleri
+      durur.
 
    Harita, sahibin sitesine taşınana kadar herkese açık kalır.
 
