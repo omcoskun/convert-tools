@@ -533,3 +533,21 @@ test("the result widget's actions hand the value on, in the bar and again in the
     assert.ok(visibleText(element(crs, 'class="hud-actions"')).includes(words.handoffPositions), `${language} CRS -> Konum`);
   }
 });
+
+test("the scale bar is named by its reading and its action, not by a fixed label over the visible numbers", async () => {
+  const { default: ScaleBar } = await import("../src/map/ScaleBar.jsx");
+  const { LanguageContext } = await import("../src/context.js");
+  const html = renderToString(
+    createElement(
+      LanguageContext.Provider,
+      { value: { language: "tr", ...lang.tr } },
+      createElement(ScaleBar, { subscribeView: () => () => {}, measureScale: () => 100, unit: "metric", onUnitChange() {} }),
+    ),
+  );
+  const button = html.match(/<button\b[^>]*>/)[0];
+  // WCAG 2.5.3: a fixed aria-label would hide the scale the bar shows.
+  assert.doesNotMatch(button, /aria-label=/);
+  assert.ok(html.includes(lang.tr.text.mapScaleChange), "the action is part of the name");
+  // The drawn ticks repeat the reading; they stay out of the name.
+  assert.match(html, /<span[^>]*aria-hidden="true"[^>]*>[\s\S]*>0<\/span>/);
+});

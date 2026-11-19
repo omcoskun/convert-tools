@@ -165,7 +165,6 @@ export default function ScaleBar({ subscribeView, measureScale, unit, onUnitChan
       type="button"
       ref={rootRef}
       className="map-scale"
-      aria-label={text.mapScaleChange}
       onClick={cycle}
       sx={{
         display: "block",
@@ -192,8 +191,11 @@ export default function ScaleBar({ subscribeView, measureScale, unit, onUnitChan
         [PHONE]: { p: "10px 28px 10px 12px" },
       }}
     >
+      {/* The name is the reading ("500 m") and then the action, so it holds
+          the scale the bar shows (WCAG 2.5.3); the drawn ticks repeat it. */}
       <Box component="span" sx={visuallyHidden} ref={readingRef} />
-      <Box component="span" ref={trackRef} sx={{ position: "relative", display: "block", width: 48 }}>
+      <Box component="span" sx={visuallyHidden}>{`, ${text.mapScaleChange}`}</Box>
+      <Box component="span" ref={trackRef} aria-hidden="true" sx={{ position: "relative", display: "block", width: 48 }}>
         <Box component="span" sx={{ position: "relative", display: "block", height: 14, mb: "2px" }}>
           <Box component="span" sx={{ ...labelSx, left: 0 }}>0</Box>
           <Box component="span" ref={midRef} className="scale-mid" sx={{ ...labelSx, left: "50%" }} />
