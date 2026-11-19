@@ -8,7 +8,7 @@ import path from "node:path";
 import test from "node:test";
 import { ERROR_CODES, SUPPORTED_CRS } from "@omcoskun/convert-tools";
 import { accuracyRows, crsRows, errorRows, unitRows, wgs84Rows } from "../src/tools/reference/reference.js";
-import { REPO_ROOT, readJson } from "./support/files.mjs";
+import { APP_ROOT, readJson } from "./support/files.mjs";
 
 const lang = readJson("public/lang.json");
 const config = readJson("public/config.json");
@@ -56,7 +56,7 @@ test("WGS 84: a = 6378137 m, 1/f = 298.257223563", () => {
 test("the accuracy table has the six rows of the README, verbatim, with a decimal point in English", () => {
   const { accuracy } = config.reference;
   assert.equal(accuracy.length, 6);
-  const readme = readFileSync(path.join(REPO_ROOT, "README.md"), "utf8");
+  const readme = readFileSync(path.join(APP_ROOT, "README.md"), "utf8");
   for (const row of accuracy) {
     assert.ok(readme.includes(`| ${row.reference} | ${row.difference} |`), row.id);
   }

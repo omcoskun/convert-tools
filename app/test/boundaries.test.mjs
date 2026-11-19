@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { REPO_ROOT, SRC, listFiles, sourceFiles } from "./support/files.mjs";
+import { fileURLToPath } from "node:url";
+import { APP_ROOT, SRC, listFiles, sourceFiles } from "./support/files.mjs";
 
 const UI_MODULE = path.join("ui", "index.js");
 const MAPLIBRE_MODULE = path.join("map", "maplibre.js");
@@ -120,22 +121,21 @@ test("src/ui/index.js re-exports only components the demo uses", () => {
 });
 
 test("there is no TypeScript in the repository", () => {
-  const typescript = listFiles(REPO_ROOT)
+  const typescript = listFiles(APP_ROOT)
     .filter((file) => /\.(ts|tsx|mts|cts)$/.test(file) || path.basename(file) === "tsconfig.json")
-    .map((file) => path.relative(REPO_ROOT, file));
+    .map((file) => path.relative(APP_ROOT, file));
   assert.deepEqual(typescript, []);
 });
 
 test("the Next.js, Worker, HTTP API and Cesium stack is gone", () => {
   const removed = [
-    "app/api",
-    "app/layout.tsx",
-    "app/page.tsx",
-    "app/globals.css",
+    "api",
+    "layout.tsx",
+    "page.tsx",
+    "globals.css",
     "components",
     "lib",
     "worker",
-    "public",
     "docs/API.md",
     "next.config.ts",
     "vite.config.ts",
@@ -144,10 +144,20 @@ test("the Next.js, Worker, HTTP API and Cesium stack is gone", () => {
     "scripts/build-pages.mjs",
     "tests",
   ];
-  assert.deepEqual(removed.filter((entry) => existsSync(path.join(REPO_ROOT, entry))), []);
-  const manifest = JSON.parse(readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"));
+  assert.deepEqual(removed.filter((entry) => existsSync(path.join(APP_ROOT, entry))), []);
+  const manifest = JSON.parse(readFileSync(path.join(APP_ROOT, "package.json"), "utf8"));
   const dependencies = { ...manifest.dependencies, ...manifest.devDependencies };
   for (const name of ["next", "vinext", "wrangler", "cesium", "typescript", "tailwindcss", "vite"]) {
     assert.equal(dependencies[name], undefined, name);
   }
+});
+
+test("the demo's tests read no file outside the app folder", () => {
+  const self = fileURLToPath(import.meta.url);
+  const reaches = /REPO_ROOT|["'`][./]*contracts\/|["'`][./]*packages\//;
+  const offenders = listFiles(path.join(APP_ROOT, "test"))
+    .filter((file) => /\.m?js$/.test(file) && file !== self)
+    .filter((file) => reaches.test(readFileSync(file, "utf8")))
+    .map((file) => path.relative(APP_ROOT, file));
+  assert.deepEqual(offenders, []);
 });

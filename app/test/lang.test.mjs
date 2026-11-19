@@ -4,13 +4,13 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
-import { getCategory } from "@omcoskun/convert-tools";
+import { ERROR_CODES, getCategory } from "@omcoskun/convert-tools";
 import { LANG_GROUPS } from "../src/runtime.js";
 import { readJson, sourceFiles } from "./support/files.mjs";
 
 const lang = readJson("public/lang.json");
 const config = readJson("public/config.json");
-const errorCodes = readJson("../contracts/error-codes.json").codes.map((entry) => entry.code);
+const errorCodes = [...ERROR_CODES];
 
 const sorted = (values) => [...values].sort();
 
@@ -91,7 +91,7 @@ test("the text group holds exactly the keys the sources read", () => {
   );
 });
 
-test("the errors group covers exactly the codes of contracts/error-codes.json", () => {
+test("the errors group covers exactly the library's ERROR_CODES", () => {
   assert.equal(errorCodes.length, 23);
   for (const language of config.languages) {
     assert.deepEqual(sorted(Object.keys(lang[language].errors)), sorted(errorCodes), language);

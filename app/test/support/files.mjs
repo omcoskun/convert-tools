@@ -5,7 +5,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-export const REPO_ROOT = path.resolve(APP_ROOT, "..");
 export const SRC = path.join(APP_ROOT, "src");
 export const PUBLIC = path.join(APP_ROOT, "public");
 
@@ -14,14 +13,14 @@ export function readJson(file) {
   return JSON.parse(readFileSync(path.resolve(APP_ROOT, file), "utf8"));
 }
 
-/** Reads a CSV file of contracts/test-vectors (no quoting) into objects. */
+/** Reads a CSV file of test/fixtures (rows copied from the library's test vectors, no quoting) into objects. */
 export function readVectors(name) {
-  const source = readFileSync(path.join(REPO_ROOT, "contracts/test-vectors", name), "utf8").trim();
+  const source = readFileSync(path.join(APP_ROOT, "test/fixtures", name), "utf8").trim();
   const [header, ...lines] = source.split(/\r?\n/).map((line) => line.split(","));
   return lines.map((cells) => Object.fromEntries(header.map((column, index) => [column, cells[index]])));
 }
 
-/** The row with the given id of a contract vector file. */
+/** The row with the given id of a fixture file. */
 export function vector(name, id) {
   const row = readVectors(name).find((candidate) => candidate.id === id);
   if (row == null) throw new Error(`${name}: no row ${id}`);
