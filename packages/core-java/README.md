@@ -1,9 +1,49 @@
-# Convert Tools Core — Java
+# Convert Tools — Java
 
 Java 17 için dış bağımlılığı olmayan kesin uzunluk dönüşümü, koordinat
 formatları, CRS dönüşümü ve WGS 84 geodezi çekirdeğidir. JavaScript
 çekirdeğiyle aynı birim kimliklerini, metre/derece sözleşmesini ve
 `contracts/test-vectors` referanslarını kullanır.
+
+## Kurulum
+
+Paket GitHub Packages'ta yayımlanır; kurmak için repoya erişim ve `read:packages`
+yetkili bir classic kişisel erişim token'ı (PAT) gerekir. Paket adı
+`io.github.omcoskun.converttools`.
+
+**Maven.** `~/.m2/settings.xml` içinde `github` kimlikli bir sunucu tanımlayın
+(kullanıcı adı ve PAT), projeye repository'yi ve bağımlılığı ekleyin:
+
+```xml
+<!-- ~/.m2/settings.xml -->
+<servers>
+  <server>
+    <id>github</id>
+    <username>GITHUB_KULLANICI_ADI</username>
+    <password>TOKEN</password>
+  </server>
+</servers>
+
+<!-- pom.xml -->
+<repositories>
+  <repository>
+    <id>github</id>
+    <url>https://maven.pkg.github.com/omcoskun/convert-tools</url>
+  </repository>
+</repositories>
+<dependencies>
+  <dependency>
+    <groupId>io.github.omcoskun</groupId>
+    <artifactId>convert-tools</artifactId>
+    <version>1.0.0</version>
+  </dependency>
+</dependencies>
+```
+
+**GitHub erişimi olmadan.** Her sürümün GitHub Release'ında
+`omcoskun-convert-tools-<sürüm>.tgz` ve `convert-tools-<sürüm>.jar` dosyaları
+vardır. Tarball `npm install ./omcoskun-convert-tools-1.0.0.tgz` ile kurulur;
+jar classpath'e eklenir. İkisi de hesap ve ağ gerektirmez.
 
 ## Kesin uzunluk dönüşümü
 

@@ -102,6 +102,60 @@ Doğruluk modelinin sınırları:
   Operasyonel kullanımda datum, yükseklik modeli ve cihaz hatası için yetkili
   referans yazılımıyla ayrıca kabul testi yapılmalıdır.
 
+## Kurulum
+
+Paketler GitHub Packages'ta gizli olarak yayımlanır; kurmak için repoya erişim
+ve `read:packages` yetkili bir classic kişisel erişim token'ı (PAT) gerekir.
+
+**npm.** Projenin `.npmrc` dosyasına paketin nereden geleceğini, kendi
+`~/.npmrc` dosyanıza token'ı yazın (token hiçbir zaman repoya girmez):
+
+```text
+# proje/.npmrc
+@omcoskun:registry=https://npm.pkg.github.com
+
+# ~/.npmrc
+//npm.pkg.github.com/:_authToken=<token>
+```
+
+```bash
+npm install @omcoskun/convert-tools
+```
+
+**Maven.** `~/.m2/settings.xml` içinde `github` kimlikli bir sunucu tanımlayın
+(kullanıcı adı ve PAT), projeye repository'yi ve bağımlılığı ekleyin:
+
+```xml
+<!-- ~/.m2/settings.xml -->
+<servers>
+  <server>
+    <id>github</id>
+    <username>GITHUB_KULLANICI_ADI</username>
+    <password>TOKEN</password>
+  </server>
+</servers>
+
+<!-- pom.xml -->
+<repositories>
+  <repository>
+    <id>github</id>
+    <url>https://maven.pkg.github.com/omcoskun/convert-tools</url>
+  </repository>
+</repositories>
+<dependencies>
+  <dependency>
+    <groupId>io.github.omcoskun</groupId>
+    <artifactId>convert-tools</artifactId>
+    <version>1.0.0</version>
+  </dependency>
+</dependencies>
+```
+
+**GitHub erişimi olmadan.** Her sürümün GitHub Release'ında
+`omcoskun-convert-tools-<sürüm>.tgz` ve `convert-tools-<sürüm>.jar` dosyaları
+vardır. Tarball `npm install ./omcoskun-convert-tools-1.0.0.tgz` ile kurulur;
+jar classpath'e eklenir. İkisi de hesap ve ağ gerektirmez.
+
 ## JavaScript kullanımı
 
 ```js

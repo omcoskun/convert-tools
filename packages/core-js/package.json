@@ -15,6 +15,9 @@
     "url": "git+https://github.com/omcoskun/convert-tools.git",
     "directory": "packages/core-js"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./dist/cjs/index.js",

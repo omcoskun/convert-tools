@@ -1,0 +1,88 @@
+name: Release
+
+# Publishes a release when a version tag (v1.2.3) is pushed: the Maven package
+# and the npm package to GitHub Packages, then a GitHub Release with the npm
+# tarball and the jar for teams without GitHub access. The irreversible steps
+# come last: Maven, then npm (neither accepts the same version twice). If a
+# step fails after a publish, the tag is not re-run; the next patch version is
+# released instead. Nothing here changes a package's visibility: the npm
+# package is private when first published and must stay so.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.2"
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@omcoskun"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          server-id: github
+
+      - name: Check the tag against the versions
+        run: sh scripts/check-release-tag.sh "$GITHUB_REF_NAME"
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Core tests
+        run: npm run test:core
+
+      - name: Package smoke test
+        run: npm run test:pack
+
+      - name: Java contract checks
+        run: npm run test:java
+
+      - name: Pack the npm tarball
+        run: |
+          npm run build --workspace @omcoskun/convert-tools
+          mkdir -p "$RUNNER_TEMP/release"
+          cd packages/core-js
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/release"
+
+      - name: Publish the Maven package
+        run: mvn --batch-mode --file packages/core-java/pom.xml deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the npm package
+        run: npm publish "$RUNNER_TEMP/release/omcoskun-convert-tools-${GITHUB_REF_NAME#v}.tgz" --registry https://npm.pkg.github.com
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create the GitHub Release
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          "$RUNNER_TEMP/release/omcoskun-convert-tools-${GITHUB_REF_NAME#v}.tgz"
+          "packages/core-java/target/convert-tools-${GITHUB_REF_NAME#v}.jar"
+          --title "$GITHUB_REF_NAME"
+          --notes "Değişiklikler: packages/core-js/CHANGELOG.md"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

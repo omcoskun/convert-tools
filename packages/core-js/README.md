@@ -5,7 +5,32 @@ biçimleri (DD, DMS, DDM, UTM/UPS, MGRS, GARS, GEOREF), EPSG dönüşümleri ve
 WGS 84 geodezi çekirdeği. Java eşi `packages/core-java` aynı algoritmaları
 kullanır; iki çekirdek de `contracts/` altındaki aynı dosyaları geçer.
 
-## Kurulum ve kullanım
+## Kurulum
+
+Paketler GitHub Packages'ta gizli olarak yayımlanır; kurmak için repoya erişim
+ve `read:packages` yetkili bir classic kişisel erişim token'ı (PAT) gerekir.
+
+**npm.** Projenin `.npmrc` dosyasına paketin nereden geleceğini, kendi
+`~/.npmrc` dosyanıza token'ı yazın (token hiçbir zaman repoya girmez):
+
+```text
+# proje/.npmrc
+@omcoskun:registry=https://npm.pkg.github.com
+
+# ~/.npmrc
+//npm.pkg.github.com/:_authToken=<token>
+```
+
+```bash
+npm install @omcoskun/convert-tools
+```
+
+**GitHub erişimi olmadan.** Her sürümün GitHub Release'ında
+`omcoskun-convert-tools-<sürüm>.tgz` ve `convert-tools-<sürüm>.jar` dosyaları
+vardır. Tarball `npm install ./omcoskun-convert-tools-1.0.0.tgz` ile kurulur;
+jar classpath'e eklenir. İkisi de hesap ve ağ gerektirmez.
+
+## Kullanım
 
 ```js
 // ESM
