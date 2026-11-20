@@ -3,8 +3,8 @@
 Kesin uzunluk dönüşümü, WGS 84 koordinat biçimleri, EPSG dönüşümleri ve
 elipsoidal geodezik ölçüm için **kütüphane**: JavaScript çekirdeği
 `@omcoskun/convert-tools` ve onun Java 17 eşi. İki çekirdek dilden bağımsız aynı
-sözleşme vektörlerini geçer. Harita tanıtım sitesi ayrı bir repodadır:
-[omcoskun/convert-tools-map](https://github.com/omcoskun/convert-tools-map).
+sözleşme vektörlerini geçer. Kütüphaneyi kullanan harita uygulaması (Map) ayrı
+bir repodadır: [omcoskun/map](https://github.com/omcoskun/map).
 
 Ölçüt kanıtlanabilir doğruluktur: referans değerler GeographicLib 2.7
 (GeoConvert, GeodSolve) ile üretilir, test edilen koddan türetilmez.
